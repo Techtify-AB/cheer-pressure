@@ -117,8 +117,9 @@ function Shell() {
     return registerDevTools(
       () => web.current?.reload(),
       (path) => web.current?.injectJavaScript(openPathScript(path)),
+      (kind) => bridge.ask(kind),
     );
-  }, []);
+  }, [bridge]);
 
   const onMessage = useCallback(
     (e: WebViewMessageEvent) => {

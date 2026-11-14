@@ -11,6 +11,8 @@
 // And a notification in a few seconds, through the same scheduling as the page's plan, to try
 // that it fires and that a tap opens its screen (leave the app first to see the banner):
 //   xcrun simctl openurl booted "cheerpressure://dev/notify?kind=word&in=15"
+// And one permission question, as the page would ask it (the bridge's requestPermission):
+//   xcrun simctl openurl booted "cheerpressure://dev/ask?kind=health"
 
 import { Alert, Linking } from "react-native";
 import { IS_DEV } from "./config";
@@ -51,7 +53,7 @@ async function run(action: "add" | "remove", reload: () => void) {
 }
 
 /** Registers the menu items and the link. Returns a function that stops listening to the link. */
-export function registerDevTools(reload: () => void, open: (path: string) => void): () => void {
+export function registerDevTools(reload: () => void, open: (path: string) => void, ask: (kind: string) => Promise<string>): () => void {
   if (!IS_DEV) return () => {};
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const menu = require("expo-dev-menu") as typeof import("expo-dev-menu");
@@ -69,6 +71,8 @@ export function registerDevTools(reload: () => void, open: (path: string) => voi
     if (o) open(decodeURIComponent(o[1]));
     const n = url.match(/^cheerpressure:\/\/dev\/notify\?kind=(hello|word)&in=(\d+)/);
     if (n) void notifySoon(n[1] as "hello" | "word", Number(n[2]));
+    const a = url.match(/^cheerpressure:\/\/dev\/ask\?kind=([a-z-]+)/);
+    if (a) void ask(a[1]).then((state) => Alert.alert("Asked", `${a[1]}: ${state}`));
   };
   void Linking.getInitialURL().then(onUrl);
   const sub = Linking.addEventListener("url", (e) => onUrl(e.url));

@@ -145,6 +145,8 @@ export interface Bridge {
   /** One message from the page. Answers through `deliver`. Ignores anything that is not the bridge's. */
   receive(raw: string): void;
   event<E extends PhoneEventKind>(event: E, data: PhoneEvents[E]): void;
+  /** The same as the page's requestPermission, for the development build's test link. */
+  ask(kind: string): Promise<string>;
 }
 
 /** Extra requests outside the protocol (speech and conversation, mobile/src/voice), same wire. */
@@ -182,6 +184,10 @@ export function createBridge(deliver: (msg: NativeToWeb) => void, hooks: BridgeH
     },
     event(event, data) {
       deliver({ cheerPressure: PHONE_BRIDGE_VERSION, event, data });
+    },
+    async ask(kind) {
+      const r = await table.requestPermission({ kind });
+      return (r as { state: string }).state;
     },
   };
 }
