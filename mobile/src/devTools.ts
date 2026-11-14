@@ -5,6 +5,9 @@
 //   xcrun simctl openurl booted "cheerpressure://dev/demo-health?action=remove"
 // The page itself can also ask through the bridge (lib/phone.ts demoHealth). Release builds never
 // register any of this, and the bridge refuses demoHealth there.
+//
+// Also for trying things from a script: open a screen without tapping your way there.
+//   xcrun simctl openurl booted "cheerpressure://dev/open?path=/values/"
 
 import { Alert, Linking } from "react-native";
 import { IS_DEV } from "./config";
@@ -24,7 +27,7 @@ async function run(action: "add" | "remove", reload: () => void) {
 }
 
 /** Registers the menu items and the link. Returns a function that stops listening to the link. */
-export function registerDevTools(reload: () => void): () => void {
+export function registerDevTools(reload: () => void, open: (path: string) => void): () => void {
   if (!IS_DEV) return () => {};
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const menu = require("expo-dev-menu") as typeof import("expo-dev-menu");
@@ -38,6 +41,8 @@ export function registerDevTools(reload: () => void): () => void {
     if (!url) return;
     const m = url.match(/^cheerpressure:\/\/dev\/demo-health\?action=(add|remove)/);
     if (m) void run(m[1] as "add" | "remove", reload);
+    const o = url.match(/^cheerpressure:\/\/dev\/open\?path=(\/[^#]*)$/);
+    if (o) open(decodeURIComponent(o[1]));
   };
   void Linking.getInitialURL().then(onUrl);
   const sub = Linking.addEventListener("url", (e) => onUrl(e.url));

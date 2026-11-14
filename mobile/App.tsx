@@ -114,7 +114,10 @@ function Shell() {
   // Development builds: "Add eight made-up weeks to Health" in the developer menu and as a link.
   useEffect(() => {
     if (!IS_DEV) return;
-    return registerDevTools(() => web.current?.reload());
+    return registerDevTools(
+      () => web.current?.reload(),
+      (path) => web.current?.injectJavaScript(openPathScript(path)),
+    );
   }, []);
 
   const onMessage = useCallback(
