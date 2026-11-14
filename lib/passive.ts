@@ -272,6 +272,12 @@ interface Def {
   format: (v: number) => string;
   up: string;
   down: string;
+  /** Without a pronoun, for the clinic report: "more uneven", "later". */
+  upWord: string;
+  downWord: string;
+  /** What it is and what it is not, for the report's legend. */
+  is: string;
+  isNot: string;
 }
 
 const ms = (v: number) => `${Math.round(v)} ms`;
@@ -284,6 +290,10 @@ export const PASSIVE_DEFS: Def[] = [
     format: ms,
     up: "your typing has been more uneven",
     down: "your typing has been more even",
+    upWord: "more uneven",
+    downWord: "more even",
+    is: "How even the rhythm of typing is: the timing between key presses while writing, gaps under a second only",
+    isNot: "Never which keys, never what was written, not time spent thinking",
   },
   {
     key: "hold",
@@ -292,6 +302,10 @@ export const PASSIVE_DEFS: Def[] = [
     format: ms,
     up: "you've held keys down longer",
     down: "you've held keys down for less time",
+    upWord: "longer",
+    downWord: "shorter",
+    is: "How long a key is usually held down while writing",
+    isNot: "Never which keys",
   },
   {
     key: "firstActivity",
@@ -300,6 +314,10 @@ export const PASSIVE_DEFS: Def[] = [
     format: dayMinutesToClock,
     up: "your days have started later",
     down: "your days have started earlier",
+    upWord: "later",
+    downWord: "earlier",
+    is: "The first key press of the day on this computer",
+    isNot: "Not the time of waking up",
   },
   {
     key: "lastActivity",
@@ -308,6 +326,10 @@ export const PASSIVE_DEFS: Def[] = [
     format: dayMinutesToClock,
     up: "your days have ended later",
     down: "your days have ended earlier",
+    upWord: "later",
+    downWord: "earlier",
+    is: "The last key press of the day on this computer",
+    isNot: "Not the time of going to bed",
   },
   {
     key: "quietNight",
@@ -317,6 +339,10 @@ export const PASSIVE_DEFS: Def[] = [
     format: (v) => `${v.toFixed(1)} h`,
     up: "your nights have been longer",
     down: "your nights have been shorter",
+    upWord: "longer",
+    downWord: "shorter",
+    is: "Time from the last key press one day to the first the next",
+    isNot: "An estimate of rest, not measured sleep",
   },
 ];
 

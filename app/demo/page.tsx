@@ -103,9 +103,13 @@ export default function DemoPage() {
           <span className="menu-label">Live view</span>
           <span className="menu-value">Typing numbers as you type</span>
         </Link>
-        <Link href="/trends/" className="menu-row">
-          <span className="menu-label">Your own level</span>
-          <span className="menu-value">Each measure against your usual range</span>
+        <Link href="/values/" className="menu-row">
+          <span className="menu-label">My values</span>
+          <span className="menu-value">Each source against your usual range</span>
+        </Link>
+        <Link href="/demo/clinic/" className="menu-row">
+          <span className="menu-label">What a clinic could see</span>
+          <span className="menu-value">Made-up patients who chose to share</span>
         </Link>
       </nav>
     </Screen>

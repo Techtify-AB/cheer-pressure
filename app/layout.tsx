@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Cheer Pressure",
-  description: "Cheri, a companion that notices changes in your own rhythm and asks how you are only when something stands out. Measurements and answers stay on this device.",
+  description: "Cheri, a companion that notices changes in your own rhythm and asks how you are only when something stands out. Measurements stay on this device unless you choose to save or print a report for your clinic.",
   applicationName: "Cheer Pressure",
   appleWebApp: { capable: true, title: "Cheer Pressure", statusBarStyle: "default" },
   icons: { apple: "/icons/icon-192.png" },

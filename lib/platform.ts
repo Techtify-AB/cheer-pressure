@@ -101,6 +101,15 @@ export const openMainWindow = (path?: string) => invoke<void>("open_main", { pat
 export const onNavigate = (h: (path: string) => void) => listen<string>("navigate", h);
 export const pageReady = (path: string) => invoke<void>("page_ready", { path });
 
+/** The print dialog for this page (Save as PDF is in it): the desktop app's own, else the browser's. */
+export async function printPage() {
+  if (isDesktop()) {
+    await invoke<void>("print_page");
+    return;
+  }
+  window.print();
+}
+
 /** Starts moving the current frameless window with the mouse. */
 export async function startWindowDrag() {
   if (!isDesktop()) return;

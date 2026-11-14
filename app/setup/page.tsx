@@ -120,7 +120,7 @@ export default function SetupPage() {
       >
         <div className="card">
           <p style={{ marginBottom: 0 }}>
-            Your measurements and answers stay on this device, and there is no account. Only messages with someone you trust, if you connect one, pass through a messages service.
+            Your measurements stay on this device unless you choose to save or print a report for your clinic, and there is no account. Only messages with someone you trust, if you connect one, pass through a messages service.
           </p>
         </div>
       </Screen>

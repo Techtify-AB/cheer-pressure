@@ -42,18 +42,45 @@ header says so on every screen, with a link that clears it.
 ## Three places, the ladder and the replay
 
 The interface has three places. **Home** is the companion, one calm line and one row,
-"What I'm noticing", that opens the details. "Talk to me" starts the **conversation** when the
+"What I'm noticing", that opens **My values**. "Talk to me" starts the **conversation** when the
 person wants to; when the measures stand out, the companion looks attentive and home offers
 "Have a look" instead. **Settings** is a short list: what is measured (each source on or off,
 Pause everything), which small things it may suggest and quiet hours (22:00 to 08:00 by
-default, when it never speaks up), voice, someone you trust, your data,
-need help now, and **For the demo**, the one marked place for the live view, your own level,
-demo data and the replay.
+default, when it never speaks up), voice, someone you trust, My values, your data,
+need help now, and **For the demo**, the one marked place for the live view, demo data, the
+replay, the messages service address and "What a clinic could see".
+
+## My values and the clinic report
+
+**My values** (`/values/`, `lib/report.ts`) opens on one sentence and how many sources stand
+out, then one source per view: each measure as a strip of daily dots over the last eight weeks
+against the person's own usual band, the last week's middle and the usual range with a plain
+meaning next to them, and "Stands out since <date>" where the rule says so. It replaced the
+older "Your own level" screen.
+
+**Share with my clinic** (`/share/`, from My values and from the ladder's third step) shows the
+exact report first, one part at a time, then "Save as PDF or print" (the browser's print dialog,
+or the desktop app's own through a `print_page` command) or "Not now". The printed report is
+one A4 page (`@media print` in `app/globals.css`): the period (eight weeks), per source what
+changed, which way, since when, against the person's own usual; how many days it rests on,
+including days with too little typing; the person's answers to Cheri with dates and PHQ-2
+totals; the ladder's steps and whether the values came back; what each value is and is not;
+and "A prototype. Not a diagnosis and not for clinical decisions on its own." It is written in
+the first person. No raw events, no app names, no typed text except answers to Cheri. Nothing is
+sent: there is no clinic integration, and the messages service never receives it. In the
+ladder, with demo data, "Approve for the demo clinic" shows "Marked as a demo recipient.
+Nothing was sent." `scripts/test-report.mts` checks that every number in it is one My values
+shows, a count of days or a date, that the dates are right, and the empty states.
+
+**What a clinic could see** (`/demo/clinic/`, demo only, marked simulated): eight made-up
+people who chose to share, from the replay's generator with drifts that began on different
+days, in an order of who to look at first (how many days in a row and how many sources stand
+out). No scores, no percentages; one line says the order decides nothing.
 
 After "Not my best" the ladder (`lib/ladder.ts`, one pure function, tested in
 `scripts/test-ladder.mts`) offers one step at a time: one small thing from the routines that
 are on, then after two days "Would you like someone you trust to check in on you?", then after
-seven days a short summary for the clinic, shown word for word before anything is approved.
+seven days "Would you like your clinic to get a short summary?", which opens Share with my clinic.
 It escalates only while the measures still stand out the way the rule asks about, respects "Not now" for three
 days, and stays quiet in quiet hours. "I'd like someone to check in on me" goes straight to the
 second step. Reaching someone goes through `lib/contact.ts`: when a pair exists it sends a real
@@ -131,7 +158,7 @@ own usual, when it has enough days in both windows; otherwise every kind pooled.
 (evenness, hold time) and **day and night rhythm** (first activity, last activity, quiet
 night). It proposes a check-in when measures have changed in **two different sources**, or when
 **at least two day and night measures** have changed even if nothing else has. **Typing alone
-never asks**; "Your own level" under the demo still shows it, and says so. The ladder's "the
+never asks**; My values still shows it, and says so. The ladder's "the
 measures have come back" uses the same test. After asking it waits **3 days**, unless a measure
 changes that was not part of the last check-in.
 
@@ -185,8 +212,10 @@ still load.
 
 | Path | What it is |
 | --- | --- |
-| `app/` | Screens: `setup`, home (`page.tsx`), `prompt` (the conversation and the ladder), `settings`, `help`, `weekly` (only from the conversation), `demo` (with `demo/replay`, `live` and `trends` reached from it), and `mascot` (the desktop mascot window) |
-| `lib/ladder.ts` | Which step is due after "Not my best", and the clinic text |
+| `app/` | Screens: `setup`, home (`page.tsx`), `prompt` (the conversation and the ladder), `settings`, `help`, `weekly` (only from the conversation), `values` (My values), `share` (Share with my clinic), `demo` (with `demo/replay`, `demo/clinic` and `live` reached from it), and `mascot` (the desktop mascot window) |
+| `lib/ladder.ts` | Which step is due after "Not my best" |
+| `lib/report.ts` | My values and the clinic report, from the same evaluation; `lib/clinicDemo.ts` makes the demo's made-up patients |
+| `components/Strip.tsx` | One measure as daily dots over the usual band (My values and the replay) |
 | `lib/settings.ts` | Sources, routines and quiet hours, with their defaults |
 | `lib/contact.ts` | Reaching someone you trust: the real contact on top of `lib/messages.ts`, the stand-in for demo mode without a pair, and which message home shows |
 | `lib/trusted.ts` | The app's one messages client, followed once while a pair exists, and the hook screens read it through |
@@ -273,7 +302,7 @@ four weeks before a change is based on).
 - For the person's own entries: one sentence to say (`say`), at most one suggestion
   (`morning-light`, `walk`, `regular-bedtime` or `music`), and whether a change was noticed.
 - `passive`: the explanation shown first in the proposed check-in (`explanation`), the calm
-  line on home (`calmLine`), the one sentence on "Your own level" (`insight`) and the one small
+  line on home (`calmLine`), the one-sentence insight (`insight`) and the one small
   thing to try after "Not my best" (`suggestion`).
 
 **Whether to ask is not the brain's decision.** That rule stays in `lib/passive.ts`
@@ -335,8 +364,8 @@ the brain is asked anything.
 - QR codes are made on the device; the links are not sent to any other service to draw them.
 - Read-aloud uses only voices the browser reports as on-device (`localService`). If there is
   none, the companion stays silent and shows its text.
-- The clinic step shows the exact text before anything is approved, and sends nothing: approving
-  marks a demo recipient.
+- Measurements stay on this device unless the person chooses to save or print a report for
+  their clinic, each time, after seeing all of it. The app sends it nowhere.
 - "Delete everything" (in Your data and settings) clears all stored data after one confirmation.
 
 ## Desktop app
@@ -427,7 +456,8 @@ the menu bar icon.
 - A trained model. The rule-based brain is the default (see above).
 - Any sync, backup or account. Clearing the browser's site data deletes everything. The only
   server is the messages service for someone you trust.
-- Sending anything to a clinic. The clinic step shows the text and marks a demo recipient.
+- Sending anything to a clinic. The person saves or prints the report; there is no clinic
+  integration. "What a clinic could see" is made up.
 - The clinic's real contact details. The help screen has a marked placeholder.
 - Reminders or notifications. Greetings arrive by polling every 1.5 s while the app runs.
 - More than one trusted person, or a conversation history in the interface.

@@ -280,7 +280,7 @@ function LiveView({ daysSaved, blocked }: { daysSaved: number; blocked: boolean 
                 In the desktop app, the kind of app in front when a stretch starts is kept as one word (writing, code,
                 browser, game or other), never the app&apos;s name or what is in it. A day gets a value once it has{" "}
                 {MIN_DAY_PRESSES} counted presses. {daysSaved > 0 ? `${daysSaved} days so far. ` : ""}They show up in{" "}
-                <Link href="/trends/">Your own level</Link>.
+                <Link href="/values/">My values</Link>.
               </p>
               {!desktop ? (
                 <p>First and last activity of the day are measured in the desktop app.</p>

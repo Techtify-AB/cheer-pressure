@@ -6,7 +6,6 @@ import {
   answerClinic,
   answerSmallThing,
   answerSomeone,
-  clinicSummary,
   ladderDue,
   requestSomeone,
   shiftLadder,
@@ -200,25 +199,6 @@ for (const last of ["2026-11-14", "2027-03-29", "2026-06-30"]) {
   // The frame the replay stops on says the same as the app does with that data on that day.
   const e = evaluatePassive(a1!.data, a1!.date);
   check("replay: the stopping frame is exactly the rule's result", e.askNow && e.changed.length === a1!.evaluation.changed.length);
-}
-
-// The clinic text: what changed, since when, the person's answers, no raw numbers
-{
-  const last = "2026-11-14";
-  const frames = replayFrames(makeReplayData(last), last);
-  const a = firstAsk(frames)!;
-  const text = clinicSummary({
-    ladder: answerSomeone(answerSmallThing(startAfterNotBest(a.date, "walk", true), "try", a.date), "yes", a.date),
-    passive: a.evaluation,
-    checkIns: [
-      { id: "c", date: a.date, at: "", answer: "not-best", triggeredBy: [], basedOn: { days: 7, usualDays: 26 }, simulated: true },
-    ],
-  });
-  const withoutDates = text.replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} [A-Z][a-z]{2}\b/g, "");
-  check("clinic text: names what changed", a.evaluation.changed.every((m) => !m.phrase || text.includes(m.phrase)), text.split("\n")[1]);
-  check("clinic text: the person's own answers", text.includes('"Not my best"') && text.includes("a walk in daylight") && text.includes("someone I trust"));
-  check("clinic text: no numbers other than dates", !/\d/.test(withoutDates), withoutDates);
-  check("clinic text: no risk or diagnosis words", !/(risk|depress|relapse|diagnos|score|%)/i.test(text));
 }
 
 if (failed) {

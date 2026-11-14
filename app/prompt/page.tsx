@@ -34,7 +34,6 @@ import {
   answerReply,
   answerSmallThing,
   answerSomeone,
-  clinicSummary,
   isActive,
   requestSomeone,
   startAfterNotBest,
@@ -63,7 +62,6 @@ type View =
   | "someone"
   | "someone-asked"
   | "clinic"
-  | "clinic-done"
   | "declined"
   | "waiting";
 
@@ -456,22 +454,9 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
     );
   }
 
-  // Step 3: the clinic
-  if (view === "clinic" || view === "clinic-done") {
-    const l = readData().ladder;
-    if (view === "clinic-done") {
-      return (
-        <Screen
-          lead={
-            <Says state="idle" size={88}>
-              <p>Marked as a demo recipient. Nothing was sent.</p>
-            </Says>
-          }
-          actions={home()}
-        />
-      );
-    }
-    const text = l ? clinicSummary({ ladder: l, passive: evaluation, checkIns: data.checkIns }) : "";
+  // Step 3: the clinic. The report itself is on "Share with my clinic", shown in full before
+  // anything is saved or printed; nothing is ever sent from the app.
+  if (view === "clinic") {
     return (
       <Screen
         lead={
@@ -484,17 +469,9 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
         }
         actions={
           <>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                const cur = readData().ladder;
-                if (cur) saveLadder(answerClinic(cur, "approve", today));
-                setView("clinic-done");
-              }}
-            >
-              Approve
-            </button>
+            <Link href="/share/?from=ladder" className="btn btn-primary">
+              Show me what they would get
+            </Link>
             <div className="links">
               <button
                 type="button"
@@ -511,12 +488,9 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
           </>
         }
       >
-        <section className="card stack-sm" aria-labelledby="share-title">
-          <h2 id="share-title" className="small muted share-title">
-            This is exactly what they would get
-          </h2>
-          <pre className="summary">{text}</pre>
-        </section>
+        <p className="muted">
+          You see all of it first. Nothing is sent: you save it as a PDF or print it yourself, and give it to them.
+        </p>
       </Screen>
     );
   }

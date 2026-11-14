@@ -14,12 +14,11 @@ import { useEffect, useState } from "react";
 import { GreetingScreen, ReplyCrisisScreen, who } from "@/components/Greeting";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
-import { Disclosure, Screen } from "@/components/Screen";
-import { useCompanionStatus, useReflection, useRequireProfile, useToday } from "@/components/hooks";
+import { Screen } from "@/components/Screen";
+import { useCompanionStatus, useReflection, useRequireProfile } from "@/components/hooks";
 import { isActive } from "@/lib/ladder";
 import { moodFor } from "@/lib/mood";
-import type { PassiveMetric } from "@/lib/passive";
-import { NOT_CONNECTED, quietHoursOf, sourcesOf } from "@/lib/settings";
+import { quietHoursOf, sourcesOf } from "@/lib/settings";
 import { useData } from "@/lib/storage";
 import { answerTo, pendingMessage } from "@/lib/contact";
 import type { Answer } from "@/lib/events";
@@ -31,7 +30,6 @@ const SENT_LINE_MS = 4000;
 export default function HomePage() {
   const data = useData();
   const ready = useRequireProfile(data);
-  const today = useToday();
   const { reflection } = useReflection(data);
   const { evaluation, outcome } = useCompanionStatus(data);
   const { desktop, status } = useDesktopTyping();
@@ -99,20 +97,6 @@ export default function HomePage() {
   else if (desktop && status?.listener === "permission-needed") summary = `${what}, once you allow it on this computer`;
   else summary = `${what}, in the desktop app`;
 
-  /** What each passive measure is doing right now, in a few plain words. */
-  const stateOf = (m: PassiveMetric): { state: string; on: boolean } => {
-    const off = m.source === "typing" ? !sources.typing : !sources.dayRhythm;
-    if (off) return { state: "Off", on: false };
-    if (pausedAll || menuPaused) return { state: "Paused", on: false };
-    const learning = m.status === "learning";
-    if (running) return { state: learning ? "Still learning" : "Measuring", on: true };
-    return { state: desktop ? "Needs permission" : "Desktop app only", on: false };
-  };
-  const SHORT: Partial<Record<PassiveMetric["key"], string>> = {
-    quietNight: "Quiet night (estimate)",
-  };
-  const todayActivity = data.activityDays.find((d) => d.date === today && d.source === "user");
-
   return (
     <Screen
       lead={
@@ -137,46 +121,15 @@ export default function HomePage() {
         )
       }
     >
-      <Disclosure
-        title="What I'm noticing"
-        triggerClassName="noticing"
-        trigger={
-          <>
-            <span className="noticing-text">
-              <span className="noticing-label">What I&apos;m noticing</span>
-              <span className="noticing-value">{summary}</span>
-            </span>
-            <span className="noticing-more" aria-hidden="true">
-              Details
-            </span>
-          </>
-        }
-      >
-        <ul className="source-list">
-          {evaluation.metrics.map((m) => {
-            const { state, on } = stateOf(m);
-            return (
-              <li key={m.key}>
-                <span className={on ? "source-dot on" : "source-dot"} aria-hidden="true" />
-                <span className="source-name">{SHORT[m.key] ?? m.label}</span>
-                <span className="source-state">{state}</span>
-              </li>
-            );
-          })}
-        </ul>
-        <p className="small muted">Not connected yet: {NOT_CONNECTED.join(", ").toLowerCase()}.</p>
-        <p>
-          Only the timing of key presses is used, never which keys or what you type, and the kind of app in front
-          (writing, code, browser or game), never its name or what is in it. Only real writing counts. First and last activity are the
-          times of your first and last key press each day.{" "}
-          {todayActivity ? `Today your first was at ${todayActivity.first}.` : ""} Quiet night is the time between them
-          overnight: an estimate of rest, not measured sleep.
-        </p>
-        <p>
-          Measurements, answers and summaries never leave this device. You choose what is measured in{" "}
-          <Link href="/settings/#measure">Settings</Link>.
-        </p>
-      </Disclosure>
+      <Link href="/values/" className="noticing">
+        <span className="noticing-text">
+          <span className="noticing-label">What I&apos;m noticing</span>
+          <span className="noticing-value">{summary}</span>
+        </span>
+        <span className="noticing-more" aria-hidden="true">
+          My values
+        </span>
+      </Link>
     </Screen>
   );
 }

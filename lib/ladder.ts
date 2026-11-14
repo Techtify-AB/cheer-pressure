@@ -14,10 +14,10 @@
 // Pure code: given the stored state, today's date, the clock and the passive result,
 // it says which step is due. The screens only show it and store the answers.
 
-import { daysBetween, addDays, formatDay } from "./dates";
-import { enoughToAsk, joinPhrases, type Evaluation } from "./passive";
+import { daysBetween, addDays } from "./dates";
+import { enoughToAsk, type Evaluation } from "./passive";
 import { inQuietHours } from "./settings";
-import type { DayKey, LadderState, PromptedCheckIn, RoutineId } from "./types";
+import type { DayKey, LadderState, RoutineId } from "./types";
 
 export const SOMEONE_AFTER_DAYS = 2;
 export const CLINIC_AFTER_DAYS = 7;
@@ -155,51 +155,4 @@ export function shiftLadder(l: LadderState, days: number): LadderState {
     declinedOn: s(l.declinedOn),
     closedOn: s(l.closedOn),
   };
-}
-
-// The text for the clinic
-
-const ROUTINE_WORDS: Record<RoutineId, string> = {
-  walk: "a walk in daylight",
-  "morning-light": "some morning light",
-  "regular-bedtime": "a regular bedtime",
-  music: "some music",
-  "call-someone": "calling someone",
-};
-
-const ANSWER_WORDS: Record<PromptedCheckIn["answer"], string> = {
-  okay: "I'm okay",
-  "not-best": "Not my best",
-  someone: "I'd like someone to check in on me",
-  "not-now": "Not now",
-};
-
-/**
- * The exact text that would be shared with the clinic: which measures changed, since
- * when, and the person's own answers. No numbers the person has not seen.
- */
-export function clinicSummary(input: {
-  ladder: LadderState;
-  passive: Pick<Evaluation, "changed">;
-  checkIns: PromptedCheckIn[];
-}): string {
-  const { ladder, passive } = input;
-  const phrases = passive.changed.map((m) => m.phrase).filter((p): p is string => !!p);
-  const since = passive.changed
-    .flatMap((m) => m.points.slice(-(m.recent?.n ?? 3)).map((p) => p.date))
-    .sort()[0];
-  const lines: string[] = [];
-  lines.push("From Cheri, my Cheer Pressure companion, compared only with my own usual:");
-  if (phrases.length) {
-    const first = joinPhrases(phrases);
-    lines.push(`Since ${since ? formatDay(since) : formatDay(ladder.startedOn)}, ${first}.`);
-  }
-  const answers = input.checkIns.filter((c) => c.date >= ladder.startedOn && c.answer !== "not-now");
-  const last = answers[answers.length - 1];
-  if (last) lines.push(`On ${formatDay(last.date)} I answered "${ANSWER_WORDS[last.answer]}".`);
-  if (ladder.smallThing?.routine && ladder.smallThing.answer === "try") {
-    lines.push(`I said I'd try ${ROUTINE_WORDS[ladder.smallThing.routine]}.`);
-  }
-  if (ladder.someone?.answer === "yes") lines.push("I asked for someone I trust to check in on me.");
-  return lines.join("\n");
 }

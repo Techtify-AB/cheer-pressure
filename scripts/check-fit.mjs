@@ -162,13 +162,10 @@ async function run(size) {
   await go("/");
   await measure(page, "home");
   await page.locator(".noticing").click();
+  await page.waitForURL("**/values/");
   await page.waitForTimeout(300);
-  const sheet = await page.evaluate(() => {
-    const d = document.querySelector("dialog[open]");
-    return d ? { fits: d.scrollHeight <= d.clientHeight + 1 } : null;
-  });
-  results.push({ ok: !!sheet?.fits, name: "home sheet fits without scrolling", vp: `${size.width}x${size.height}`, overY: sheet ? (sheet.fits ? 0 : 1) : "no sheet", overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
-  await page.keyboard.press("Escape");
+  await measure(page, "values-learning");
+  await go("/");
   await click("Talk to me");
   await measure(page, "talk-own-choice");
 
@@ -224,10 +221,49 @@ async function run(size) {
     await click("Skip ahead two days");
   }
   await measure(page, "step3-clinic");
-  await click("Approve");
+  await click("Show me what they would get");
+  await page.waitForURL("**/share/**");
+  await page.waitForTimeout(400);
+  await measure(page, "step3-share");
+  await click("Approve for the demo clinic");
   await measure(page, "step3-approved");
-  await go("/trends/");
-  await measure(page, "trends");
+  // My values on made-up data, one source per view, and the clinic report.
+  await go("/values/");
+  await measure(page, "values-summary");
+  await click("See each source");
+  await measure(page, "values-typing");
+  await click("Next");
+  await measure(page, "values-day-and-night");
+  await go("/share/");
+  for (let i = 0; i < 5; i++) {
+    await measure(page, `share-part-${i + 1}`);
+    if (i < 4) await page.locator(".pager").getByRole("button", { name: "Next" }).click();
+    await page.waitForTimeout(150);
+  }
+  // The printed report: only the report, on A4.
+  await page.emulateMedia({ media: "print" });
+  const print = await page.evaluate(() => ({
+    report: getComputedStyle(document.querySelector(".print-report")).display,
+    app: getComputedStyle(document.querySelector(".screen")).display,
+    header: getComputedStyle(document.querySelector(".shell-header")).display,
+  }));
+  await page.emulateMedia({ media: "screen" });
+  let pages = 0;
+  if (size.width === 1366) {
+    const pdf = await page.pdf({ format: "A4", printBackground: false });
+    pages = (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+    if (SHOTS) {
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(path.join(SHOTS, "clinic-report.pdf"), pdf);
+    }
+  }
+  results.push({
+    ok: print.report === "block" && print.app === "none" && print.header === "none" && (size.width !== 1366 || pages === 1),
+    name: `print: only the report${size.width === 1366 ? `, ${pages} A4 page` : ""}`,
+    vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0,
+  });
+  await go("/demo/clinic/");
+  await measure(page, "demo-what-a-clinic-could-see");
   await go("/weekly/");
   await measure(page, "weekly");
 

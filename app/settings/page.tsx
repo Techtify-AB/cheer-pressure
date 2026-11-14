@@ -93,7 +93,8 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
     },
     { key: "voice", label: "Voice", value: s.muted ? "Off" : "On", onClick: () => go("voice") },
     { key: "trust", label: "Someone you trust", value: trusted, onClick: () => go("trust") },
-    { key: "data", label: "Your data", value: "Measurements and answers stay on this device", onClick: () => go("data") },
+    { key: "values", label: "My values", value: "Each source, and a report for your clinic", href: "/values/" },
+    { key: "data", label: "Your data", value: "On this device unless you share a report", onClick: () => go("data") },
     { key: "help", label: "Need help now", value: "112 and your clinic", href: "/help/" },
     { key: "demo", label: "For the demo", value: "Made-up data, replay, live view", href: "/demo/", demo: true },
   ];
@@ -102,7 +103,7 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
       lead={
         <>
           <h1 className="item-title">Settings</h1>
-          <p className="muted">A few choices. Your measurements and answers stay on this device.</p>
+          <p className="muted">A few choices. Your measurements stay on this device unless you save or print a report for your clinic.</p>
         </>
       }
       actions={
@@ -490,7 +491,7 @@ function Trust({ data, back }: { data: AppData; back: React.ReactNode }) {
           {ended ? "The connection ended. Links last two days." : "Not connected"}
         </p>
         <p className="small muted">
-          They get a link to open on their phone. Your measurements, answers and summaries never leave this device.
+          They get a link to open on their phone. The messages service never receives your measurements, answers or reports.
         </p>
         {problem && (
           <p className="small problem-text" role="alert">
@@ -510,7 +511,7 @@ function YourData({ data, back, onDelete }: { data: AppData; back: React.ReactNo
         <>
           <h1 className="item-title">Your data</h1>
           <p className="muted">
-            On this device only, with no account and no login: {counts}. None of it is ever sent anywhere.
+            On this device, with no account and no login: {counts}. It stays here unless you choose to save or print a report for your clinic.
           </p>
         </>
       }
@@ -528,7 +529,7 @@ function YourData({ data, back, onDelete }: { data: AppData; back: React.ReactNo
               </p>
               {data.profile?.earlySigns.length ? <p>Your early signs: {data.profile.earlySigns.join(", ")}.</p> : null}
               <p>
-                Messages with someone you trust are the one thing that leaves this device: they pass through the
+                Messages with someone you trust are the one thing the app itself sends: they pass through the
                 messages service, which deletes them after two days and never receives anything about your health.
                 On this device only the newest few are kept, and Disconnect removes them.
               </p>

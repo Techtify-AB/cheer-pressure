@@ -353,6 +353,13 @@ fn open_main(app: AppHandle, path: Option<String>) {
   }
 }
 
+/// Opens the system print dialog for the calling window (Save as PDF is in it). The web
+/// view's own window.print() is not reliable in the macOS desktop shell.
+#[tauri::command]
+fn print_page(window: tauri::WebviewWindow) {
+  let _ = window.print();
+}
+
 /// Logged once per window so a smoke test can see that each page's script ran.
 #[tauri::command]
 fn page_ready(window: tauri::WebviewWindow, path: String) {
@@ -392,6 +399,7 @@ pub fn run() {
       day_rhythm,
       forget_all,
       open_main,
+      print_page,
       page_ready
     ])
     .setup(move |app| {
