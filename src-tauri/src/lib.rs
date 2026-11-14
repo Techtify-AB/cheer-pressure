@@ -447,7 +447,7 @@ pub fn run() {
         .theme(Some(tauri::Theme::Light))
         .effects(
           EffectsBuilder::new()
-            .effect(Effect::UnderWindowBackground)
+            .effect(Effect::Sidebar)
             .state(EffectState::Active)
             .build(),
         );

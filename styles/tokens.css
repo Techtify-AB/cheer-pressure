@@ -90,7 +90,7 @@
 
   /* The desktop main window: one frosted pane. The system blurs the desktop behind the
      window; this cream wash sits on that blur and the content sits directly on it. */
-  --desktop-wash: rgba(251, 248, 241, 0.3);
+  --desktop-wash: rgba(251, 248, 241, 0.12);
 
   /* Layout and motion */
   --content-width: 560px;
