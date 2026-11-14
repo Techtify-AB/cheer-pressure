@@ -24,10 +24,11 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "start": "expo start --dev-client",
+    "ios": "expo run:ios",
+    "ios:release": "node scripts/copy-web.mjs && expo run:ios --configuration Release",
+    "web:copy": "node scripts/copy-web.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "private": true
 }
