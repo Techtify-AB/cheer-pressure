@@ -1,0 +1,25 @@
+{
+  "name": "junction-companion",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev -p 3470",
+    "build": "next build",
+    "start": "next start -p 3470",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "next": "16.3.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "typescript": "^5"
+  }
+}
