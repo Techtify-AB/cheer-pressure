@@ -45,21 +45,46 @@ export default function SetupPage() {
     setSigns((cur) => (cur.includes(sign) ? cur.filter((s) => s !== sign) : cur.length < MAX_SIGNS ? [...cur, sign] : cur));
   };
 
+  const tidy = (raw: string) => raw.trim().replace(/\s+/g, " ").slice(0, 60);
+
+  /** The signs with the typed text added, if it is new and there is room. */
+  const withCustom = (text: string): string[] => {
+    if (!text || signs.length >= MAX_SIGNS || signs.some((s) => s.toLowerCase() === text.toLowerCase())) return signs;
+    return [...signs, text];
+  };
+
+  const onCustomChange = (value: string) => {
+    setCustom(value);
+    // Checked on every change, so the handoff card shows as soon as the words are typed.
+    if (containsCrisisWords(value)) {
+      voice.quiet();
+      setCrisis(true);
+    }
+  };
+
   const addCustom = () => {
-    const text = custom.trim().replace(/\s+/g, " ").slice(0, 60);
+    const text = tidy(custom);
     if (!text) return;
     if (containsCrisisWords(text)) {
       setCrisis(true);
       return;
     }
-    if (signs.length >= MAX_SIGNS || signs.some((s) => s.toLowerCase() === text.toLowerCase())) return;
-    setSigns((cur) => [...cur, text]);
+    setSigns(withCustom(text));
     setCustom("");
   };
 
   const finish = () => {
+    const text = tidy(custom);
+    // Typed but not added: never dropped in silence. Crisis words show the card first
+    // and are never saved as an early sign.
+    if (containsCrisisWords(text) && !crisis) {
+      voice.quiet();
+      setCrisis(true);
+      return;
+    }
+    const earlySigns = crisis || !text ? signs : withCustom(text);
     voice.quiet();
-    saveProfile({ createdAt: new Date().toISOString(), earlySigns: signs });
+    saveProfile({ createdAt: new Date().toISOString(), earlySigns });
     router.replace("/");
   };
 
@@ -149,7 +174,7 @@ export default function SetupPage() {
                 placeholder={full ? "You've picked three" : "For example: stopped cooking"}
                 onFocus={() => voice.setListening(true)}
                 onBlur={() => voice.setListening(false)}
-                onChange={(e) => setCustom(e.target.value)}
+                onChange={(e) => onCustomChange(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -172,7 +197,7 @@ export default function SetupPage() {
       )}
 
       <button type="button" className="btn btn-primary" onClick={finish}>
-        {signs.length ? "Save and continue" : "Skip for now"}
+        {signs.length || (!crisis && tidy(custom)) ? "Save and continue" : "Skip for now"}
       </button>
     </div>
   );
