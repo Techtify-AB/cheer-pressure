@@ -22,6 +22,7 @@ use store::{Store, TypingDayRow};
 use tauri::{
   menu::{Menu, MenuItem, PredefinedMenuItem},
   tray::TrayIconBuilder,
+  window::{Effect, EffectState, EffectsBuilder},
   AppHandle, Emitter, Manager, PhysicalPosition, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 
@@ -431,14 +432,34 @@ pub fn run() {
         *measure.store.lock().unwrap() = Store::open(Some(dir.join("rhythm.json")));
       }
 
-      WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
+      let main = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
         .title("Cheer Pressure")
         .inner_size(520.0, 820.0)
         .min_inner_size(380.0, 560.0)
         // The main window keeps polling for messages from someone you trust while it is
         // hidden to the menu bar; the default policy would pause its timers (macOS 14+).
         .background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled)
-        .build()?;
+        // One frosted pane: the window is see-through and the system blurs the desktop behind
+        // it; the page lays a cream wash on that blur (app/globals.css, html[data-shell]).
+        // Active keeps it frosted when the window is not in front. Light keeps the blur light
+        // under the dark text, also when the Mac is in dark mode.
+        .transparent(true)
+        .theme(Some(tauri::Theme::Light))
+        .effects(
+          EffectsBuilder::new()
+            .effect(Effect::UnderWindowBackground)
+            .state(EffectState::Active)
+            .build(),
+        );
+      // The title bar is part of the glass: the window buttons stay, the title is hidden, and
+      // the empty parts of the page's header drag the window (data-tauri-drag-region). The
+      // buttons sit level with the header row, which starts after them (app/globals.css).
+      #[cfg(target_os = "macos")]
+      let main = main
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .traffic_light_position(tauri::LogicalPosition::new(18.0, 21.0));
+      main.build()?;
 
       let mascot = WebviewWindowBuilder::new(app, MASCOT, WebviewUrl::App("mascot/index.html".into()))
         .title("Cheer Pressure mascot")
