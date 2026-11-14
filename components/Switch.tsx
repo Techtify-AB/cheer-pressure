@@ -9,9 +9,12 @@ export function SwitchRow({
   on,
   onChange,
   disabledText,
+  keepHint = false,
 }: {
   label: string;
   hint?: string;
+  /** The hint must stay visible even where hints are shortened away (narrow screens). */
+  keepHint?: boolean;
   on: boolean;
   onChange?: (on: boolean) => void;
   /** Shown instead of a working switch, e.g. "Not connected yet". */
@@ -29,7 +32,7 @@ export function SwitchRow({
     >
       <span className="switch-text">
         <span className="switch-label">{label}</span>
-        {(disabledText || hint) && <span className="switch-hint">{disabledText ?? hint}</span>}
+        {(disabledText || hint) && <span className={keepHint ? "switch-hint keep" : "switch-hint"}>{disabledText ?? hint}</span>}
       </span>
       <span className="switch" data-on={!disabled && on ? "" : undefined} aria-hidden="true">
         <span />

@@ -2,23 +2,23 @@
 // Pure code: give it the stored data and today's date, get back what changed.
 //
 // THE RULE (keep it explainable):
-// - One value per measure per day. Typing: rhythm evenness and hold time, pooled over the
-//   day's counted bursts of real writing (lib/typing.ts; a day needs 300 counted presses).
-//   Day and night rhythm: first activity, last activity, quiet night.
-// - Windows, the same for every measure: the person's usual is the 28 days before the last
-//   week (at least 10 days with a value); recent is the last 7 days (at least 4 days with a
-//   value). Weekdays are compared with weekdays and weekends with weekends when the usual has
-//   enough of both (8 weekdays and 4 weekend days); otherwise they are pooled.
-// - A measure counts as changed when CHANGE_TEST below says so: chosen by measurement (see
-//   CHANGE_TESTS and scripts/measure-rule.mts).
-// - Typing compares like with like: the kind of app (writing, code, browser, other) with the
-//   most counted presses this week, against that kind's own usual, when that kind has enough
-//   days in both windows; otherwise all kinds pooled (games are never counted).
-// - The measures are grouped into sources (SOURCES below): "typing" and "sleep" (shown to
-//   the person as "Day and night rhythm", an estimate of rest from the first and last key
-//   press, never measured sleep). The companion proposes a check-in when measures have
-//   changed in at least TWO DIFFERENT sources, or when at least TWO sleep measures have
-//   changed even if nothing else has. Typing alone never asks.
+// - Four categories, the same everywhere the person looks: Sleep, Energy, Social and Mood
+//   (SOURCES below: category, then its inputs, then their measures). Today: Sleep is estimated
+//   from when this computer is used (first and last activity, quiet night); Energy from typing
+//   rhythm (evenness and hold, from bursts of real writing, lib/typing.ts) and body movement
+//   from the camera; Social from messages with the person they trust; Mood from the person's
+//   own daily answer, its anchor. Other inputs are listed as not connected yet.
+// - One value per measure per day. Windows, the same for every measure: the person's usual is
+//   the 28 days before the last week (at least 10 days with a value); recent is the last 7
+//   days (at least 4). Weekdays are compared with weekdays and weekends with weekends when the
+//   usual has enough of both (8 and 4); otherwise pooled.
+// - A measure counts as changed when CHANGE_TEST says so, chosen by measurement (CHANGE_TESTS,
+//   scripts/measure-rule.mts). Typing compares like with like by kind of app. The daily answer
+//   has its own test (judgeAnswers).
+// - Cheri asks when at least TWO DIFFERENT categories have changed, or Sleep alone in at least
+//   two measures, or Mood alone through the person's own answers. Energy alone and Social
+//   alone never ask. Camera or voice measures under Mood may only support another category
+//   and never outweigh the person's own answer.
 // - Until there are 14 days with any data, it is still learning and never asks.
 // - After a proposed check-in it waits 3 days, unless a measure changes that was
 //   not part of the last one.
@@ -103,53 +103,140 @@ export type Judgement =
       split: boolean;
     };
 
-export type SourceId = "typing" | "sleep" | "movement" | "answers";
+/** The four categories the person sees everywhere. */
+export type CategoryId = "sleep" | "energy" | "social" | "mood";
+/** The rule's word for a category (kept for the rest of the code). */
+export type SourceId = CategoryId;
+
+/** Which switch in Settings turns an input on, or null for one that is not connected yet. */
+export type InputSetting = "dayRhythm" | "typing" | "camera" | "contact" | "dailyQuestion" | null;
+
+export interface Input {
+  id: string;
+  /** How the person sees it. */
+  label: string;
+  /** The measures it gives; none for an input that is not connected yet. */
+  measures: PassiveKey[];
+  setting: InputSetting;
+  /** From a sensor (camera, voice): worded only as what was measured, never as a feeling. */
+  sensor?: boolean;
+}
 
 /**
- * Which measures belong to which source, and whether a source can make the companion ask
- * on its own. One table, so a later source is one more row: "movement" from the camera,
- * "voice", or a bedside sensor adding its measures to "sleep".
+ * The categories, their inputs and the measures each input gives. One table, so a new input is
+ * one more row: a watch or the bedside companion under Sleep, the pace of the voice under
+ * Energy, expression and posture from the camera under Mood (another builder is adding them to
+ * lib/camera; their slots are here, not connected yet).
  */
 export const SOURCES: {
-  id: SourceId;
-  /** How the person sees it. */
+  id: CategoryId;
   label: string;
   /** In the clinic report, which is in the first person. */
   reportLabel: string;
-  /** In running text: "your typing", "your day and night rhythm". */
+  /** In running text. */
   words: string;
-  measures: PassiveKey[];
+  inputs: Input[];
   /** How many of its measures must change for it to ask on its own; null: never on its own. */
   aloneAsksAt: number | null;
 }[] = [
-  { id: "typing", label: "Typing", reportLabel: "Typing", words: "your typing", measures: ["spread", "hold"], aloneAsksAt: null },
   {
     id: "sleep",
-    label: "Day and night rhythm",
-    reportLabel: "Day and night rhythm",
-    words: "your day and night rhythm",
-    measures: ["firstActivity", "lastActivity", "quietNight"],
+    label: "Sleep",
+    reportLabel: "Sleep",
+    words: "sleep",
     aloneAsksAt: 2,
+    inputs: [
+      { id: "computer-use", label: "Estimated from when this computer is used", measures: ["firstActivity", "lastActivity", "quietNight"], setting: "dayRhythm" },
+      { id: "phone-app", label: "Phone app", measures: [], setting: null },
+      { id: "watch", label: "Watch or band (Fitbit, Apple Health, Health Connect)", measures: [], setting: null },
+      { id: "bedside", label: "The companion at the bedside", measures: [], setting: null },
+    ],
   },
-  // Movement in front of the computer, from the camera (lib/camera). Never asks on its own.
   {
-    id: "movement",
-    label: "Movement",
-    reportLabel: "Movement",
-    words: "your movement",
-    measures: ["movementLevel", "positionChanges"],
+    id: "energy",
+    label: "Energy",
+    reportLabel: "Energy",
+    words: "energy",
     aloneAsksAt: null,
+    inputs: [
+      { id: "typing", label: "Typing rhythm", measures: ["spread", "hold"], setting: "typing", sensor: true },
+      { id: "movement", label: "Body movement (camera)", measures: ["movementLevel", "positionChanges"], setting: "camera", sensor: true },
+      { id: "voice-pace", label: "Pace of the voice", measures: [], setting: null },
+    ],
   },
-  // The person's own report is the best-supported signal, so it may ask on its own.
   {
-    id: "answers",
-    label: "Your own answers",
-    reportLabel: "My own answers",
-    words: "your own answers",
-    measures: ["ownAnswer"],
-    aloneAsksAt: 1,
+    id: "social",
+    label: "Social",
+    reportLabel: "Social",
+    words: "social",
+    aloneAsksAt: null,
+    inputs: [
+      { id: "trusted-contact", label: "Messages with the person you trust", measures: ["contact"], setting: "contact" },
+      { id: "talking", label: "Talking with someone", measures: [], setting: null },
+      { id: "home-or-out", label: "At home or out", measures: [], setting: null },
+    ],
+  },
+  {
+    id: "mood",
+    label: "Mood",
+    reportLabel: "Mood",
+    words: "mood",
+    // Mood asks on its own only through the person's own answers (see enoughToAsk).
+    aloneAsksAt: null,
+    inputs: [
+      { id: "daily-answer", label: "Your daily answer", measures: ["ownAnswer"], setting: "dailyQuestion" },
+      { id: "expression", label: "Facial expression (camera)", measures: [], setting: null, sensor: true },
+      { id: "posture", label: "Posture (camera)", measures: [], setting: null, sensor: true },
+      { id: "voice-tone", label: "Tone of voice", measures: [], setting: null, sensor: true },
+    ],
   },
 ];
+
+/** Every input not connected yet, by category, for one quiet line in Settings and My values. */
+export function notConnectedInputs(category?: CategoryId): Input[] {
+  return SOURCES.filter((c) => !category || c.id === category).flatMap((c) => c.inputs.filter((i) => !i.setting));
+}
+
+/** Measures that count as changed categories. Mood counts through the person's own answer. */
+const ANCHOR: PassiveKey = "ownAnswer";
+
+export function sourceOf(key: PassiveKey): CategoryId {
+  const s = SOURCES.find((x) => x.inputs.some((i) => i.measures.includes(key)));
+  if (!s) throw new Error(`measure ${key} has no category`);
+  return s.id;
+}
+
+export function inputOf(key: PassiveKey): Input {
+  return SOURCES.flatMap((c) => c.inputs).find((i) => i.measures.includes(key))!;
+}
+
+/**
+ * Whether these changed measures are enough to ask: at least two different categories, or
+ * Sleep alone in at least two measures, or Mood alone through the person's own answers. Energy
+ * alone and Social alone never ask. Camera and voice measures under Mood (none connected yet)
+ * may only support a change together with another category, and never outweigh the person's
+ * own answer: when that answer has been steady (Good or Okay), they do not make Mood changed.
+ * The ladder uses the same test for "the measures have come back".
+ */
+export function enoughToAsk(changed: { key: PassiveKey }[], opts: { answerSteady?: boolean } = {}): boolean {
+  const counted = changed.filter((m) => {
+    if (sourceOf(m.key) !== "mood" || m.key === ANCHOR) return true;
+    return !opts.answerSteady;
+  });
+  const byCategory = new Map<CategoryId, PassiveKey[]>();
+  for (const m of counted) byCategory.set(sourceOf(m.key), [...(byCategory.get(sourceOf(m.key)) ?? []), m.key]);
+  if (byCategory.size >= MIN_SOURCES_TO_ASK) return true;
+  if ((byCategory.get("mood") ?? []).includes(ANCHOR)) return true;
+  return SOURCES.some((s) => s.aloneAsksAt !== null && (byCategory.get(s.id)?.length ?? 0) >= s.aloneAsksAt);
+}
+
+/** Changed measures only in categories that never ask on their own (Energy, Social). */
+export function onlyQuietSources(changed: { key: PassiveKey }[]): boolean {
+  return changed.length > 0 && !enoughToAsk(changed) && changed.every((m) => ["energy", "social"].includes(sourceOf(m.key)));
+}
+
+/** Different categories that must have changed for the companion to ask. */
+export const MIN_SOURCES_TO_ASK = 2;
 
 /** Minutes in frame a day needs before its movement counts. */
 export const MIN_MOVEMENT_MINUTES = 20;
@@ -158,32 +245,6 @@ export const MIN_MOVEMENT_MINUTES = 20;
 export const MIN_NOT_SO_GOOD = 4;
 /** Answered days the usual needs before the daily question can count as changed. */
 export const MIN_USUAL_ANSWERS = 4;
-
-/** Different sources that must have changed for the companion to ask. */
-export const MIN_SOURCES_TO_ASK = 2;
-
-export function sourceOf(key: PassiveKey): SourceId {
-  const s = SOURCES.find((x) => x.measures.includes(key));
-  if (!s) throw new Error(`measure ${key} has no source`);
-  return s.id;
-}
-
-/**
- * Whether these changed measures are enough to ask: two different sources, or a source that
- * may ask on its own with enough of its measures. The ladder uses the same test for "the
- * measures have come back".
- */
-export function enoughToAsk(changed: { key: PassiveKey }[]): boolean {
-  const bySource = new Map<SourceId, number>();
-  for (const m of changed) bySource.set(sourceOf(m.key), (bySource.get(sourceOf(m.key)) ?? 0) + 1);
-  if (bySource.size >= MIN_SOURCES_TO_ASK) return true;
-  return SOURCES.some((s) => s.aloneAsksAt !== null && (bySource.get(s.id) ?? 0) >= s.aloneAsksAt);
-}
-
-/** Changed measures only in sources that never ask on their own (typing alone). */
-export function onlyQuietSources(changed: { key: PassiveKey }[]): boolean {
-  return changed.length > 0 && !enoughToAsk(changed) && changed.every((m) => SOURCES.find((s) => s.id === sourceOf(m.key))?.aloneAsksAt === null);
-}
 
 export interface PassiveMetric {
   key: PassiveKey;
@@ -219,7 +280,7 @@ export interface Evaluation {
   basedOn: { days: number; usualDays: number };
   askNow: boolean;
   /** Why the companion does or does not ask. */
-  reason: "learning" | "steady" | "one-change" | "typing-only" | "changed" | "waiting-after-last" | "simulated";
+  reason: "learning" | "steady" | "one-change" | "quiet-only" | "changed" | "waiting-after-last" | "simulated";
   /** The data includes made-up demo data, or the change was simulated. */
   simulated: boolean;
 }
@@ -312,31 +373,8 @@ interface Def {
 
 const ms = (v: number) => `${Math.round(v)} ms`;
 
+/** In the order of the categories: Sleep, Energy, Social, Mood. */
 export const PASSIVE_DEFS: Def[] = [
-  {
-    key: "spread",
-    label: "Typing evenness",
-    meaning: "How uneven the rhythm of your typing is, from the gaps under a second while you write. Higher means more uneven",
-    format: ms,
-    up: "your typing has been more uneven",
-    down: "your typing has been more even",
-    upWord: "more uneven",
-    downWord: "more even",
-    is: "How even the rhythm of typing is: the timing between key presses while writing, gaps under a second only",
-    isNot: "Never which keys, never what was written, not time spent thinking",
-  },
-  {
-    key: "hold",
-    label: "Hold time",
-    meaning: "How long a key is usually held down while you write",
-    format: ms,
-    up: "you've held keys down longer",
-    down: "you've held keys down for less time",
-    upWord: "longer",
-    downWord: "shorter",
-    is: "How long a key is usually held down while writing",
-    isNot: "Never which keys",
-  },
   {
     key: "firstActivity",
     label: "First activity",
@@ -363,7 +401,7 @@ export const PASSIVE_DEFS: Def[] = [
   },
   {
     key: "quietNight",
-    label: "Quiet night",
+    label: "Estimated rest",
     meaning:
       "Time from your last activity one day to your first the next. An estimate of rest, not measured sleep",
     format: (v) => `${v.toFixed(1)} h`,
@@ -375,10 +413,34 @@ export const PASSIVE_DEFS: Def[] = [
     isNot: "An estimate of rest, not measured sleep",
   },
   {
+    key: "spread",
+    label: "Typing evenness",
+    meaning: "How uneven the rhythm of your typing is, from the gaps under a second while you write. Higher means more uneven",
+    format: ms,
+    up: "your typing has been more uneven",
+    down: "your typing has been more even",
+    upWord: "more uneven",
+    downWord: "more even",
+    is: "How even the rhythm of typing is: the timing between key presses while writing, gaps under a second only",
+    isNot: "Never which keys, never what was written, not time spent thinking",
+  },
+  {
+    key: "hold",
+    label: "Hold time",
+    meaning: "How long a key is usually held down while you write",
+    format: ms,
+    up: "you've held keys down longer",
+    down: "you've held keys down for less time",
+    upWord: "longer",
+    downWord: "shorter",
+    is: "How long a key is usually held down while writing",
+    isNot: "Never which keys",
+  },
+  {
     key: "movementLevel",
     label: "Movement",
     meaning: "How much you move in front of the computer, from three points (nose and shoulders)",
-    format: (v) => `${v.toFixed(2)} widths/s`,
+    format: (v) => `${v.toFixed(2)}/s`,
     up: "you've moved more in front of the computer",
     down: "you've moved less in front of the computer",
     upWord: "more",
@@ -390,13 +452,25 @@ export const PASSIVE_DEFS: Def[] = [
     key: "positionChanges",
     label: "Position changes",
     meaning: "How often you settle into a new position, per hour in front of the computer",
-    format: (v) => `${v.toFixed(1)} an hour`,
+    format: (v) => `${v.toFixed(1)}/h`,
     up: "you've changed position more often",
     down: "you've changed position less often",
     upWord: "more often",
     downWord: "less often",
     is: "How often a new position is held, per hour in front of the computer",
     isNot: "No picture is kept; not posture, expression or mood",
+  },
+  {
+    key: "contact",
+    label: "Messages with a trusted person",
+    meaning: "Messages sent and answered with the person you trust, per day",
+    format: (v) => `${Math.round(v * 10) / 10} a day`,
+    up: "you've exchanged more messages with the person you trust",
+    down: "you've exchanged fewer messages with the person you trust",
+    upWord: "more messages",
+    downWord: "fewer messages",
+    is: "Messages to and from the one person I trust, counted per day",
+    isNot: "Never what the messages say",
   },
   {
     key: "ownAnswer",
@@ -499,6 +573,9 @@ export function movementPoints(data: AppData, key: "movementLevel" | "positionCh
 function seriesFor(data: AppData, key: PassiveKey, today: DayKey, kind: TypingKind): Point[] {
   if (key === "spread" || key === "hold") return typingPoints(data.typingDays ?? [], key, kind, today);
   if (key === "movementLevel" || key === "positionChanges") return movementPoints(data, key, today);
+  if (key === "contact") {
+    return (data.contactDays ?? []).filter((c) => c.date <= today).map((c) => ({ date: c.date, value: c.exchanged }));
+  }
   if (key === "ownAnswer") {
     return (data.dailyAnswers ?? [])
       .filter((a) => a.answer && a.date <= today)
@@ -571,6 +648,8 @@ export function evaluatePassive(data: AppData, today: DayKey, opts: { test?: Cha
   // In source order (typing, then day and night rhythm), so the wording groups them.
   const metrics = PASSIVE_DEFS.map((d) => metric(data, d, today, kind, test));
   const changed = metrics.filter((m) => m.status === "changed");
+  // The person's own answer outweighs any camera or voice measure under Mood.
+  const answerSteady = metrics.find((m) => m.key === "ownAnswer")?.status === "steady";
   const daysOfData = daysWithData(data, today);
   const learning = daysOfData < LEARNING_DAYS;
   const basedOn = {
@@ -585,7 +664,7 @@ export function evaluatePassive(data: AppData, today: DayKey, opts: { test?: Cha
   let askNow = false;
   if (learning) reason = "learning";
   else if (changed.length === 0) reason = "steady";
-  else if (!enoughToAsk(changed)) reason = onlyQuietSources(changed) ? "typing-only" : "one-change";
+  else if (!enoughToAsk(changed, { answerSteady })) reason = onlyQuietSources(changed) ? "quiet-only" : "one-change";
   else if (data.settings.simulatedChangeAt) {
     reason = "simulated";
     askNow = true;
@@ -633,7 +712,10 @@ export function typingAloneChanged(e: PassiveView): boolean {
   return !e.learning && onlyQuietSources(e.changed);
 }
 
-const COUNT_WORDS = ["No things", "One thing", "Two things", "Three things", "Four things", "Five things", "Six things"];
+/** The categories with a worded change, in table order: "Sleep and Energy". */
+function changedCategories(e: PassiveView): string[] {
+  return SOURCES.filter((c) => e.changed.some((m) => m.phrase && sourceOf(m.key) === c.id)).map((c) => c.label);
+}
 
 export function joinPhrases(parts: string[]): string {
   if (parts.length <= 1) return parts.join("");
@@ -652,8 +734,8 @@ function basedOnText(b: PassiveView["basedOn"]): string {
 export function explainChange(e: PassiveView): string {
   const phrases = e.changed.map((m) => m.phrase).filter((p): p is string => !!p);
   if (!phrases.length || typingAloneChanged(e)) return "Nothing stands out compared with your usual right now.";
-  const n = phrases.length;
-  const head = `${COUNT_WORDS[n] ?? `${n} things`} ${n === 1 ? "has" : "have"} changed:`;
+  const cats = changedCategories(e);
+  const head = `${joinPhrases(cats)} ${cats.length === 1 ? "has" : "have"} changed:`;
   return `${head} over the last week ${joinPhrases(phrases)} than in the four weeks before. ${basedOnText(e.basedOn)}`.trim();
 }
 
@@ -672,7 +754,7 @@ export function weeklyInsight(e: PassiveView): string {
   const phrases = e.changed.map((m) => m.phrase).filter((p): p is string => !!p);
   if (!phrases.length) return "Lately your rhythm looks like your usual.";
   const line = `Over the last week ${joinPhrases(phrases)} than in the four weeks before.`;
-  return typingAloneChanged(e) ? `${line} Typing alone never makes me ask.` : line;
+  return typingAloneChanged(e) ? `${line} ${joinPhrases(changedCategories(e))} alone never makes me ask.` : line;
 }
 
 /** One small thing to try after "Not my best", picked from what changed. */

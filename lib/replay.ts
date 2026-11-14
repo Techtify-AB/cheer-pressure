@@ -17,7 +17,7 @@
 
 import { addDays, daysBetween, minutesToClock } from "./dates";
 import { evaluatePassive, isWeekend, type ChangeTest, type Evaluation } from "./passive";
-import type { ActivityDay, AppData, DailyAnswer, DayKey, StoredMovementSession, TypingDay } from "./types";
+import type { ActivityDay, AppData, ContactDay, DailyAnswer, DayKey, StoredMovementSession, TypingDay } from "./types";
 
 export const REPLAY_DAYS = 56;
 /** Days 1 to 42 are steady; the drift begins on day 43. */
@@ -28,7 +28,7 @@ export const DRIFT_RAMP_DAYS = 7;
 export const REPLAY_RUN_MS = 20_000;
 export const REPLAY_MS_PER_DAY = Math.round(REPLAY_RUN_MS / REPLAY_DAYS);
 /** Fixed, so every run shows the same eight weeks. */
-export const REPLAY_SEED = 78;
+export const REPLAY_SEED = 81;
 
 function rng(seed: number) {
   let s = seed >>> 0;
@@ -45,6 +45,8 @@ export interface ReplayData {
   dailyAnswers: DailyAnswer[];
   /** Stretches with the camera on; on many days it is not on at all. */
   movementSessions: StoredMovementSession[];
+  /** Messages with the person they trust, per day (Social). */
+  contactDays: ContactDay[];
 }
 
 export interface DriftShape {
@@ -80,6 +82,9 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
   const camNoise = (spread: number) => (cam() + cam() + cam() - 1.5) * spread;
   const movementSessions: StoredMovementSession[] = [];
   const mover = { level: 0.06 + camNoise(0.012), shifts: 8 + camNoise(2) };
+  const talk = rng(seed + 15485863);
+  const contactDays: ContactDay[] = [];
+  const chatty = 1.5 + talk() * 2.5;
   const round = (v: number) => Math.round(v * 10) / 10;
   // This person's own levels.
   const person = { spread: 88 + noise(10), hold: 94 + noise(8), first: 7 * 60 + 15 + noise(20), last: 22 * 60 + 50 + noise(20) };
@@ -129,6 +134,14 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
       movementSessions.push({ date, minutes, movementMean: Math.round(level * 1000) / 1000, shiftsPerHour: Math.round(shifts * 10) / 10, source: "demo", savedAt: "" });
     }
 
+    // Social: a few messages most days with the person they trust, a little fewer as the drift goes on.
+    {
+      const mean = Math.max(0, chatty * (weekend ? 1.3 : 1) * (1 - 0.6 * drift));
+      let n = 0;
+      for (let k = 0; k < 8; k++) if (talk() < mean / 8) n++;
+      contactDays.push({ date, exchanged: n, source: "demo" });
+    }
+
     // The daily question: answered on about two days in three; "Not so good" now and then,
     // more often as the drift goes on (after sleep has slipped).
     if (ask() < (weekend ? 0.55 : 0.75)) {
@@ -138,7 +151,7 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
       dailyAnswers.push({ date, answer, dismissed: false, at: "", source: "demo" });
     }
   }
-  return { typingDays, activityDays, dailyAnswers, movementSessions };
+  return { typingDays, activityDays, dailyAnswers, movementSessions, contactDays };
 }
 
 export interface ReplayFrame {
@@ -163,6 +176,7 @@ function asAppData(r: ReplayData): AppData {
     activityDays: r.activityDays,
     dailyAnswers: r.dailyAnswers,
     movementSessions: r.movementSessions,
+    contactDays: r.contactDays,
     checkIns: [],
     settings: { muted: false },
     ladder: null,
@@ -176,6 +190,7 @@ export function upTo(r: ReplayData, date: DayKey): ReplayData {
     activityDays: r.activityDays.filter((d) => d.date <= date),
     dailyAnswers: r.dailyAnswers.filter((d) => d.date <= date),
     movementSessions: r.movementSessions.filter((d) => d.date <= date),
+    contactDays: r.contactDays.filter((d) => d.date <= date),
   };
 }
 
@@ -202,6 +217,7 @@ export function shiftReplay(r: ReplayData, days: number): ReplayData {
     activityDays: r.activityDays.map((d) => ({ ...d, date: addDays(d.date, days) })),
     dailyAnswers: r.dailyAnswers.map((d) => ({ ...d, date: addDays(d.date, days) })),
     movementSessions: r.movementSessions.map((d) => ({ ...d, date: addDays(d.date, days) })),
+    contactDays: r.contactDays.map((d) => ({ ...d, date: addDays(d.date, days) })),
   };
 }
 

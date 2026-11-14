@@ -4,7 +4,8 @@
 // when the person's measures stand out from their own usual range (lib/passive.ts,
 // lib/ladder.ts). The one thing it asks day to day is the optional daily question (one tap,
 // or "Not now"; lib/daily.ts), as often as the person sets. "Talk to me" is there
-// for when they want to, and one summary row opens what is being noticed.
+// for when they want to. "What I'm noticing" lists the four categories, Sleep, Energy, Social
+// and Mood, each with one short line; each opens its view in My values.
 //
 // When someone the person trusts sends a greeting or a question (lib/trusted.ts), it becomes
 // home's single primary thing, at any time, also in quiet hours: "Sara: Walk after lunch?"
@@ -19,7 +20,9 @@ import type { DailyAnswerValue } from "@/lib/types";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
 import { Screen } from "@/components/Screen";
-import { useCompanionStatus, useReflection, useRequireProfile } from "@/components/hooks";
+import { useCompanionStatus, useReflection, useRequireProfile, useToday } from "@/components/hooks";
+import { CATEGORY_IDS, categoryLine } from "@/lib/categories";
+import { SOURCES } from "@/lib/passive";
 import { isActive } from "@/lib/ladder";
 import { moodFor } from "@/lib/mood";
 import { quietHoursOf, sourcesOf } from "@/lib/settings";
@@ -38,6 +41,8 @@ export default function HomePage() {
   const { evaluation, outcome } = useCompanionStatus(data);
   const { desktop, status } = useDesktopTyping();
   const messages = useTrusted();
+  const today = useToday();
+  const paired = !!messages?.pairing && messages.connection !== "ended";
   const pending = pendingMessage(messages);
   // The message just answered here, so home can say whether the answer has gone.
   const [answered, setAnswered] = useState<{ id: string; name: string } | null>(null);
@@ -128,19 +133,11 @@ export default function HomePage() {
 
   const mood = answered || answeredToday === "good" ? "joy" : moodFor({ wantsToAsk: outcome.speakUp, quiet: outcome.quiet && !pausedAll });
 
-  // The one-line summary of what is being noticed, truthfully for where this runs.
-  const names = [sources.typing && "Typing rhythm", sources.dayRhythm && "day and night rhythm", sources.camera && "movement"].filter(
-    Boolean,
-  ) as string[];
-  const what = names.length
-    ? (names.length > 2 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join(" and ")).replace(/^./, (c) => c.toUpperCase())
-    : "";
-  let summary: string;
-  if (!what) summary = "Nothing: every source is off";
-  else if (pausedAll || menuPaused) summary = `Paused: ${what.toLowerCase()}`;
-  else if (running) summary = `${what}, on this computer`;
-  else if (desktop && status?.listener === "permission-needed") summary = `${what}, once you allow it on this computer`;
-  else summary = `${what}, in the desktop app`;
+  // Paused, or the desktop app's typing waits for a permission: said once, under the four lines.
+  let note: string | null = null;
+  if (pausedAll || menuPaused) note = "Paused: nothing new is measured.";
+  else if (desktop && status?.listener === "permission-needed") note = "Typing rhythm waits for your permission on this computer.";
+  else if (!desktop && sources.typing) note = "Typing rhythm and sleep are measured in the desktop app.";
 
   return (
     <Screen
@@ -166,15 +163,22 @@ export default function HomePage() {
         )
       }
     >
-      <Link href="/values/" className="noticing">
-        <span className="noticing-text">
-          <span className="noticing-label">What I&apos;m noticing</span>
-          <span className="noticing-value">{summary}</span>
-        </span>
-        <span className="noticing-more" aria-hidden="true">
-          My values
-        </span>
-      </Link>
+      <section className="card noticing-card" aria-labelledby="noticing-title">
+        <h2 id="noticing-title" className="noticing-label">
+          What I&apos;m noticing
+        </h2>
+        <ul className="noticing-list">
+          {CATEGORY_IDS.map((id) => (
+            <li key={id}>
+              <Link href={`/values/?c=${id}`} className="noticing-row">
+                <span className="noticing-name">{SOURCES.find((c) => c.id === id)!.label}</span>
+                <span className="noticing-value">{categoryLine(id, data, evaluation, today, paired)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        {note && <p className="small muted noticing-note">{note}</p>}
+      </section>
     </Screen>
   );
 }

@@ -13,7 +13,8 @@ import { SwitchRow } from "@/components/Switch";
 import { forgetDesktopData, setTypingPaused } from "@/lib/platform";
 import { LinkCode } from "@/components/LinkCode";
 import { useCamera } from "@/components/camera/useCamera";
-import { isLocalOnly, messagesUrlOf, NOT_CONNECTED, quietHoursOf, ROUTINES, routinesOf, sourcesOf } from "@/lib/settings";
+import { isLocalOnly, messagesUrlOf, quietHoursOf, ROUTINES, routinesOf, sourcesOf } from "@/lib/settings";
+import { notConnectedInputs } from "@/lib/passive";
 import { disconnect, invite, useTrusted } from "@/lib/trusted";
 import { deleteEverything, saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
@@ -163,7 +164,7 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
       lead={
         <>
           <h1 className="item-title">What I measure</h1>
-          <p className="muted">Only timing, times of day and movement, never what you type or the picture. Off means I don&apos;t keep or use it.</p>
+          <p className="muted">In four categories. Never what you type, write or say, and never the picture. Off means I don&apos;t keep or use it.</p>
         </>
       }
       actions={
@@ -182,30 +183,42 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
         </>
       }
     >
-      <section className="card switches" aria-label="Sources">
+      <section className="card switches measure-switches" aria-label="What I measure, by category">
         {paused && <p className="small switch-note">Everything is paused. Nothing new is measured and I stay quiet.</p>}
+        <p className="switch-group">Sleep</p>
         <SwitchRow
-          label="Typing rhythm"
-          hint="The timing between key presses"
-          on={src.typing}
-          onChange={(v) => set({ typing: v })}
-        />
-        <SwitchRow
-          label="Day and night rhythm"
-          hint="Your first and last key press each day"
+          label="Estimated from when this computer is used"
+          hint="Your first and last key press each day; not measured sleep"
           on={src.dayRhythm}
           onChange={(v) => set({ dayRhythm: v })}
         />
+        <p className="switch-group">Energy</p>
+        <SwitchRow label="Typing rhythm" hint="The timing between key presses, never which keys" on={src.typing} onChange={(v) => set({ typing: v })} />
         <SwitchRow
-          label="Movement (camera)"
+          label="Body movement (camera)"
           hint="The picture is worked out on this computer. Nothing is stored or sent. Only while this window is open."
+          keepHint
           on={src.camera}
           onChange={(v) => set({ camera: v })}
         />
         {cameraProblem && <p className="small switch-note problem-text">{cameraProblem}</p>}
-        {NOT_CONNECTED.map((n) => (
-          <SwitchRow key={n} label={n} on={false} disabledText="Not connected yet" />
-        ))}
+        <p className="switch-group">Social</p>
+        <SwitchRow
+          label="Messages with someone you trust"
+          hint="How many, never what they say"
+          on={src.contact}
+          onChange={(v) => set({ contact: v })}
+        />
+        <p className="switch-group">Mood</p>
+        <SwitchRow
+          label="Your daily answer"
+          hint={'"How are you today?" Set how often under Daily question'}
+          on={dailyQuestionOf(data.settings).every !== "off"}
+          onChange={(v) => saveSettings({ dailyQuestion: { ...dailyQuestionOf(data.settings), every: v ? "day" : "off" } })}
+        />
+        <p className="small switch-note">
+          Not connected yet: {notConnectedInputs().map((i) => i.label.replace(/ \(.*\)$/, "").toLowerCase()).join(", ")}.
+        </p>
       </section>
     </Screen>
   );

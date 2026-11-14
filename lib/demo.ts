@@ -81,8 +81,8 @@ export function makeDemoData(today: string, earlySigns: string[]) {
 
   // Typing per day and first and last activity: the replay's eight weeks, ending today, so
   // "Load demo data" and "Eight weeks in 20 seconds" tell the same story.
-  const { typingDays, activityDays, dailyAnswers, movementSessions } = makeReplayData(today);
+  const { typingDays, activityDays, dailyAnswers, movementSessions, contactDays } = makeReplayData(today);
   const typingSessions: TypingSession[] = [];
 
-  return { daily, weekly, reaction, typingSessions, typingDays, activityDays, dailyAnswers, movementSessions };
+  return { daily, weekly, reaction, typingSessions, typingDays, activityDays, dailyAnswers, movementSessions, contactDays };
 }

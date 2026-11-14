@@ -142,7 +142,7 @@ function Replay() {
   if (fired) line = explanation ?? "";
   else if (e.learning) line = `Still learning your usual rhythm: ${e.daysOfData} of ${LEARNING_DAYS} days so far.`;
   else if (e.changed.length === 1) line = "One thing looks different. That alone is not enough for me to ask.";
-  else if (e.reason === "typing-only") line = "Typing looks different. Typing alone never makes me ask.";
+  else if (e.reason === "quiet-only") line = "Energy looks different. Energy alone never makes me ask.";
   else if (index === 0 && !playing) line = "Eight made-up weeks. I look at each day the way I look at yours.";
   else line = "Nothing stands out compared with the usual.";
 

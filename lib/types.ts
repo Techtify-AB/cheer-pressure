@@ -113,7 +113,15 @@ export type PassiveKey =
   | "quietNight"
   | "ownAnswer"
   | "movementLevel"
-  | "positionChanges";
+  | "positionChanges"
+  | "contact";
+
+/** Messages with the person the person trusts on one day, both ways, while a pair existed. */
+export interface ContactDay {
+  date: DayKey;
+  exchanged: number;
+  source: Source;
+}
 
 /**
  * One stretch with the camera on (lib/camera): minutes in frame, average movement and position
@@ -200,6 +208,8 @@ export interface Sources {
   dayRhythm: boolean;
   /** Movement in front of the computer, from the camera. Off unless the person turns it on. */
   camera: boolean;
+  /** How many messages pass with the person they trust each day (never what they say). */
+  contact: boolean;
 }
 
 export interface Settings {
@@ -261,6 +271,8 @@ export interface AppData {
   dailyAnswers?: DailyAnswer[];
   /** Stretches with the camera on. Missing in older data. */
   movementSessions?: StoredMovementSession[];
+  /** Messages with the person they trust, per day. Missing in older data. */
+  contactDays?: ContactDay[];
   activityDays: ActivityDay[];
   checkIns: PromptedCheckIn[];
   settings: Settings;

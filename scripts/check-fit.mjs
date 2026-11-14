@@ -161,8 +161,10 @@ async function run(size) {
   await seed();
   await go("/");
   await measure(page, "home");
-  await page.locator(".noticing").click();
-  await page.waitForURL("**/values/");
+  const rows = await page.locator(".noticing-row").allInnerTexts();
+  results.push({ ok: rows.length === 4 && /^Sleep/.test(rows[0]) && /^Energy/.test(rows[1]) && /^Social/.test(rows[2]) && /^Mood/.test(rows[3]), name: "home: the four categories", vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
+  await page.locator(".noticing-row").first().click();
+  await page.waitForURL("**/values/**");
   await page.waitForTimeout(300);
   await measure(page, "values-learning");
   await go("/");
@@ -230,14 +232,17 @@ async function run(size) {
   // My values on made-up data, one source per view, and the clinic report.
   await go("/values/");
   await measure(page, "values-summary");
-  await click("See each source");
-  await measure(page, "values-typing");
-  await click("Next");
-  await measure(page, "values-day-and-night");
+  await click("See each category");
+  await measure(page, "values-sleep");
+  for (const name of ["energy", "social", "mood"]) {
+    await page.locator(".pager").getByRole("button", { name: "Next" }).click();
+    await page.waitForTimeout(150);
+    await measure(page, `values-${name}`);
+  }
   await go("/share/");
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 7; i++) {
     await measure(page, `share-part-${i + 1}`);
-    if (i < 4) await page.locator(".pager").getByRole("button", { name: "Next" }).click();
+    if (i < 6) await page.locator(".pager").getByRole("button", { name: "Next" }).click();
     await page.waitForTimeout(150);
   }
   // The printed report: only the report, on A4.

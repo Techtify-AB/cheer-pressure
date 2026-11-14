@@ -11,15 +11,39 @@
 import { useEffect } from "react";
 import { inQuietHours, quietHoursOf } from "@/lib/settings";
 import { readData } from "@/lib/storage";
-import { follow, onArrival, unfollow } from "@/lib/trusted";
+import { follow, onArrival, unfollow, messagesClient } from "@/lib/trusted";
+import { dayKey } from "@/lib/dates";
+import { saveContactDays } from "@/lib/storage";
+import { sourcesOf } from "@/lib/settings";
+import type { Snapshot } from "@/lib/messages";
+
 import { GREETING_LINE, sendIfConnected } from "@/lib/robot";
 import { speak } from "@/lib/voice";
 
 const spoken = new Set<string>();
 
+/**
+ * Social, from data the app already has: how many messages passed with the person they trust
+ * on each day while a pair existed (both ways). Today is written even when it is 0. Never what
+ * the messages say.
+ */
+function recordContact(s: Snapshot) {
+  if (!s.pairing || s.connection === "ended" || !sourcesOf(readData().settings).contact) return;
+  const today = dayKey(new Date());
+  const counts = new Map<string, number>([[today, 0]]);
+  for (const e of s.events) {
+    const d = dayKey(new Date(e.ts));
+    counts.set(d, (counts.get(d) ?? 0) + 1);
+  }
+  saveContactDays([...counts.entries()].map(([date, exchanged]) => ({ date, exchanged, source: "user" as const })));
+}
+
+
 export function TrustedBridge() {
   useEffect(() => {
     follow();
+    const client = messagesClient();
+    const stopContact = client.subscribe(recordContact);
     const stop = onArrival((events) => {
       const greetings = events.filter((e) => e.type === "greeting");
       const newest = greetings[greetings.length - 1];
@@ -34,6 +58,7 @@ export function TrustedBridge() {
       speak(`${newest.from.name} says: ${newest.text}`, { muted: false, onEnd: () => {} });
     });
     return () => {
+      stopContact();
       stop();
       unfollow();
     };

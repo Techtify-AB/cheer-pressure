@@ -41,8 +41,10 @@ header says so on every screen, with a link that clears it.
 
 ## Three places, the ladder and the replay
 
-The interface has three places. **Home** is the companion, one calm line and one row,
-"What I'm noticing", that opens **My values**. Once a day (or as often as the person sets under
+The interface has three places. **Home** is the companion, one calm line and "What I'm
+noticing": the four categories, Sleep, Energy, Social and Mood, each with one short line (for
+example "Estimated from this computer", "Your daily answer", "Stands out since Tue 10 Nov");
+each opens its view in **My values**. Once a day (or as often as the person sets under
 Settings, Daily question: off, every day, every other day, twice or once a week; morning,
 midday or evening) Cheri asks **"How are you today?"** with three answers, "Good", "Okay" and
 "Not so good": on Home as its one thing, and in the desktop app as a bubble from the mascot
@@ -52,7 +54,7 @@ passed while the computer was off brings it once when the person is next there t
 stacked (`lib/daily.ts`, tested in `scripts/test-daily.mts`). "Not so good" shows one gentle
 line and the quiet "Talk to me"; it does not start the ladder by itself. "Talk to me" starts the **conversation** when the
 person wants to; when the measures stand out, the companion looks attentive and home offers
-"Have a look" instead. **Settings** is a short list: what is measured (each source on or off,
+"Have a look" instead. **Settings** is a short list: what is measured (by category, one switch per input,
 Pause everything), which small things it may suggest and quiet hours (22:00 to 08:00 by
 default, when it never speaks up), voice, someone you trust, My values, your data,
 need help now, and **For the demo**, the one marked place for the live view, demo data, the
@@ -60,8 +62,9 @@ replay, the messages service address and "What a clinic could see".
 
 ## My values and the clinic report
 
-**My values** (`/values/`, `lib/report.ts`) opens on one sentence and how many sources stand
-out, then one source per view: each measure as a strip of daily dots over the last eight weeks
+**My values** (`/values/`, `lib/report.ts`) opens on one sentence and how many of the four
+categories stand out, then one category per view, with its inputs that are off or not
+connected yet in one quiet line: each measure as a strip of daily dots over the last eight weeks
 against the person's own usual band, the last week's middle and the usual range with a plain
 meaning next to them, and "Stands out since <date>" where the rule says so. It replaced the
 older "Your own level" screen.
@@ -69,7 +72,7 @@ older "Your own level" screen.
 **Share with my clinic** (`/share/`, from My values and from the ladder's third step) shows the
 exact report first, one part at a time, then "Save as PDF or print" (the browser's print dialog,
 or the desktop app's own through a `print_page` command) or "Not now". The printed report is
-one A4 page (`@media print` in `app/globals.css`): the period (eight weeks), per source what
+one A4 page (`@media print` in `app/globals.css`): the period (eight weeks), per category what
 changed, which way, since when, against the person's own usual; how many days it rests on,
 including days with too little typing; the person's answers to Cheri with dates and PHQ-2
 totals; the ladder's steps and whether the values came back; what each value is and is not;
@@ -146,10 +149,21 @@ the phone shows "They said yes"; then the service is stopped, the desktop's requ
 
 `lib/passive.ts` holds the one rule (unit tests in `scripts/test-passive.mts`).
 
-**One value per measure per day.** Typing: rhythm evenness and hold time, pooled over the day's
-counted bursts of real writing (below), only on days with at least 300 counted presses. Day and
-night rhythm: first activity, last activity and quiet night (last activity one day to first
-activity the next, an estimate of rest, not measured sleep). A day runs from 04:00 to 04:00.
+**Four categories, everywhere the person looks:** Sleep, Energy, Social and Mood. `SOURCES` in
+`lib/passive.ts` is one table: category, then its inputs, then their measures. Each input is
+measuring, off, or "not connected yet" (`lib/categories.ts`).
+
+| Category | Inputs today | Not connected yet |
+| --- | --- | --- |
+| Sleep | estimated from when this computer is used: first activity, last activity, estimated rest | phone app, watch or band (Fitbit, Apple Health, Health Connect), the companion at the bedside |
+| Energy | typing rhythm (evenness, hold time), body movement from the camera (movement, position changes) | pace of the voice |
+| Social | messages with the person you trust, per day (how many, never what they say) | talking with someone, at home or out |
+| Mood | the person's own daily answer (Good, Okay, Not so good), its anchor | facial expression, posture, tone of voice |
+
+**One value per measure per day.** Typing is pooled over the day's counted bursts of real
+writing (below), only on days with at least 300 counted presses; movement on days with at least
+20 minutes in frame; messages on every day a pair existed (0 counts). A day runs from 04:00 to
+04:00.
 
 **Windows, the same for every measure.** The person's usual is the 28 days before the last week
 (at least 10 days with a value); recent is the last 7 days (at least 4 days with a value).
@@ -160,41 +174,40 @@ it is still learning and never asks.
 **Changed.** A measure has changed when the median of the recent days lies outside the usual
 10th to 90th percentile band widened by a quarter of its width on each side. Typing compares
 like with like: the kind of app with the most counted presses this week, against that kind's
-own usual, when it has enough days in both windows; otherwise every kind pooled.
+own usual, when it has enough days in both windows; otherwise every kind pooled. The daily
+answer has its own test: at least 4 "Not so good" among the last week's answers and a larger
+share than in the four weeks before (at least 4 answered days in each); unanswered or dismissed
+days are never counted as low.
 
-**When it asks.** The measures belong to **sources** (one table, `SOURCES`): **typing**
-(evenness, hold time), **day and night rhythm** (first activity, last activity, quiet
-night), **movement** in front of the computer from the camera (movement level, position
-changes per hour; a day counts with at least 20 minutes in frame; never asks on its own, like
-typing) and **your own answers** to the daily question (Good, Okay, Not so good as 0, 1, 2). It
-proposes a check-in when measures have changed in **two different sources**, or when **at least
-two day and night measures** have changed even if nothing else has, or when the person's **own
-answers** have changed on their own: at least 4 "Not so good" among the last week's answers and
-a larger share than in the four weeks before (at least 4 answered days in each). Unanswered or
-dismissed days are never counted as low. **Typing alone
-never asks**; My values still shows it, and says so. The ladder's "the
-measures have come back" uses the same test. After asking it waits **3 days**, unless a measure
-changes that was not part of the last check-in.
+**When it asks.** When at least **two different categories** have changed, or **Sleep alone**
+in at least two measures, or **Mood alone through the person's own answers**. **Energy alone
+and Social alone never ask**; My values still shows them, and says so. Camera or voice measures
+under Mood (expression, posture and tone, not connected yet) may only support a change together
+with another category and never outweigh the person's own answer: when the answers have been
+steady, they do not make Mood changed. Sensor measures are worded only as what was measured
+against the person's own usual ("your typing has been more uneven"), never as a feeling; only
+the person's own answer is ever stated as how they feel. The ladder's "the measures have come
+back" uses the same test. After asking it waits **3 days**, unless a measure changes that was
+not part of the last check-in.
 
 **Measured, not guessed** (`npx tsx scripts/measure-rule.mts`): 400 made-up periods (weekday
-and weekend differences, days away, days with too little writing, day-to-day wobble), six
-steady weeks and then a one-week drift (sleep slips first, typing follows, "Not so good" grows
-slowly), with daily answers on about two days in three. Asks by chance during the steady weeks
-(after learning), and finds the drift, with the per-source rule and all three sources:
+and weekend differences, days away, days with too little writing, day-to-day wobble, camera on
+some days, messages most days, daily answers on about two days in three), six steady weeks and
+then a one-week drift (sleep slips first, typing and movement follow, a few fewer messages,
+"Not so good" grows slowly). Asks by chance during the steady weeks (after learning), and finds
+the drift, with the rule on the four categories:
 
 | "Changed" test | Asks by chance | Finds the drift in its first week | Day of the drift, on average |
 | --- | --- | --- | --- |
-| median of the week outside the widened band (chosen) | 7 of 400 | 400 of 400 | 5.0 |
-| at least 5 of the last 7 days outside the band | 11 of 400 | 376 of 400 (400 within two weeks) | 6.1 |
-| at least 4 of the last 7 days outside the band | 55 of 400 | 400 of 400 | 4.7 |
-| median of the week outside the 10 to 90 band | 135 of 400 | 400 of 400 | 4.1 |
+| median of the week outside the widened band (chosen) | 13 of 400 (3.3 per 100) | 400 of 400 | 5.0 |
+| at least 5 of the last 7 days outside the band | 13 of 400 | 381 of 400 (400 within two weeks) | 6.0 |
+| at least 4 of the last 7 days outside the band | 82 of 400 | 400 of 400 | 4.6 |
+| median of the week outside the 10 to 90 band | 199 of 400 | 400 of 400 | 3.9 |
 
-Those numbers are with the own answers; adding **movement** as a fourth source (made-up camera
-days on about half the days, less movement as the drift goes on) gives, with the chosen test,
-**14 of 400** chance asks (3.5 per 100) and the drift found within its first week in 400 of
-400, on average on day 4.9; "two different sources only" 8 of 400, "any two measures" 10 of
-400. Before the own answers it was 2 of 400; before movement 7 of 400.
-The script prints all of these.
+With the chosen test, "two different categories only" asks by chance in 8 of 400 and "any two
+measures" in 15 of 400. Earlier steps, for comparison: typing and day and night rhythm only, 2
+of 400; with the own answers, 7; with movement as its own source, 14. The script prints all
+of these.
 
 The check-in explains in plain words what changed over the last week compared with the four
 weeks before, and how many days that rests on, then asks one question with three answers. No

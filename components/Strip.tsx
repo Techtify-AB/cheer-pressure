@@ -13,7 +13,18 @@ const PAD = 5;
  * One measure: the person's usual range as a band and one dot per day. The last week (what the
  * rule compares) is drawn larger, in the change colour only when it counts as a change.
  */
-export function Strip({ m, points: STRIP_POINTS, state: stateText }: { m: PassiveMetric; points: number; state?: string }) {
+export function Strip({
+  m,
+  points: STRIP_POINTS,
+  state: stateText,
+  head = true,
+}: {
+  m: PassiveMetric;
+  points: number;
+  state?: string;
+  /** False when the caller shows the label and state itself. */
+  head?: boolean;
+}) {
   const pts = m.points.slice(-STRIP_POINTS);
   // Keys per point so dots slide left as days go by.
   const seen = new Map<string, number>();
@@ -54,10 +65,12 @@ export function Strip({ m, points: STRIP_POINTS, state: stateText }: { m: Passiv
 
   return (
     <div className="strip" data-changed={m.status === "changed" || undefined}>
+      {head && (
       <div className="strip-head">
         <span className="strip-label">{m.label}</span>
         <span className="strip-state">{state}</span>
       </div>
+      )}
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-hidden="true">
         {m.usual && (
           <rect x={0} y={y(m.usual.high)} width={W} height={Math.max(3, y(m.usual.low) - y(m.usual.high))} rx={3} className="strip-band" />

@@ -35,7 +35,7 @@ const empty = (): AppData => ({
   const r = clinicReport(empty(), TODAY);
   const text = reportText(r);
   check("empty: says there are not enough days yet", !r.enoughData && /Not enough days yet/.test(r.summary), r.summary);
-  check("empty: every measure says it is still learning", r.sources.every((s) => s.lines.every((l) => l.text.startsWith("Not enough days yet"))));
+  check("empty: every category says nothing was measured", r.sources.length === 4 && r.sources.every((s) => s.lines.length === 1 && s.lines[0].text === "No values in this period."));
   check("empty: no answers and no steps", text.includes("None in this period.") && r.answers.length === 0 && r.ladder.length === 0);
   check("empty: data quality counts zero days", r.quality[0].startsWith(`Typing: 0 of ${REPORT_DAYS} days`) && r.quality[1].startsWith(`Day and night rhythm: 0 of ${REPORT_DAYS}`));
   check("the period is the last eight weeks, today included", r.period.from === addDays(TODAY, -55) && r.period.to === TODAY && r.period.text.startsWith(formatDay(addDays(TODAY, -55))));
@@ -111,19 +111,20 @@ check("the day the replay stops is today", stop.date === TODAY && e.askNow);
 
 // The daily question's answers: counts per week, in plain words.
 {
-  const own = r.sources.find((s) => s.id === "answers");
+  const own = r.sources.find((s) => s.id === "mood");
   const weeks = own?.lines.filter((l) => l.label.startsWith("Week from")) ?? [];
   const lastWeek = (data.dailyAnswers ?? []).filter((a) => daysBetween(a.date, TODAY) < 7);
   const n = (v: string) => lastWeek.filter((a) => a.answer === v).length;
   check(
     "own answers: four weeks of counts, the last week right",
-    own?.label === "My own answers" &&
+    own?.label === "Mood" &&
       weeks.length === 4 &&
       weeks[3].text === `${n("good")} Good, ${n("okay")} Okay, ${n("not-so-good")} Not so good, ${7 - lastWeek.filter((a) => a.answer).length} without an answer.`,
     weeks[3]?.text,
   );
   const none = clinicReport({ ...data, dailyAnswers: [] }, TODAY);
-  check("own answers: left out when the person never answered", !none.sources.some((s) => s.id === "answers"));
+  check("own answers: Mood says nothing was measured when the person never answered", none.sources.find((s) => s.id === "mood")!.lines[0].text === "No values in this period.");
+  check("the report has the four categories, in order", r.sources.map((s) => s.label).join() === "Sleep,Energy,Social,Mood");
 }
 
 // Wording
@@ -137,8 +138,10 @@ check("made-up data is marked", r.simulated && text.includes("Includes made-up d
 
 // Nothing that makes or shows the report can reach the network.
 {
-  const sources = ["lib/report.ts", "app/share/page.tsx", "app/values/page.tsx"].map((f) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8"));
-  check("the report and its screens import no messages client and call no fetch", sources.every((s) => !/lib\/(messages|trusted)|from "\.\/(messages|trusted)"|\bfetch\(/.test(s)));
+  const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
+  const report = ["lib/report.ts", "app/share/page.tsx"].map(read);
+  check("the report and its screen import no messages client and call no fetch", report.every((s) => !/lib\/(messages|trusted)|from "\.\/(messages|trusted)"|\bfetch\(/.test(s)));
+  check("My values only reads whether someone is connected: it sends nothing", !/\bfetch\(|send(Reply|Greeting|ContactRequest)|createPair/.test(read("app/values/page.tsx")));
 }
 
 if (failed) {

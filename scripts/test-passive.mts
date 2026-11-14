@@ -143,7 +143,7 @@ check("judge: just outside the band is not clearly outside", judgeDays(pts([...s
   const sh = movementPoints(d, "positionChanges", TODAY);
   check("movement: a day under 20 minutes in frame has no value", lv.length === 1 && lv[0].date === TODAY);
   check("movement: pooled by minutes in frame", Math.abs(lv[0].value - 0.04) < 1e-9 && Math.abs(sh[0].value - 10.5) < 1e-9, `${lv[0].value} ${sh[0].value}`);
-  check("movement is a source of its own and never asks alone", sourceOf("movementLevel") === "movement" && !enoughToAsk([{ key: "movementLevel" }, { key: "positionChanges" }]) && enoughToAsk([{ key: "movementLevel" }, { key: "spread" }]));
+  check("movement is part of Energy, with typing", sourceOf("movementLevel") === "energy" && sourceOf("spread") === "energy" && !enoughToAsk([{ key: "movementLevel" }, { key: "spread" }]) && enoughToAsk([{ key: "movementLevel" }, { key: "firstActivity" }]));
   const off = forRule({ ...d, settings: { muted: true } });
   const on = forRule({ ...d, settings: { muted: true, sources: { typing: true, dayRhythm: true, camera: true } } });
   check("movement: the camera is off by default, so the person's own stretches are left out", (off.movementSessions ?? []).length === 0 && (on.movementSessions ?? []).length === 3);
@@ -154,7 +154,7 @@ check("judge: just outside the band is not clearly outside", judgeDays(pts([...s
   }
   changed.settings.sources = { typing: true, dayRhythm: true, camera: true };
   const e = evaluatePassive(forRule(changed), TODAY);
-  check("movement with typing: two different sources, so Cheri asks", e.askNow && e.changed.some((m) => m.key === "movementLevel") && e.changed.some((m) => m.key === "spread"), e.changed.map((m) => m.key).join());
+  check("movement and typing together are one category, Energy, so Cheri does not ask", !e.askNow && e.changed.some((m) => m.key === "movementLevel") && e.changed.some((m) => m.key === "spread"), e.changed.map((m) => m.key).join());
 }
 
 // Older data must not crash, and old sessions are ignored by the rule
@@ -192,7 +192,7 @@ const keys = et.changed.map((m) => m.key);
 check("two changes: asks", et.askNow && keys.includes("spread") && keys.includes("firstActivity"), keys.join());
 check(
   "explanation is plain",
-  /^Three things have changed: over the last week your typing has been more uneven, your days have started later and .+ than in the four weeks before\. This compares 7 days this week with 2\d days in the four weeks before\.$/.test(
+  /^Sleep and Energy have changed: over the last week your days have started later, .*your typing has been more uneven than in the four weeks before\. This compares 7 days this week with 2\d days in the four weeks before\.$/.test(
     explainChange(et),
   ),
   explainChange(et),
@@ -200,16 +200,19 @@ check(
 check("based on 7 days this week and the usual days before", et.basedOn.days === 7 && et.basedOn.usualDays >= 27, JSON.stringify(et.basedOn));
 
 // Sources: typing alone never asks; two sources, or two sleep measures alone, do.
-check("every measure belongs to one source", PASSIVE_DEFS.every((d) => SOURCES.filter((x) => x.measures.includes(d.key)).length === 1));
+check("every measure belongs to one input in one category", PASSIVE_DEFS.every((d) => SOURCES.flatMap((c) => c.inputs).filter((i) => i.measures.includes(d.key)).length === 1));
+check("the four categories, in order", SOURCES.map((c) => c.label).join() === "Sleep,Energy,Social,Mood");
+check("Energy alone and Social alone never ask", !enoughToAsk([{ key: "spread" }, { key: "hold" }, { key: "movementLevel" }, { key: "positionChanges" }]) && !enoughToAsk([{ key: "contact" }]));
+check("Energy with Social: two categories, so it asks", enoughToAsk([{ key: "spread" }, { key: "contact" }]));
 const typingOnly = history(40, 7, { spread: true, hold: true });
 const eto = evaluatePassive(typingOnly, TODAY);
 check(
-  "typing alone, both typing measures changed: does not ask",
-  !eto.askNow && eto.changed.length === 2 && eto.changed.every((m) => m.source === "typing") && eto.reason === "typing-only",
+  "Energy alone (typing, both measures changed): does not ask",
+  !eto.askNow && eto.changed.length === 2 && eto.changed.every((m) => m.source === "energy") && eto.reason === "quiet-only",
   `${eto.changed.map((m) => m.key).join()} ${eto.reason}`,
 );
 check("typing alone: the companion says nothing", explainChange(eto) === "Nothing stands out compared with your usual right now." && calmLine(eto) === calmLine(ec));
-check("typing alone: Your own level shows it and says typing alone does not ask", weeklyInsight(eto).includes("your typing has been more uneven") && weeklyInsight(eto).endsWith("Typing alone never makes me ask."), weeklyInsight(eto));
+check("typing alone: Your own level shows it and says typing alone does not ask", weeklyInsight(eto).includes("your typing has been more uneven") && weeklyInsight(eto).endsWith("Energy alone never makes me ask."), weeklyInsight(eto));
 const sleepTwo = history(40, 7, { first: true, last: true });
 const est2 = evaluatePassive(sleepTwo, TODAY);
 check(
@@ -221,7 +224,7 @@ check("enoughToAsk: one typing and one sleep", enoughToAsk([{ key: "hold" }, { k
 check("enoughToAsk: two sleep", enoughToAsk([{ key: "firstActivity" }, { key: "quietNight" }]));
 check("enoughToAsk: both typing measures are not enough", !enoughToAsk([{ key: "spread" }, { key: "hold" }]));
 check("enoughToAsk: one sleep is not enough", !enoughToAsk([{ key: "lastActivity" }]));
-check("explanation names both sources in plain words", /your typing has been more uneven, your days have started later/.test(explainChange(et)), explainChange(et));
+check("explanation names the categories, then the plain observation", explainChange(et).startsWith("Sleep and Energy have changed: over the last week your days have started later"), explainChange(et));
 check("brain input carries each measure's source", passiveInput(et).measures.every((m) => m.source === sourceOf(m.key)));
 
 const asked = history(40, 7, { spread: true, first: true });

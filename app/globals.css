@@ -1347,3 +1347,43 @@ textarea.typing-box { min-height: 72px; }
   .demo-menu .menu-row:nth-child(n + 3) { border-top: 1px solid var(--glass-line); }
 }
 .demo-menu .menu-row { min-height: 42px; padding-top: 4px; padding-bottom: 4px; }
+
+/* Home: the four categories */
+.noticing-card { padding: var(--space-2) var(--space-4) var(--space-3); }
+.noticing-card .noticing-label { margin: 0 0 var(--space-1); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }
+.noticing-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-4); }
+.noticing-row { display: flex; flex-direction: column; justify-content: center; min-height: 44px; padding: 4px 0; color: inherit; text-decoration: none; }
+.noticing-row:hover .noticing-name { text-decoration: underline; text-underline-offset: 3px; }
+.noticing-name { font-weight: var(--font-weight-medium); }
+.noticing-row .noticing-value { font-size: var(--font-size-sm); font-weight: var(--font-weight-regular); color: var(--color-ink-soft); line-height: 1.3; }
+.noticing-note { margin: var(--space-1) 0 0; }
+.category-menu .menu-row { min-height: 48px; }
+.switch-group { margin: 0; padding: var(--space-2) var(--space-5) 0; font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-ink-soft); }
+.switches > .switch-group { border-top: 1px solid var(--glass-line); }
+.switches > .switch-group:first-child, .switches > .switch-note + .switch-group { border-top: 0; }
+.switches > .switch-group + * { border-top: 0; }
+.measure-switches .switch-row { min-height: 44px; padding-top: 4px; padding-bottom: 4px; }
+
+/* My values: one measure as label and numbers, its strip, then what it means */
+.value-head { margin: 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 var(--space-2); }
+.value-num { font-size: var(--font-size-sm); font-variant-numeric: tabular-nums; }
+.value-meaning { margin: 0; font-size: var(--font-size-xs); color: var(--color-ink-soft); line-height: 1.3; }
+.value-measure[data-changed] .value-state { color: var(--color-change); font-weight: var(--font-weight-medium); }
+.value-measure .strip svg { height: 30px; }
+.values-card { gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+@media (max-width: 479px) {
+  .measure-switches .switch-hint:not(.keep) { display: none; }
+  .measure-switches .switch-row { min-height: 40px; }
+  .switch-group { padding-top: 6px; }
+}
+@media (min-width: 900px) {
+  .measure-switches .switch-row { min-height: 40px; padding-top: 2px; padding-bottom: 2px; }
+}
+.value-measure .strip { display: block; }
+@media (max-width: 479px) {
+  .value-measure .strip svg { height: 22px; }
+  .values-card { gap: 6px; padding: var(--space-2) var(--space-3); }
+}
+@media (min-width: 900px) {
+  .switch-group { padding-top: 4px; }
+}

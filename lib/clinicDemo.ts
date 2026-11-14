@@ -36,6 +36,7 @@ function appData(r: ReturnType<typeof makeReplayData>, upTo: DayKey): AppData {
     activityDays: r.activityDays.filter((d) => d.date <= upTo),
     dailyAnswers: r.dailyAnswers.filter((d) => d.date <= upTo),
     movementSessions: r.movementSessions.filter((d) => d.date <= upTo),
+    contactDays: r.contactDays.filter((d) => d.date <= upTo),
     checkIns: [],
     settings: { muted: false },
   };
@@ -56,7 +57,7 @@ export function demoPatients(today: DayKey): DemoPatient[] {
     }
     const data = appData(r, today);
     const measured = daysWithData({ ...data, typingDays: data.typingDays?.filter((d) => daysBetween(d.date, today) < 35), activityDays: data.activityDays.filter((d) => daysBetween(d.date, today) < 35) }, today);
-    const what = out.length === 2 ? "Both sources" : out.length === 1 ? out[0].label : "";
+    const what = out.map((s) => s.label).join(" and ");
     const reason = !out.length
       ? "Within their own usual"
       : streak

@@ -61,7 +61,7 @@ check(
 const usualLow = Array.from({ length: 28 }, (_, i) => (i % 4 === 3 ? 1 : 2));
 check("not more than their usual: not changed", judgeAnswers(pts([...usualLow, 2, 2, 2, 2, 1, 1, 1]), TODAY).status === "steady");
 check("too few usual answers: still learning", judgeAnswers(pts([...Array(25).fill(null), 0, 1, 0, 2, 2, 2, 2, 1, 2, 0]), TODAY).status === "learning");
-check("the own answers may ask on their own", enoughToAsk([{ key: "ownAnswer" }]) && !enoughToAsk([{ key: "spread" }, { key: "hold" }]));
+check("Mood's own answers may ask on their own", enoughToAsk([{ key: "ownAnswer" }]) && !enoughToAsk([{ key: "spread" }, { key: "hold" }]));
 
 {
   const data: AppData = {

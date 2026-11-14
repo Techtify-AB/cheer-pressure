@@ -97,8 +97,10 @@ export function valuesSummary(e: Evaluation, who: "my" | "your"): string {
   if (e.learning) return `Not enough days yet to compare with ${who} usual (${e.daysOfData} of ${LEARNING_DAYS} days).`;
   const out = sourcesOfEvaluation(e).filter((s) => s.standsOut);
   if (!out.length) return `Over the last week ${who} values were within ${who} own usual.`;
-  if (onlyQuietSources(e.changed)) return "Over the last week only typing stood out, which on its own never makes Cheri ask.";
-  const names = out.map((s) => (who === "my" ? s.reportLabel : s.label).toLowerCase()).join(" and ");
+  if (onlyQuietSources(e.changed)) {
+    return `Over the last week only ${out.map((s) => s.label).join(" and ")} stood out, which on its own never makes Cheri ask.`;
+  }
+  const names = out.map((s) => (who === "my" ? s.reportLabel : s.label)).join(" and ");
   return `Over the last week ${names} stood out from ${who} own usual${enoughToAsk(e.changed) ? ", enough for Cheri to ask" : ""}.`;
 }
 
@@ -156,17 +158,21 @@ export function clinicReport(data: AppData, today: DayKey, evaluation?: Evaluati
   const from = addDays(today, -(REPORT_DAYS - 1));
   const inPeriod = (d: DayKey) => d >= from && d <= today;
 
-  const sources = sourcesOfEvaluation(e)
-    .filter((s) => (s.id !== "answers" && s.id !== "movement") || s.metrics.some((m) => m.points.length))
-    .map((s) => ({
+  // All four categories; a measure with nothing in this period is left out, and a category
+  // with nothing at all says so.
+  const sources = sourcesOfEvaluation(e).map((s) => {
+    const measured = s.metrics.filter((m) => m.points.some((p) => p.date >= from));
+    const lines = [
+      ...measured.map((m) => ({ label: m.label, text: measureLine(m, today, "my") })),
+      ...(s.id === "mood" && (data.dailyAnswers ?? []).some((a) => a.answer && a.date >= from) ? answerWeeks(data, today) : []),
+    ];
+    return {
       id: s.id,
       label: s.reportLabel,
       standsOut: s.standsOut,
-      lines: [
-        ...s.metrics.map((m) => ({ label: m.label, text: measureLine(m, today, "my") })),
-        ...(s.id === "answers" ? answerWeeks(data, today) : []),
-      ],
-    }));
+      lines: lines.length ? lines : [{ label: "Nothing measured", text: "No values in this period." }],
+    };
+  });
 
   // Data quality: how many days each source rests on.
   const typingRows = (data.typingDays ?? []).filter((t) => inPeriod(t.date) && t.kind === "all");
