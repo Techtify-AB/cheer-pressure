@@ -5,7 +5,8 @@
 //
 // Unit: the timer's end-time logic (also "ran out while closed"), the memory game's rules and
 // lock, the demo reply matching the draft, plan defaults and the single-meal case,
-// activityForHelp, the "Did that help?" summary and order, the reaction check (too-early tap,
+// activityForHelp, the "Did that help?" counts, the opening line and library order from both
+// signals (lib/helps.ts), the reaction check (too-early tap,
 // median, comparison with the person's usual).
 //
 // Browser (needs playwright-core and a Chromium, like scripts/check-fit.mjs): at 390x844,
@@ -16,7 +17,8 @@
 // every request to another origin blocked, and offline after it has loaded.
 
 import { ACTIVITIES, ACTIVITY_IDS, activityForHelp, FOR_HELP, nextActivities } from "../lib/activities/index.ts";
-import { activityHelpScore, activityHelpSentence, activityHelpStats, orderActivitiesByHelp } from "../lib/activities/feedback.ts";
+import { activityHelpStats } from "../lib/activities/feedback.ts";
+import { activityStats, followedLines, orderActivities, type Occasion } from "../lib/activities/learning.ts";
 import { flip, isWon, newRound, settle, shuffle, type GameState } from "../lib/activities/game.ts";
 import { ATTENTION_GUIDE, holdFor, lineAt, PAUSE_AFTER_LINE_MS } from "../lib/activities/guide.ts";
 import {
@@ -128,18 +130,22 @@ function unit() {
   check("next activities skip the current one and repeats", nextActivities([{ id: "music", label: "Music", on: true }, { id: "outdoors", label: "x", on: true }, { id: "moving", label: "y", on: true }], ["song"]).join() === "outside,daylight");
   check("nine activities, one page each", ACTIVITIES.length === 9 && ACTIVITY_IDS.length === 9);
 
-  // --- Did that help? -------------------------------------------------------------------
+  // --- Did that help? (the second signal) and the values (the first) ------------------------
   const rec = (activity: string, feedback: "yes" | "a-little" | "no" | null) => ({ activity, feedback });
   const history = [rec("outside", "yes"), rec("outside", "yes"), rec("outside", "a-little"), rec("outside", "no"), rec("game", "no"), rec("song", null)];
   const st = activityHelpStats(history);
   check("counts done and answered", st.outside.done === 4 && st.outside.answered === 4 && st.song.done === 1 && st.song.answered === 0);
-  check("yes counts 1, a little 0.5", st.outside.helped === 2.5);
-  check("sentence", activityHelpSentence(st.outside) === "You've said a short walk helped 3 of 4 times.", activityHelpSentence(st.outside) ?? "");
-  check("no history: no sentence", activityHelpSentence(undefined) === null);
-  check("done but never answered", activityHelpSentence(st.song) === "You've done a song and a first step once before.");
-  check("score: untried one half, helped above, not helped below", activityHelpScore(undefined) === 0.5 && activityHelpScore(st.outside) > 0.5 && activityHelpScore(st.game) < 0.5);
-  const order = orderActivitiesByHelp(ACTIVITIES.map((a) => a.id), history);
-  check("library order: helped first, untried next, not helped last", order[0] === "outside" && order[order.length - 1] === "game" && order[1] === "daylight", order.join(","));
+  check("yes, a little and no counted apart", st.outside.yes === 2 && st.outside.aLittle === 1 && st.outside.no === 1);
+  const occ = (activity: string, followed: Occasion["followed"]): Occasion => ({ thing: `activity:${activity}`, date: "2026-11-01", followed, before: 1, after: 0, daysBefore: 3, daysAfter: 3, share: 1 });
+  const occasions = [occ("outside", "better"), occ("outside", "better"), occ("outside", "better"), occ("outside", "no-change"), occ("game", "no-change"), occ("daylight", "too-early")];
+  const so = activityStats("outside", occasions, history);
+  check("opening line: the values, then what the person said, apart", followedLines(so.values, so.answers).join(" ") === "Followed by better days 3 of 4 times. You said it helped 3 of 4 times.", followedLines(so.values, so.answers).join(" "));
+  const sd = activityStats("daylight", occasions, history);
+  check("opening line: too early to tell", followedLines(sd.values, sd.answers).join(" ") === "Too early to tell.");
+  const sn = activityStats("song", [], history);
+  check("done but nothing to tell yet and no answer: no line", followedLines(sn.values, sn.answers).length === 0);
+  const order = orderActivities(ACTIVITIES.map((a) => a.id), occasions, history);
+  check("library order: better days first, untried next, unchanged days and Not really last", order[0] === "outside" && order[order.length - 1] === "game" && order[1] === "daylight", order.join(","));
 
   // --- The reaction check --------------------------------------------------------------------
   let s = initialReaction();

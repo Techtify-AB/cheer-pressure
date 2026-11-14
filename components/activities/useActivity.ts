@@ -11,8 +11,9 @@
 //   ended early and asks "Did any of it help?" in a gentler wording.
 // - "Done" (or "Did it", "That works") stops all of it and records what the person said they
 //   did: the activity, the day, whether the easier version was used, and whether it came before
-//   the timer or the sound had run out. Then one question, "Did that help?", whose answer is
-//   stored on the same record. Self-reported only, nothing is measured.
+//   the timer or the sound had run out. Then one light question, "Did that help?" (Skip is
+//   fine), whose answer is stored on the same record. That answer is the second signal; the
+//   first is whether the days after moved back towards the person's usual (lib/helps.ts).
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -94,8 +95,8 @@ export function useActivity(id: ActivityId): ActivityRun {
       saveActivityDone(entry);
       // TODO(helps): lib/helps.ts has no export that marks a step-one suggestion as taken from
       // here. The ladder's step-one screen records "try" itself (answerOffer, viaActivity) before
-      // it opens the activity, and lib/helps.ts reads this record's "Did that help?" through
-      // feedbackFromActivities. If a "taken" mark is ever wanted from the activity, add it here.
+      // it opens the activity. lib/helps.ts reads this record twice: its day for what followed in
+      // the values (doneThings), and its "Did that help?" through feedbackFromActivities.
       setDone({ entry, message, stage: "feedback", ended });
     },
     [id, easier, stopAll],

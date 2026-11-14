@@ -1,8 +1,10 @@
 "use client";
 
-// After an activity: one question on its own screen, "Did that help?" (gentler when it was
-// ended partway), three taps and a quiet Skip; one tap answers and closes. Then a short close,
-// with a quick reaction check offered as an optional extra at most once a day.
+// After an activity: one light question on its own screen, "Did that help?" (gentler when it was
+// ended partway), three taps and a quiet Skip; one tap answers and closes. Never required. The
+// answer is Cheri's second signal: the first is whether the person's days move back towards
+// their usual afterwards, which she learns by herself (lib/helps.ts). Then a short close, with a
+// quick reaction check offered as an optional extra at most once a day.
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -54,7 +56,7 @@ export function FeedbackView({ run }: { run: ActivityRun }) {
           </button>
         ))}
       </div>
-      <p className="muted small act-done-note">This helps Cheri suggest what works for you. It stays on this device.</p>
+      <p className="muted small act-done-note">Optional. I also look at how your next few days go. It stays on this device.</p>
     </Screen>
   );
 }
