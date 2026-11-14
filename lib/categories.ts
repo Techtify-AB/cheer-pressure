@@ -5,7 +5,7 @@
 
 import { formatDay } from "./dates";
 import { dailyQuestionOf } from "./daily";
-import { joinPhrases, LEARNING_DAYS, SOURCES, type CategoryId, type Evaluation, type Input, type PassiveMetric } from "./passive";
+import { joinPhrases, LEARNING_DAYS, phoneSleepReplaces, SOURCES, type CategoryId, type Evaluation, type Input, type PassiveMetric } from "./passive";
 import { changedSince } from "./report";
 import { sourcesOf } from "./settings";
 import type { AppData, DayKey, PassiveKey } from "./types";
@@ -31,11 +31,16 @@ export function inputState(input: Input, data: AppData, paired: boolean): InputS
       return paired ? "measuring" : "not-connected";
     case "dailyQuestion":
       return dailyQuestionOf(data.settings).every === "off" ? "off" : "measuring";
+    case "phoneHealth":
+      // Only the phone app asks; Health never says whether reading was allowed, so asked counts as on.
+      return data.phoneHealth?.askedAt || data.healthNights?.length || data.stepDays?.length ? "measuring" : "not-connected";
   }
 }
 
 /** Short words for an input in a category's line. */
 const SHORT: Record<string, string> = {
+  "phone-health": "your phone's health data",
+  steps: "steps from your phone",
   "computer-use": "an estimate from your first and last key press each day",
   movement: "movement from the camera",
   "voice-pace": "pace of the voice",
@@ -75,14 +80,18 @@ export const CATEGORY_IDS: CategoryId[] = SOURCES.map((c) => c.id);
  * the person's own answer, never a sensor.
  */
 export const STRIP_MEASURES: Record<CategoryId, PassiveKey[]> = {
-  sleep: ["quietNight", "firstActivity", "lastActivity"],
-  energy: ["movementLevel", "positionChanges"],
+  sleep: ["phoneAsleep", "phoneBedtime", "phoneWake", "quietNight", "firstActivity", "lastActivity"],
+  energy: ["steps", "movementLevel", "positionChanges"],
   social: ["contact"],
   mood: ["ownAnswer"],
 };
 
 /** Which measure a strip is, in small words under the category's name. */
 export const MEASURE_WORDS: Partial<Record<PassiveKey, string>> = {
+  phoneAsleep: "Time asleep (your phone)",
+  phoneBedtime: "Bedtime (your phone)",
+  phoneWake: "Wake time (your phone)",
+  steps: "Steps (your phone)",
   quietNight: "Estimated night (this computer)",
   firstActivity: "The day's start (this computer)",
   lastActivity: "The day's end (this computer)",
@@ -129,6 +138,8 @@ export type InputView =
 
 /** How an input that is off is turned on: the words of the link, the rest of the line, and where it goes. */
 const TURN_ON: Record<string, { action: string; rest: string; href: string }> = {
+  "phone-health": { action: "Allow sleep and steps", rest: " from your phone's health data. They stay on this phone.", href: "/settings/#measure-sleep" },
+  steps: { action: "Allow sleep and steps", rest: " from your phone's health data. They stay on this phone.", href: "/settings/#measure-energy" },
   "computer-use": { action: "Turn on the estimate from this computer", rest: " to see your nights. Only the time of the first and last key press.", href: "/settings/#measure-sleep" },
   movement: { action: "Turn on the camera", rest: " to measure movement. The picture is worked out on this computer.", href: "/settings/#measure-energy" },
   "voice-pace": { action: "Turn on the microphone", rest: " to measure the pace of your voice. No words are recognised.", href: "/settings/#measure-energy" },
@@ -142,6 +153,8 @@ const TURN_ON: Record<string, { action: string; rest: string; href: string }> = 
 
 /** An input in running text: "Only typing is being measured." */
 export const INPUT_WORDS: Record<string, string> = {
+  "phone-health": "sleep from your phone",
+  steps: "steps",
   "computer-use": "the estimate from this computer",
   movement: "movement",
   "voice-pace": "the pace of your voice",
@@ -157,9 +170,12 @@ export function inputViews(id: CategoryId, data: AppData, e: Evaluation, paired:
   const cat = SOURCES.find((c) => c.id === id)!;
   return cat.inputs.map((input): InputView => {
     if (!input.setting) return { kind: "not-connected", input };
+    // On the phone, the phone's own nights replace this estimate as Sleep's source (there is no computer to read there).
+    if (input.id === "computer-use" && phoneSleepReplaces(data, e.today)) return { kind: "not-connected", input };
     const metrics = e.metrics.filter((m) => input.measures.includes(m.key));
     const withData = metrics.filter((m) => m.points.length > 0);
     const state = inputState(input, data, paired);
+    if (input.setting === "phoneHealth" && state === "not-connected" && !withData.length) return { kind: "not-connected", input };
     if (withData.some((m) => m.status !== "learning")) return { kind: "values", input, metrics: withData };
     const days = Math.min(LEARNING_DAYS, Math.max(0, ...metrics.map((m) => m.points.length)));
     if (state === "measuring" || withData.length) return { kind: "learning", input, days };

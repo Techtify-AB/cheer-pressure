@@ -12,6 +12,14 @@ export function isDesktop(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+/** True inside the Cheer Pressure phone app (mobile/), where lib/phone.ts reaches the phone. */
+export function isPhoneApp(): boolean {
+  return typeof window !== "undefined" && "__cheerPressureNative" in window && "ReactNativeWebView" in window;
+}
+
+// In the phone app the bridge starts itself once (sleep and steps, notifications); elsewhere nothing loads.
+if (isPhoneApp()) void import("./phone").then((p) => p.startPhone());
+
 export type ListenerState = "running" | "permission-needed" | "unsupported" | "error";
 
 export interface DesktopStatus {

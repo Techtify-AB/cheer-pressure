@@ -29,7 +29,7 @@
 // It compares only with the person's own earlier data. No percentages, no risk
 // score, no diagnosis: it says what changed, in plain words.
 
-import { addDays, clockToMinutes, daysBetween, minutesToClock, parseDay } from "./dates";
+import { addDays, clockToMinutes, clockToNightMinutes, daysBetween, minutesToClock, nightMinutesToClock, parseDay } from "./dates";
 import type { SuggestionId } from "./brain";
 import { ANSWER_VALUE, answerLabel } from "./daily";
 import type { AppData, DayKey, PassiveKey, PromptedCheckIn, TypingDay, TypingKind } from "./types";
@@ -112,7 +112,7 @@ export type CategoryId = "sleep" | "energy" | "social" | "mood";
 export type SourceId = CategoryId;
 
 /** Which switch in Settings turns an input on, or null for one that is not connected yet. */
-export type InputSetting = "dayRhythm" | "typing" | "camera" | "microphone" | "contact" | "dailyQuestion" | null;
+export type InputSetting = "dayRhythm" | "typing" | "camera" | "microphone" | "contact" | "dailyQuestion" | "phoneHealth" | null;
 
 export interface Input {
   id: string;
@@ -146,6 +146,8 @@ export const SOURCES: {
     reportLabel: "Sleep",
     words: "sleep",
     inputs: [
+      // On the phone, when it has nights, this replaces the computer's estimate as Sleep's source (phoneSleepReplaces).
+      { id: "phone-health", label: "From the phone's health data", measures: ["phoneAsleep", "phoneBedtime", "phoneWake"], setting: "phoneHealth" },
       { id: "computer-use", label: "Estimated from when this computer is used", measures: ["firstActivity", "lastActivity", "quietNight"], setting: "dayRhythm" },
       { id: "phone-app", label: "Phone app", measures: [], setting: null },
       { id: "watch", label: "Watch or band (Fitbit, Apple Health, Health Connect)", measures: [], setting: null },
@@ -158,6 +160,7 @@ export const SOURCES: {
     reportLabel: "Energy",
     words: "energy",
     inputs: [
+      { id: "steps", label: "Steps", measures: ["steps"], setting: "phoneHealth" },
       { id: "movement", label: "Body movement (camera)", measures: ["movementLevel", "positionChanges"], setting: "camera", sensor: true },
       { id: "voice-pace", label: "Pace of the voice (microphone)", measures: ["voicePace"], setting: "microphone", sensor: true },
       { id: "typing", label: "Typing rhythm", measures: ["spread", "hold"], setting: "typing", sensor: true },
@@ -372,6 +375,42 @@ const ms = (v: number) => `${Math.round(v)} ms`;
 /** In the order of the categories: Sleep, Energy, Social, Mood. */
 export const PASSIVE_DEFS: Def[] = [
   {
+    key: "phoneAsleep",
+    label: "Time asleep",
+    meaning: "Time asleep each night, from your phone's health data (a watch, a sleep app or the phone itself)",
+    format: (v) => `${v.toFixed(1)} h`,
+    up: "your nights have been longer",
+    down: "your nights have been shorter",
+    upWord: "longer",
+    downWord: "shorter",
+    is: "Time asleep per night, from the phone's health data (a watch, a sleep app or the phone's own sleep feature)",
+    isNot: "Not how well I slept; nothing about sleep leaves the phone",
+  },
+  {
+    key: "phoneBedtime",
+    label: "Bedtime",
+    meaning: "When your night began, from your phone's health data",
+    format: nightMinutesToClock,
+    up: "you've gone to bed later",
+    down: "you've gone to bed earlier",
+    upWord: "later",
+    downWord: "earlier",
+    is: "When the night began, from the phone's health data",
+    isNot: "Not how well I slept",
+  },
+  {
+    key: "phoneWake",
+    label: "Wake time",
+    meaning: "When you woke up, from your phone's health data",
+    format: minutesToClock,
+    up: "you've woken up later",
+    down: "you've woken up earlier",
+    upWord: "later",
+    downWord: "earlier",
+    is: "When the night ended, from the phone's health data",
+    isNot: "Not when I got up",
+  },
+  {
     key: "quietNight",
     label: "Estimated rest",
     meaning:
@@ -410,6 +449,18 @@ export const PASSIVE_DEFS: Def[] = [
 
 
 
+  {
+    key: "steps",
+    label: "Steps",
+    meaning: "Steps a day, from your phone's health data",
+    format: (v) => `${Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")} a day`,
+    up: "you've taken more steps",
+    down: "you've taken fewer steps",
+    upWord: "more",
+    downWord: "fewer",
+    is: "Steps per day, from the phone's health data",
+    isNot: "Not a measure of fitness; a day the phone stayed at home looks like a quiet day",
+  },
   {
     key: "movementLevel",
     label: "Movement",
@@ -666,7 +717,44 @@ export function tonePoints(data: AppData, key: "voicePace" | "pitchVariability",
   );
 }
 
+/** Measures of the computer's sleep estimate, which the phone's own nights replace. */
+export const COMPUTER_SLEEP_KEYS: PassiveKey[] = ["firstActivity", "lastActivity", "quietNight"];
+
+/**
+ * True when Sleep comes from the phone's health data instead of the computer's estimate: as soon
+ * as there is any night from the phone up to today. Then the estimate is not used by the rule.
+ */
+export function phoneSleepReplaces(data: AppData, today: DayKey): boolean {
+  return (data.healthNights ?? []).some((n) => n.date <= today);
+}
+
+/**
+ * The phone's nights as daily values (one per night, on the morning it ended): hours asleep;
+ * bedtime in minutes after noon (so 00:30 comes after 23:10); wake time in minutes after midnight.
+ */
+export function phoneSleepPoints(data: AppData, key: "phoneAsleep" | "phoneBedtime" | "phoneWake", today: DayKey): Point[] {
+  const out: Point[] = [];
+  for (const n of data.healthNights ?? []) {
+    if (n.date > today) continue;
+    if (key === "phoneAsleep") {
+      if (n.asleepMinutes !== null && n.asleepMinutes > 0) out.push({ date: n.date, value: n.asleepMinutes / 60 });
+    } else out.push({ date: n.date, value: key === "phoneBedtime" ? clockToNightMinutes(n.bedtime) : clockToMinutes(n.wake) });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Steps per day from the phone. Today is left out (it is still growing), and so are days with no steps at all. */
+export function stepPoints(data: AppData, today: DayKey): Point[] {
+  return (data.stepDays ?? [])
+    .filter((s) => s.date < today && s.steps > 0)
+    .map((s) => ({ date: s.date, value: s.steps }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function seriesFor(data: AppData, key: PassiveKey, today: DayKey, kind: TypingKind): Point[] {
+  if (key === "phoneAsleep" || key === "phoneBedtime" || key === "phoneWake") return phoneSleepPoints(data, key, today);
+  if (key === "steps") return stepPoints(data, today);
+  if (COMPUTER_SLEEP_KEYS.includes(key) && phoneSleepReplaces(data, today)) return [];
   if (key === "spread" || key === "hold") return typingPoints(data.typingDays ?? [], key, kind, today);
   if (key === "movementLevel" || key === "positionChanges") return movementPoints(data, key, today);
   if (key === "faceMovement" || key === "raisedMouth" || key === "posture") return cameraMoodPoints(data, key, today);
@@ -736,6 +824,8 @@ export function daysWithData(data: AppData, today: DayKey): number {
     ...(data.typingDays ?? []).filter((d) => d.presses >= MIN_DAY_PRESSES).map((d) => d.date),
     ...data.activityDays.map((d) => d.date),
     ...movementPoints(data, "movementLevel", today).map((p) => p.date),
+    ...(data.healthNights ?? []).map((n) => n.date),
+    ...stepPoints(data, today).map((p) => p.date),
   ]);
   return [...dates].filter((d) => d <= today).length;
 }
@@ -756,7 +846,7 @@ export function evaluatePassive(data: AppData, today: DayKey, opts: { test?: Cha
   };
   const simulated =
     !!data.settings.simulatedChangeAt ||
-    [...(data.typingDays ?? []), ...data.activityDays].some((e) => e.source === "demo");
+    [...(data.typingDays ?? []), ...data.activityDays, ...(data.healthNights ?? []), ...(data.stepDays ?? [])].some((e) => e.source === "demo");
 
   let reason: Evaluation["reason"];
   let askNow = false;
@@ -861,6 +951,9 @@ export function suggestionFor(e: PassiveView): SuggestionId {
   const keys = new Set(e.changed.map((m) => `${m.key}:${m.direction}`));
   if (keys.has("firstActivity:up") || keys.has("quietNight:down")) return "morning-light";
   if (keys.has("lastActivity:up")) return "regular-bedtime";
+  if (keys.has("phoneWake:up") || keys.has("phoneAsleep:down")) return "morning-light";
+  if (keys.has("phoneBedtime:up")) return "regular-bedtime";
+  if (keys.has("steps:down")) return "walk";
   if ([...keys].some((k) => k.startsWith("spread") || k.startsWith("pauses") || k.startsWith("hold"))) return "walk";
   return "music";
 }

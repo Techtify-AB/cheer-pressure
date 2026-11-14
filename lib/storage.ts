@@ -26,6 +26,8 @@ import type {
   WeeklyEntry,
 } from "./types";
 
+import type { HealthNight, StepsDay } from "./types";
+
 const KEY = "companion.v1";
 
 function empty(): AppData {
@@ -228,6 +230,34 @@ export function saveContactDays(days: ContactDay[]) {
 }
 
 /**
+ * Nights and steps read from the phone's health data (lib/phone.ts). The phone is the source of
+ * truth: from `since` on, what is stored is replaced by what was read (so a night removed from
+ * Health goes here too); older days are kept.
+ */
+export function savePhoneHealth(read: { since: string; nights: HealthNight[] | null; steps: StepsDay[] | null }) {
+  const d = readData();
+  const keep = <T extends { date: string }>(list: T[] | undefined) => (list ?? []).filter((e) => e.date < read.since);
+  commit({
+    ...d,
+    healthNights: read.nights ? sortByDate([...keep(d.healthNights), ...read.nights]) : d.healthNights,
+    stepDays: read.steps ? sortByDate([...keep(d.stepDays), ...read.steps]) : d.stepDays,
+    phoneHealth: { askedAt: d.phoneHealth?.askedAt ?? new Date().toISOString(), syncedAt: new Date().toISOString() },
+  });
+}
+
+/** The person was asked for sleep and steps on the phone (whatever they chose: Health never says). */
+export function markPhoneHealthAsked() {
+  const d = readData();
+  commit({ ...d, phoneHealth: { ...d.phoneHealth, askedAt: d.phoneHealth?.askedAt ?? new Date().toISOString() } });
+}
+
+/** The phone app's own notification bookkeeping (lib/phone.ts). */
+export function savePhoneNotices(notices: { wordOn?: string }) {
+  const d = readData();
+  commit({ ...d, phoneNotices: { ...d.phoneNotices, ...notices } });
+}
+
+/**
  * Stores one stretch with the camera on (numbers only), and keeps the usual posture across
  * sessions: the median head height of the last 28 days' sessions, so days can be compared
  * (the camera's own posture usual is only the first minutes of each session).
@@ -329,6 +359,9 @@ function clearDemoFrom(d: AppData): AppData {
     contactDays: (d.contactDays ?? []).filter((e) => e.source !== "demo"),
     toneSessions: (d.toneSessions ?? []).filter((e) => e.source !== "demo"),
     activityDays: d.activityDays.filter((e) => e.source !== "demo"),
+    // Made-up weeks in the phone's Health come back on the next read until removed there.
+    healthNights: (d.healthNights ?? []).filter((e) => e.source !== "demo"),
+    stepDays: (d.stepDays ?? []).filter((e) => e.source !== "demo"),
     settings: { ...d.settings, simulatedChangeAt: undefined },
     // A ladder that started from made-up data goes with it.
     ladder: d.ladder?.simulated ? null : (d.ladder ?? null),
@@ -342,7 +375,7 @@ export function clearDemo() {
 export function hasDemo(d: AppData): boolean {
   return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions, ...(d.typingDays ?? []), ...(d.dailyAnswers ?? []), ...(d.movementSessions ?? []), ...(d.contactDays ?? []), ...(d.toneSessions ?? []), ...d.activityDays].some(
     (e) => e.source === "demo",
-  );
+  ) || [...(d.healthNights ?? []), ...(d.stepDays ?? [])].some((e) => e.source === "demo");
 }
 
 /** Removes everything this app has stored in this browser. */

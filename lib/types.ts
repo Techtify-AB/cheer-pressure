@@ -119,7 +119,40 @@ export type PassiveKey =
   | "faceMovement"
   | "raisedMouth"
   | "posture"
-  | "pitchVariability";
+  | "pitchVariability"
+  // From the phone's health data (lib/phone.ts): time asleep, bedtime and wake time per night; steps per day.
+  | "phoneAsleep"
+  | "phoneBedtime"
+  | "phoneWake"
+  | "steps";
+
+/**
+ * One night from the phone's health data (Apple Health today, Health Connect later), reduced on
+ * the phone to one record per night: no raw samples, no source app. `date` is the morning it
+ * ended. Times are local "HH:MM".
+ */
+export interface HealthNight {
+  date: DayKey;
+  /** When the night began: in bed if the source says so, else falling asleep. */
+  bedtime: string;
+  /** When the person woke up: the end of the last stretch asleep (or in bed). */
+  wake: string;
+  /** Minutes asleep, or null when the source only knows time in bed. */
+  asleepMinutes: number | null;
+  /** Minutes in bed, or null when the source does not record it. */
+  inBedMinutes: number | null;
+  /** Times awake during the night, or null when the source does not record it. */
+  awakenings: number | null;
+  /** "demo" for the made-up weeks the development build can add to Health. */
+  source: Source;
+}
+
+/** Steps on one day (midnight to midnight) from the phone's health data. Only full days. */
+export interface StepsDay {
+  date: DayKey;
+  steps: number;
+  source: Source;
+}
 
 /** Messages with the person the person trusts on one day, both ways, while a pair existed. */
 export interface ContactDay {
@@ -318,6 +351,17 @@ export interface AppData {
   toneSessions?: StoredToneSession[];
   /** The usual posture across sessions. Missing in older data. */
   postureUsual?: PostureUsual | null;
+  /** Nights from the phone's health data, one per night. Missing outside the phone app. */
+  healthNights?: HealthNight[];
+  /** Steps per day from the phone's health data. Missing outside the phone app. */
+  stepDays?: StepsDay[];
+  /**
+   * The phone app's health data: when the person was asked for sleep and steps, and when they were
+   * last read. Missing until asked (and always outside the phone app).
+   */
+  phoneHealth?: { askedAt: string; syncedAt?: string } | null;
+  /** The phone app's notifications: the last day "Cheri would like a word" was shown. */
+  phoneNotices?: { wordOn?: DayKey } | null;
   activityDays: ActivityDay[];
   checkIns: PromptedCheckIn[];
   settings: Settings;
