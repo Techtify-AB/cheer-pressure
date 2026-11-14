@@ -30,5 +30,6 @@ export function ActivityHost({ id }: { id: ActivityId }) {
   if (!data || !activityById(id)) return null;
   if (run.done) return run.done.stage === "feedback" ? <FeedbackView run={run} /> : <AfterView run={run} />;
   const View = ACTIVITY_VIEWS[id];
-  return <View run={run} plan={planOf(data, trusted)} />;
+  // A fresh start for the easier version: its own state, nothing carried over.
+  return <View key={run.easier ? "easier" : "full"} run={run} plan={planOf(data, trusted)} />;
 }
