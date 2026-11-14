@@ -31,7 +31,11 @@
   text-decoration: none;
   transition: border-color 0.15s var(--ease);
 }
-.act-library-item:hover { border-color: var(--color-ink-faint); }
+.act-library-item { -webkit-tap-highlight-color: transparent; }
+.act-library-item:active { background: var(--press-wash); }
+@media (hover: hover) and (pointer: fine) {
+  .act-library-item:hover { border-color: var(--color-ink-faint); }
+}
 .act-library-title { font-weight: var(--font-weight-bold); font-size: var(--font-size-lg); line-height: 1.3; }
 .act-library-line { color: var(--color-ink-soft); }
 .act-library-takes { font-size: var(--font-size-sm); color: var(--color-primary); font-weight: var(--font-weight-medium); }
@@ -91,7 +95,11 @@
   text-align: left;
   font-weight: var(--font-weight-medium);
 }
-.act-check:hover { border-color: var(--color-ink-faint); }
+.act-check { -webkit-tap-highlight-color: transparent; }
+.act-check:active { background: var(--press-wash); }
+@media (hover: hover) and (pointer: fine) {
+  .act-check:hover { border-color: var(--color-ink-faint); }
+}
 .act-check-box {
   flex: none;
   display: inline-grid;

@@ -37,6 +37,7 @@
   /* Quiet surfaces: buttons and the few boxes that stay boxes. No blur on the paper. */
   --surface-quiet: rgba(255, 255, 255, 0.55);
   --surface-quiet-strong: rgba(255, 255, 255, 0.8);
+  --press-wash: rgba(27, 26, 23, 0.06); /* under the finger: the paper darkens a little, never whiter */
 
   /* The companion character */
   --companion-body: #8fb8a6;
@@ -89,7 +90,7 @@
 
   /* The desktop main window: one frosted pane. The system blurs the desktop behind the
      window; this cream wash sits on that blur and the content sits directly on it. */
-  --desktop-wash: rgba(251, 248, 241, 0.68);
+  --desktop-wash: rgba(251, 248, 241, 0.3);
 
   /* Layout and motion */
   --content-width: 560px;

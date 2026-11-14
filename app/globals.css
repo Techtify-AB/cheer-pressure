@@ -173,12 +173,10 @@ html[data-shell="desktop"] .shell-header-inner {
   white-space: nowrap;
   flex-shrink: 0;
 }
-.icon-button:hover { border-color: var(--color-line-strong); }
 .icon-status {
   background: transparent;
   border-style: dashed;
 }
-.icon-status:hover { border-color: var(--color-line); }
 @media (max-width: 479px) {
   .hide-narrow { display: none; }
 }
@@ -196,7 +194,6 @@ html[data-shell="desktop"] .shell-header-inner {
   white-space: nowrap;
   flex-shrink: 0;
 }
-.help-link:hover { text-decoration: underline; }
 
 .page {
   flex: 1 0 auto;
@@ -326,7 +323,6 @@ html[data-shell="desktop"] .shell-header-inner {
   min-height: 56px;
   width: 100%;
 }
-.btn-primary:hover { background: var(--color-primary-hover); }
 .btn-primary:disabled { opacity: 0.35; }
 /* Secondary: a quiet pill, translucent white with a hairline */
 .btn-secondary {
@@ -334,7 +330,6 @@ html[data-shell="desktop"] .shell-header-inner {
   border-color: var(--color-line);
   color: var(--color-ink);
 }
-.btn-secondary:hover { border-color: var(--color-line-strong); background: var(--surface-quiet-strong); }
 .btn-quiet {
   background: none;
   border: none;
@@ -344,7 +339,6 @@ html[data-shell="desktop"] .shell-header-inner {
   text-underline-offset: 3px;
   font-weight: var(--font-weight-regular);
 }
-.btn-quiet:hover { color: var(--color-ink); }
 .btn-danger {
   background: var(--color-help);
   color: var(--color-primary-ink);
@@ -451,7 +445,6 @@ html[data-shell="desktop"] .shell-header-inner {
   background: var(--surface-quiet);
   text-align: left;
 }
-.chip:hover:not(:disabled) { border-color: var(--color-line-strong); background: var(--surface-quiet-strong); }
 .chip[aria-pressed="true"] {
   background: var(--color-primary);
   border-color: var(--color-primary);
@@ -478,7 +471,6 @@ html[data-shell="desktop"] .shell-header-inner {
 }
 .scale-btn strong { font-size: var(--font-size-xl); line-height: 1; }
 .scale-btn span { font-size: var(--font-size-xs); color: var(--color-ink-soft); }
-.scale-btn:hover { border-color: var(--color-line-strong); background: var(--surface-quiet-strong); }
 .scale-btn[aria-pressed="true"] {
   background: var(--color-primary);
   border-color: var(--color-primary);
@@ -502,7 +494,6 @@ html[data-shell="desktop"] .shell-header-inner {
   align-items: center;
   gap: var(--space-3);
 }
-.option:hover { border-color: var(--color-line-strong); background: var(--surface-quiet-strong); }
 .option[aria-pressed="true"] {
   background: var(--color-primary);
   border-color: var(--color-primary);
@@ -546,7 +537,6 @@ input[type="time"] { cursor: text; }
   font-size: var(--font-size-xl);
   line-height: 1;
 }
-.stepper button:hover { border-color: var(--color-line-strong); background: var(--surface-quiet-strong); }
 .stepper input {
   text-align: center;
   font-size: var(--font-size-xl);
@@ -583,10 +573,6 @@ input[type="time"] { cursor: text; }
   border-radius: var(--radius-md);
   color: var(--color-ink-soft);
   text-decoration: none;
-}
-.quiet-links a:hover {
-  background: var(--surface-quiet-strong);
-  color: var(--color-ink);
 }
 .notice {
   display: flex;
@@ -707,9 +693,6 @@ pre.summary {
   text-decoration: underline;
   cursor: pointer;
   border-radius: var(--radius-sm);
-}
-.demo-banner-clear:hover {
-  background: color-mix(in srgb, var(--color-placeholder-line) 18%, transparent);
 }
 
 .demo-links { align-items: center; }
@@ -996,7 +979,6 @@ textarea.typing-box { min-height: 72px; }
 @media (prefers-reduced-transparency: reduce) {
   html[data-shell="desktop"]:not(:has(.mascot-page)) body { background: var(--color-bg); }
 }
-.btn-primary.btn-danger:hover { background: var(--color-help); }
 
 @media (max-width: 479px) {
   .screen { gap: var(--space-3); }
@@ -1023,7 +1005,6 @@ textarea.typing-box { min-height: 72px; }
   text-decoration: none;
   white-space: nowrap;
 }
-.settings-link:hover { color: var(--color-ink); background: var(--surface-quiet-strong); }
 .settings-link[aria-current="page"] { color: var(--color-ink); background: var(--surface-quiet-strong); box-shadow: inset 0 0 0 1px var(--color-line); }
 
 /* Home: the companion large, one calm line under it */
@@ -1057,7 +1038,6 @@ textarea.typing-box { min-height: 72px; }
   background: var(--surface-quiet);
   text-align: left;
 }
-.noticing:hover { border-color: var(--color-line-strong); }
 .noticing-text { display: flex; flex-direction: column; min-width: 0; }
 .noticing-label { font-size: var(--font-size-sm); color: var(--color-ink-soft); }
 .noticing-value { font-weight: var(--font-weight-medium); }
@@ -1087,7 +1067,6 @@ textarea.typing-box { min-height: 72px; }
   font: inherit;
 }
 .menu-row + .menu-row { border-top: 1px solid var(--glass-line); }
-.menu-row:hover:not(:disabled) { background: var(--surface-quiet-strong); }
 .menu-row:disabled { cursor: not-allowed; }
 .menu-row:disabled .menu-label { color: var(--color-ink-soft); }
 .menu-label { font-weight: var(--font-weight-medium); display: inline-flex; align-items: center; gap: var(--space-2); }
@@ -1112,7 +1091,6 @@ textarea.typing-box { min-height: 72px; }
   width: 100%;
 }
 .switches > * + * { border-top: 1px solid var(--glass-line); }
-.switch-row:hover:not(:disabled) { background: var(--surface-quiet-strong); }
 .switch-row:disabled { cursor: not-allowed; }
 .switch-row:disabled .switch-label { color: var(--color-ink-soft); }
 .switch-text { display: flex; flex-direction: column; min-width: 0; }
@@ -1363,7 +1341,6 @@ textarea.typing-box { min-height: 72px; }
 .noticing-card .noticing-label { margin: 0 0 var(--space-1); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }
 .noticing-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-4); }
 .noticing-row { display: flex; flex-direction: column; justify-content: center; min-height: 44px; padding: 4px 0; color: inherit; text-decoration: none; }
-.noticing-row:hover .noticing-name { text-decoration: underline; text-underline-offset: 3px; }
 .noticing-name { font-weight: var(--font-weight-medium); }
 .noticing-row .noticing-value { font-size: var(--font-size-sm); font-weight: var(--font-weight-regular); color: var(--color-ink-soft); line-height: 1.3; }
 .noticing-note { margin: var(--space-1) 0 0; }
@@ -1416,7 +1393,6 @@ textarea.typing-box { min-height: 72px; }
   font-size: var(--font-size-sm);
   color: var(--color-ink);
 }
-.swatch:hover { border-color: var(--color-line-strong); }
 .swatch[aria-pressed="true"] { border-color: var(--color-primary); box-shadow: inset 0 0 0 1px var(--color-primary); font-weight: var(--font-weight-medium); }
 .swatch-dot { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.12); flex: none; }
 @media (max-width: 479px) {
@@ -1586,4 +1562,89 @@ html[data-shell="desktop"] .card.switches,
 html[data-shell="desktop"] .card.noticing-card,
 html[data-shell="desktop"] .card.clinic-list {
   background: none;
+}
+
+/* Hover only where there is a real pointer. On a touch screen a hover state sticks after a
+   tap (a tapped button stayed white on the iPhone), so touch gets a pressed state instead. */
+@media (hover: hover) and (pointer: fine) {
+  .icon-button:hover { border-color: var(--color-line-strong); }
+  .icon-status:hover { border-color: var(--color-line); }
+  .help-link:hover { text-decoration: underline; }
+  .btn-primary:hover:not(:disabled) { background: var(--color-primary-hover); }
+  .btn-primary.btn-danger:hover { background: var(--color-help); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--color-line-strong); background: var(--surface-quiet-strong); }
+  .btn-quiet:hover { color: var(--color-ink); }
+  .chip:hover:not(:disabled):not([aria-pressed="true"]),
+  .scale-btn:hover:not([aria-pressed="true"]),
+  .option:hover:not([aria-pressed="true"]):not([aria-checked="true"]),
+  .stepper button:hover { border-color: var(--color-line-strong); background: var(--surface-quiet-strong); }
+  .quiet-links a:hover { background: var(--surface-quiet-strong); color: var(--color-ink); }
+  .demo-banner-clear:hover { background: color-mix(in srgb, var(--color-placeholder-line) 18%, transparent); }
+  .settings-link:hover { color: var(--color-ink); background: var(--surface-quiet-strong); }
+  .noticing:hover { border-color: var(--color-line-strong); }
+  .menu-row:hover:not(:disabled),
+  .switch-row:hover:not(:disabled) { background: var(--surface-quiet-strong); }
+  .noticing-row:hover .noticing-name { text-decoration: underline; text-underline-offset: 3px; }
+  .swatch:hover:not([aria-pressed="true"]) { border-color: var(--color-line-strong); }
+}
+
+/* Pressed: the paper darkens a little under the finger, never whiter. The primary pill gets a
+   slightly lighter ink. Chosen states (ink fill, cream text) stay as they are. */
+.btn,
+.chip,
+.scale-btn,
+.option,
+.stepper button,
+.icon-button,
+.settings-link,
+.help-link,
+.menu-row,
+.switch-row,
+.swatch,
+.noticing,
+.noticing-row,
+.quiet-links a,
+.demo-banner-clear {
+  -webkit-tap-highlight-color: transparent;
+}
+/* Only the press scales smoothly. Chosen states switch at once, so text and fill never
+   pass through ink on ink. */
+.btn,
+.chip,
+.scale-btn,
+.option,
+.swatch {
+  transition: transform 0.12s var(--ease);
+}
+.btn-secondary:active:not(:disabled),
+.btn-quiet:active,
+.chip:active:not(:disabled):not([aria-pressed="true"]),
+.scale-btn:active:not([aria-pressed="true"]),
+.option:active:not([aria-pressed="true"]):not([aria-checked="true"]),
+.stepper button:active,
+.icon-button:active,
+.settings-link:active,
+.menu-row:active:not(:disabled),
+.switch-row:active:not(:disabled),
+.swatch:active:not([aria-pressed="true"]),
+.noticing:active,
+.noticing-row:active,
+.quiet-links a:active {
+  background: var(--press-wash);
+}
+.help-link:active { background: color-mix(in srgb, var(--color-help) 14%, var(--color-help-bg)); }
+.demo-banner-clear:active { background: color-mix(in srgb, var(--color-placeholder-line) 26%, transparent); }
+.btn-primary:active:not(:disabled) { background: var(--color-primary-hover); }
+.btn-primary.btn-danger:active { background: color-mix(in srgb, var(--color-help) 88%, white); }
+.btn:active:not(:disabled),
+.chip:active:not(:disabled),
+.scale-btn:active,
+.option:active,
+.swatch:active { transform: scale(0.98); }
+@media (prefers-reduced-motion: reduce) {
+  .btn:active:not(:disabled),
+  .chip:active:not(:disabled),
+  .scale-btn:active,
+  .option:active,
+  .swatch:active { transform: none; }
 }
