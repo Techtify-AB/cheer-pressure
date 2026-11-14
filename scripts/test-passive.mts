@@ -64,9 +64,11 @@ check("judge: learning below 7 earlier + 3 recent", judge([1, 2, 3, 4, 5, 6, 7, 
 const steady = judge([10, 11, 12, 10, 11, 12, 10, 11, 12, 11]);
 check("judge: inside the usual range is steady", steady.status === "steady" && steady.direction === null);
 const up = judge([10, 11, 12, 10, 11, 12, 10, 20, 21, 22]);
-check("judge: recent median above the 75th percentile is up", up.status === "changed" && up.direction === "up");
-const down = judge([10, 11, 12, 10, 11, 12, 10, 2, 3, 30]);
-check("judge: median of the last 3 decides, not one outlier", down.status === "changed" && down.direction === "down");
+check("judge: all of the last 3 above the usual range is up", up.status === "changed" && up.direction === "up");
+const down = judge([10, 11, 12, 10, 11, 12, 10, 2, 3, 4]);
+check("judge: all of the last 3 below the usual range is down", down.status === "changed" && down.direction === "down");
+const mixed = judge([10, 11, 12, 10, 11, 12, 10, 2, 3, 30]);
+check("judge: two low and one high is not a change (needs three in a row)", mixed.status === "steady");
 const oneOff = judge([10, 11, 12, 10, 11, 12, 10, 11, 40, 11]);
 check("judge: one odd session does not count", oneOff.status === "steady");
 

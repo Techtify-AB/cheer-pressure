@@ -2,9 +2,10 @@
 // Pure code: give it the stored data and today's date, get back what changed.
 //
 // THE RULE (keep it explainable):
-// - A measure counts as changed when the middle value (median) of its last 3
-//   sessions or days lies outside the person's own typical range: the 25th to 75th
-//   percentile of their earlier sessions or days. It needs at least 7 earlier ones,
+// - A measure counts as changed when ALL of its last 3 sessions or days lie on the
+//   same side outside the person's own typical range: the 25th to 75th percentile
+//   of their earlier sessions or days. (Using only the median of the last 3 asked
+//   by chance about 7 times in 10 on random data; three in a row asks about 3 in 100.) It needs at least 7 earlier ones,
 //   and the last 3 must include something from the past 7 days.
 // - When at least 2 measures have changed, the companion proposes a check-in.
 // - Until there are 7 days with any data, it is still learning and never asks.
@@ -105,7 +106,7 @@ export function judge(values: number[]): Judgement {
     n: usualVals.length,
   };
   const m = median(recentVals);
-  const direction: Direction | null = m > usual.high ? "up" : m < usual.low ? "down" : null;
+  const direction: Direction | null = Math.min(...recentVals) > usual.high ? "up" : Math.max(...recentVals) < usual.low ? "down" : null;
   return { status: direction ? "changed" : "steady", usual, recent: { median: m, n: recentVals.length }, direction };
 }
 
