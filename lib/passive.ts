@@ -103,7 +103,7 @@ export type Judgement =
       split: boolean;
     };
 
-export type SourceId = "typing" | "sleep" | "answers";
+export type SourceId = "typing" | "sleep" | "movement" | "answers";
 
 /**
  * Which measures belong to which source, and whether a source can make the companion ask
@@ -131,6 +131,15 @@ export const SOURCES: {
     measures: ["firstActivity", "lastActivity", "quietNight"],
     aloneAsksAt: 2,
   },
+  // Movement in front of the computer, from the camera (lib/camera). Never asks on its own.
+  {
+    id: "movement",
+    label: "Movement",
+    reportLabel: "Movement",
+    words: "your movement",
+    measures: ["movementLevel", "positionChanges"],
+    aloneAsksAt: null,
+  },
   // The person's own report is the best-supported signal, so it may ask on its own.
   {
     id: "answers",
@@ -141,6 +150,9 @@ export const SOURCES: {
     aloneAsksAt: 1,
   },
 ];
+
+/** Minutes in frame a day needs before its movement counts. */
+export const MIN_MOVEMENT_MINUTES = 20;
 
 /** For the daily question: at least this many "Not so good" among the last week's answers. */
 export const MIN_NOT_SO_GOOD = 4;
@@ -363,6 +375,30 @@ export const PASSIVE_DEFS: Def[] = [
     isNot: "An estimate of rest, not measured sleep",
   },
   {
+    key: "movementLevel",
+    label: "Movement",
+    meaning: "How much you move in front of the computer, from three points (nose and shoulders)",
+    format: (v) => `${v.toFixed(2)} widths/s`,
+    up: "you've moved more in front of the computer",
+    down: "you've moved less in front of the computer",
+    upWord: "more",
+    downWord: "less",
+    is: "Movement in front of the computer, from three points (nose and shoulders), in shoulder widths per second",
+    isNot: "No picture is kept; not posture, expression or mood",
+  },
+  {
+    key: "positionChanges",
+    label: "Position changes",
+    meaning: "How often you settle into a new position, per hour in front of the computer",
+    format: (v) => `${v.toFixed(1)} an hour`,
+    up: "you've changed position more often",
+    down: "you've changed position less often",
+    upWord: "more often",
+    downWord: "less often",
+    is: "How often a new position is held, per hour in front of the computer",
+    isNot: "No picture is kept; not posture, expression or mood",
+  },
+  {
     key: "ownAnswer",
     label: "Daily question",
     meaning: "Your answers to \"How are you today?\": Good, Okay or Not so good",
@@ -440,8 +476,29 @@ export function typingKindFor(days: TypingDay[], today: DayKey): TypingKind {
   return best?.kind ?? "all";
 }
 
+/**
+ * One movement value per day, pooled over the day's stretches with the camera on and weighted
+ * by minutes in frame; only days with at least MIN_MOVEMENT_MINUTES in frame count.
+ */
+export function movementPoints(data: AppData, key: "movementLevel" | "positionChanges", today: DayKey): Point[] {
+  const byDate = new Map<DayKey, { minutes: number; level: number; shifts: number }>();
+  for (const s of data.movementSessions ?? []) {
+    if (s.date > today || !(s.minutes > 0)) continue;
+    const d = byDate.get(s.date) ?? { minutes: 0, level: 0, shifts: 0 };
+    d.minutes += s.minutes;
+    d.level += s.movementMean * s.minutes;
+    d.shifts += (s.shiftsPerHour * s.minutes) / 60;
+    byDate.set(s.date, d);
+  }
+  return [...byDate.entries()]
+    .filter(([, d]) => d.minutes >= MIN_MOVEMENT_MINUTES)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, d]) => ({ date, value: key === "movementLevel" ? d.level / d.minutes : (d.shifts * 60) / d.minutes }));
+}
+
 function seriesFor(data: AppData, key: PassiveKey, today: DayKey, kind: TypingKind): Point[] {
   if (key === "spread" || key === "hold") return typingPoints(data.typingDays ?? [], key, kind, today);
+  if (key === "movementLevel" || key === "positionChanges") return movementPoints(data, key, today);
   if (key === "ownAnswer") {
     return (data.dailyAnswers ?? [])
       .filter((a) => a.answer && a.date <= today)
@@ -503,6 +560,7 @@ export function daysWithData(data: AppData, today: DayKey): number {
   const dates = new Set([
     ...(data.typingDays ?? []).filter((d) => d.presses >= MIN_DAY_PRESSES).map((d) => d.date),
     ...data.activityDays.map((d) => d.date),
+    ...movementPoints(data, "movementLevel", today).map((p) => p.date),
   ]);
   return [...dates].filter((d) => d <= today).length;
 }

@@ -157,7 +157,7 @@ export function clinicReport(data: AppData, today: DayKey, evaluation?: Evaluati
   const inPeriod = (d: DayKey) => d >= from && d <= today;
 
   const sources = sourcesOfEvaluation(e)
-    .filter((s) => s.id !== "answers" || s.metrics.some((m) => m.points.length))
+    .filter((s) => (s.id !== "answers" && s.id !== "movement") || s.metrics.some((m) => m.points.length))
     .map((s) => ({
       id: s.id,
       label: s.reportLabel,

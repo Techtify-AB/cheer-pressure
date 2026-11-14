@@ -129,8 +129,12 @@ export default function HomePage() {
   const mood = answered || answeredToday === "good" ? "joy" : moodFor({ wantsToAsk: outcome.speakUp, quiet: outcome.quiet && !pausedAll });
 
   // The one-line summary of what is being noticed, truthfully for where this runs.
-  const names = [sources.typing && "Typing rhythm", sources.dayRhythm && "day and night rhythm"].filter(Boolean) as string[];
-  const what = names.length ? names.join(" and ").replace(/^./, (c) => c.toUpperCase()) : "";
+  const names = [sources.typing && "Typing rhythm", sources.dayRhythm && "day and night rhythm", sources.camera && "movement"].filter(
+    Boolean,
+  ) as string[];
+  const what = names.length
+    ? (names.length > 2 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join(" and ")).replace(/^./, (c) => c.toUpperCase())
+    : "";
   let summary: string;
   if (!what) summary = "Nothing: every source is off";
   else if (pausedAll || menuPaused) summary = `Paused: ${what.toLowerCase()}`;

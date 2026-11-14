@@ -156,7 +156,9 @@ One small interface (`lib/store.ts`) with two implementations:
 2. Add an Upstash Redis database (Vercel Marketplace or upstash.com) and set
    `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
 3. Set `ALLOWED_ORIGINS` if the desktop UI runs from an origin not in the built-in list.
-4. Point the desktop app at it with `NEXT_PUBLIC_MESSAGES_URL=https://<your-deployment>`.
+4. Point the desktop app at it with `NEXT_PUBLIC_MESSAGES_URL=https://<your-deployment>`, and add
+   that origin to `connect-src` in `../src-tauri/tauri.conf.json` (the desktop app may only reach
+   `http://*:3480`, the local demo, until then).
 
 Not done yet: nothing has been deployed, and no Upstash database exists.
 

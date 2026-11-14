@@ -152,13 +152,13 @@ function Replay() {
     <Screen
       lead={
         <div className="replay-lead">
-          <Companion state={mood} size={narrow ? 120 : 240} />
+          <Companion state={mood} size={narrow ? (fired ? 96 : 120) : fired ? 200 : 240} />
           <div className="replay-status">
             <span className="placeholder-tag">Simulated, made-up days</span>
             <p className="replay-day" aria-live="off">
               Day {frame.day} <span className="muted">of {REPLAY_DAYS}</span>
             </p>
-            <p className="replay-line" aria-live="polite">
+            <p className={line.length > 160 ? "replay-line long" : "replay-line"} aria-live="polite">
               {line}
             </p>
           </div>
@@ -190,7 +190,7 @@ function Replay() {
         </>
       }
     >
-      <section className={reduced ? "card strips no-motion" : "card strips"} aria-label="Four of the six measures">
+      <section className={reduced ? "card strips no-motion" : "card strips"} aria-label="Four of the measures">
         {shownMetrics(e.metrics).map((m) => (
           <Strip key={m.key} m={m} points={STRIP_POINTS} />
         ))}

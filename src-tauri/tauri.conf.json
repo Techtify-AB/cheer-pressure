@@ -14,7 +14,7 @@
     "macOSPrivateApi": true,
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob: mediastream:; connect-src 'self' ipc: http://ipc.localhost http://*:3480 https:",
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob: mediastream:; connect-src 'self' ipc: http://ipc.localhost http://*:3480",
       "devCsp": null,
       "dangerousDisableAssetCspModification": true
     }

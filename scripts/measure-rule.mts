@@ -19,7 +19,7 @@ const DAYS = STEADY_DAYS + 14; // six steady weeks, then two weeks after the dri
 type Rule = (c: PassiveMetric[]) => boolean;
 const sources = (c: PassiveMetric[]) => new Set(c.map((m) => sourceOf(m.key))).size;
 const RULES: [string, Rule][] = [
-  ["two sources, or two sleep measures alone, or the own answers alone (as implemented)", (c) => enoughToAsk(c)],
+  ["as implemented: two sources (typing, day and night rhythm, movement, own answers), or two sleep measures alone, or the own answers alone", (c) => enoughToAsk(c)],
   ["two different sources only", (c) => sources(c) >= 2],
   ["any two measures", (c) => c.length >= 2],
 ];

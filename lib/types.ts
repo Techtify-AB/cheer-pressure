@@ -104,7 +104,30 @@ export interface ActivityDay {
  * The passive measures the companion compares with the person's own range. "pauses" is no
  * longer measured (thinking pauses are context only); it can still appear in older check-ins.
  */
-export type PassiveKey = "spread" | "pauses" | "hold" | "firstActivity" | "lastActivity" | "quietNight" | "ownAnswer";
+export type PassiveKey =
+  | "spread"
+  | "pauses"
+  | "hold"
+  | "firstActivity"
+  | "lastActivity"
+  | "quietNight"
+  | "ownAnswer"
+  | "movementLevel"
+  | "positionChanges";
+
+/**
+ * One stretch with the camera on (lib/camera): minutes in frame, average movement and position
+ * changes per hour. Numbers only; no picture is ever kept.
+ */
+export interface StoredMovementSession {
+  date: DayKey;
+  minutes: number;
+  /** Average movement while in frame, in shoulder widths per second. */
+  movementMean: number;
+  shiftsPerHour: number;
+  source: Source;
+  savedAt: string;
+}
 
 /** The three answers to the daily question "How are you today?". */
 export type DailyAnswerValue = "good" | "okay" | "not-so-good";
@@ -175,6 +198,8 @@ export interface Sources {
   typing: boolean;
   /** Day rhythm: first and last activity of the day. */
   dayRhythm: boolean;
+  /** Movement in front of the computer, from the camera. Off unless the person turns it on. */
+  camera: boolean;
 }
 
 export interface Settings {
@@ -234,6 +259,8 @@ export interface AppData {
   typingDays?: TypingDay[];
   /** Answers to the daily question. Missing in older data. */
   dailyAnswers?: DailyAnswer[];
+  /** Stretches with the camera on. Missing in older data. */
+  movementSessions?: StoredMovementSession[];
   activityDays: ActivityDay[];
   checkIns: PromptedCheckIn[];
   settings: Settings;

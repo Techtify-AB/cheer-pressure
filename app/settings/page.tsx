@@ -12,6 +12,7 @@ import { Disclosure, Screen } from "@/components/Screen";
 import { SwitchRow } from "@/components/Switch";
 import { forgetDesktopData, setTypingPaused } from "@/lib/platform";
 import { LinkCode } from "@/components/LinkCode";
+import { useCamera } from "@/components/camera/useCamera";
 import { isLocalOnly, messagesUrlOf, NOT_CONNECTED, quietHoursOf, ROUTINES, routinesOf, sourcesOf } from "@/lib/settings";
 import { disconnect, invite, useTrusted } from "@/lib/trusted";
 import { deleteEverything, saveSettings, useData } from "@/lib/storage";
@@ -78,7 +79,7 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
   const src = sourcesOf(s);
   const on = routinesOf(s);
   const q = quietHoursOf(s);
-  const measuring = [src.typing && "Typing rhythm", src.dayRhythm && "day and night rhythm"].filter(Boolean).join(", ");
+  const measuring = [src.typing && "Typing rhythm", src.dayRhythm && "day and night rhythm", src.camera && "movement"].filter(Boolean).join(", ");
   const trusted = trustedSummary(snap);
   const rows: { key: string; label: string; value: string; onClick?: () => void; href?: string; demo?: boolean }[] = [
     {
@@ -143,8 +144,18 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
   );
 }
 
+const CAMERA_PROBLEMS: Record<string, string> = {
+  denied: "The camera was not allowed. You can allow it in System Settings, Privacy & Security, Camera.",
+  "no-camera": "No camera was found on this computer.",
+  "in-use": "Another app is using the camera right now.",
+  unsupported: "This window cannot use the camera.",
+  failed: "The camera did not start. Turn it off and on to try again.",
+};
+
 function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
   const src = sourcesOf(data.settings);
+  const camera = useCamera();
+  const cameraProblem = src.camera ? (CAMERA_PROBLEMS[camera.phase] ?? null) : null;
   const paused = !!data.settings.pausedAll;
   const set = (next: Partial<typeof src>) => saveSettings({ sources: { ...src, ...next } });
   return (
@@ -152,7 +163,7 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
       lead={
         <>
           <h1 className="item-title">What I measure</h1>
-          <p className="muted">Only timing and times of day, never what you type. Off means I don&apos;t keep or use it.</p>
+          <p className="muted">Only timing, times of day and movement, never what you type or the picture. Off means I don&apos;t keep or use it.</p>
         </>
       }
       actions={
@@ -185,6 +196,13 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
           on={src.dayRhythm}
           onChange={(v) => set({ dayRhythm: v })}
         />
+        <SwitchRow
+          label="Movement (camera)"
+          hint="The picture is worked out on this computer. Nothing is stored or sent. Only while this window is open."
+          on={src.camera}
+          onChange={(v) => set({ camera: v })}
+        />
+        {cameraProblem && <p className="small switch-note problem-text">{cameraProblem}</p>}
         {NOT_CONNECTED.map((n) => (
           <SwitchRow key={n} label={n} on={false} disabledText="Not connected yet" />
         ))}

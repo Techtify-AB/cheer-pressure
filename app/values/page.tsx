@@ -98,7 +98,10 @@ export default function ValuesPage() {
   const [view, setView] = useState<number | null>(null);
   if (!data || !ready || !passive) return null;
 
-  const sources = sourcesOfEvaluation(passive);
+  // Movement and the person's own answers show once there is something to show.
+  const sources = sourcesOfEvaluation(passive).filter(
+    (s) => (s.id !== "movement" && s.id !== "answers") || s.metrics.some((m) => m.points.length),
+  );
   const out = sources.filter((s) => s.standsOut).length;
   const summary = valuesSummary(passive, "your");
 

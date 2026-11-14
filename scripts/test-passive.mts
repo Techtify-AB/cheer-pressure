@@ -2,6 +2,7 @@
 import { addDays, daysBetween } from "../lib/dates.ts";
 import { passiveInput, ruleBrain, SUGGESTIONS } from "../lib/brain.ts";
 import { computeLevels } from "../lib/levels.ts";
+import { forRule } from "../lib/settings.ts";
 import {
   calmLine,
   evaluatePassive,
@@ -14,6 +15,7 @@ import {
   suggestionFor,
   weeklyInsight,
   enoughToAsk,
+  movementPoints,
   PASSIVE_DEFS,
   sourceOf,
   SOURCES,
@@ -38,6 +40,7 @@ function empty(): AppData {
     typingSessions: [],
     typingDays: [],
     activityDays: [],
+    movementSessions: [],
     checkIns: [],
     settings: { muted: false },
   };
@@ -126,6 +129,32 @@ check("judge: just outside the band is not clearly outside", judgeDays(pts([...s
   check("like with like: the metric says which kind it compared", e.kind === "writing" && e.status === "steady");
   const few = typingDay(TODAY, 300, 300, "all", 120);
   check("a day under 300 counted presses has no typing value", typingKindFor([few], TODAY) === "all" && evaluatePassive({ ...empty(), typingDays: [few] }, TODAY).metrics.find((m) => m.key === "spread")!.points.length === 0);
+}
+
+// Movement from the camera: one value per day, weighted by minutes, never on its own
+{
+  const d = empty();
+  d.movementSessions = [
+    { date: TODAY, minutes: 10, movementMean: 0.1, shiftsPerHour: 6, source: "user", savedAt: "" },
+    { date: TODAY, minutes: 30, movementMean: 0.02, shiftsPerHour: 12, source: "user", savedAt: "" },
+    { date: addDays(TODAY, -1), minutes: 15, movementMean: 0.05, shiftsPerHour: 5, source: "user", savedAt: "" },
+  ];
+  const lv = movementPoints(d, "movementLevel", TODAY);
+  const sh = movementPoints(d, "positionChanges", TODAY);
+  check("movement: a day under 20 minutes in frame has no value", lv.length === 1 && lv[0].date === TODAY);
+  check("movement: pooled by minutes in frame", Math.abs(lv[0].value - 0.04) < 1e-9 && Math.abs(sh[0].value - 10.5) < 1e-9, `${lv[0].value} ${sh[0].value}`);
+  check("movement is a source of its own and never asks alone", sourceOf("movementLevel") === "movement" && !enoughToAsk([{ key: "movementLevel" }, { key: "positionChanges" }]) && enoughToAsk([{ key: "movementLevel" }, { key: "spread" }]));
+  const off = forRule({ ...d, settings: { muted: true } });
+  const on = forRule({ ...d, settings: { muted: true, sources: { typing: true, dayRhythm: true, camera: true } } });
+  check("movement: the camera is off by default, so the person's own stretches are left out", (off.movementSessions ?? []).length === 0 && (on.movementSessions ?? []).length === 3);
+  const changed = history(40, 7, { spread: true });
+  for (let i = 34; i >= 0; i--) {
+    const low = i < 7;
+    changed.movementSessions!.push({ date: addDays(TODAY, -i), minutes: 60, movementMean: low ? 0.01 + (i % 3) * 0.001 : 0.06 + (i % 3) * 0.004, shiftsPerHour: 8 + (i % 3), source: "user", savedAt: "" });
+  }
+  changed.settings.sources = { typing: true, dayRhythm: true, camera: true };
+  const e = evaluatePassive(forRule(changed), TODAY);
+  check("movement with typing: two different sources, so Cheri asks", e.askNow && e.changed.some((m) => m.key === "movementLevel") && e.changed.some((m) => m.key === "spread"), e.changed.map((m) => m.key).join());
 }
 
 // Older data must not crash, and old sessions are ignored by the rule

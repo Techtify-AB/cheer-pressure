@@ -164,7 +164,9 @@ own usual, when it has enough days in both windows; otherwise every kind pooled.
 
 **When it asks.** The measures belong to **sources** (one table, `SOURCES`): **typing**
 (evenness, hold time), **day and night rhythm** (first activity, last activity, quiet
-night) and **your own answers** to the daily question (Good, Okay, Not so good as 0, 1, 2). It
+night), **movement** in front of the computer from the camera (movement level, position
+changes per hour; a day counts with at least 20 minutes in frame; never asks on its own, like
+typing) and **your own answers** to the daily question (Good, Okay, Not so good as 0, 1, 2). It
 proposes a check-in when measures have changed in **two different sources**, or when **at least
 two day and night measures** have changed even if nothing else has, or when the person's **own
 answers** have changed on their own: at least 4 "Not so good" among the last week's answers and
@@ -187,8 +189,11 @@ slowly), with daily answers on about two days in three. Asks by chance during th
 | at least 4 of the last 7 days outside the band | 55 of 400 | 400 of 400 | 4.7 |
 | median of the week outside the 10 to 90 band | 135 of 400 | 400 of 400 | 4.1 |
 
-Before the own answers were a source, the chosen test asked by chance in 2 of 400. With it,
-"two different sources only" asks by chance in 1 of 400 and "any two measures" in 3 of 400.
+Those numbers are with the own answers; adding **movement** as a fourth source (made-up camera
+days on about half the days, less movement as the drift goes on) gives, with the chosen test,
+**14 of 400** chance asks (3.5 per 100) and the drift found within its first week in 400 of
+400, on average on day 4.9; "two different sources only" 8 of 400, "any two measures" 10 of
+400. Before the own answers it was 2 of 400; before movement 7 of 400.
 The script prints all of these.
 
 The check-in explains in plain words what changed over the last week compared with the four
@@ -274,6 +279,9 @@ The person's own data is in `localStorage` under `companion.v1`, as one JSON obj
 - `typingSessions[]`: from earlier versions, one per typing session. Still loads; the rule no
   longer reads it.
 - `activityDays[]`: first and last key press per day (`"HH:MM"`), from the desktop app.
+- `movementSessions[]`: one per stretch with the camera on (`lib/camera`): date, minutes in
+  frame, average movement (shoulder widths per second), position changes per hour. Numbers
+  only; no picture is ever kept.
 - `dailyAnswers[]`: one per day the daily question came up: the date, the answer (`good`,
   `okay`, `not-so-good`) or null when it was dismissed, and when.
 - `checkIns[]`: each proposed check-in and its answer, which measures triggered it, how
@@ -379,6 +387,11 @@ the brain is asked anything.
   measurements, check-in or weekly answers, the clinic text, the person's name or anything
   about health. Until a pair exists, the app requests nothing from any other origin.
 - QR codes are made on the device; the links are not sent to any other service to draw them.
+- The camera is off by default (Settings, What I measure). Turned on, it is asked for only then
+  and runs only while the app's window is open and showing; Pause everything stops it, and
+  "Camera on" shows on every screen and in the mascot window while it runs. The picture is
+  worked out on this computer by MediaPipe, vendored under `public/vendor/mediapipe`, and never
+  stored or sent; only three numbers per stretch are kept. "Movement, live" is under the demo.
 - Read-aloud uses only voices the browser reports as on-device (`localService`). If there is
   none, the companion stays silent and shows its text.
 - Measurements stay on this device unless the person chooses to save or print a report for
@@ -479,7 +492,8 @@ the menu bar icon.
 - Reminders or notifications. Greetings arrive by polling every 1.5 s while the app runs.
 - More than one trusted person, or a conversation history in the interface.
 - Offline caching (no service worker).
-- Camera, microphone and bedside sensor views (the macOS usage texts are in place).
+- Microphone and bedside sensor. The camera runs only while the Cheer Pressure window is open
+  and showing; no background capture.
 - A serial port for the robot inside the desktop app (marked TODO in `lib/robot.ts`). The
   greeting light reaches a robot connected over Web Serial in Chrome; in the desktop app
   nothing is sent to a robot.

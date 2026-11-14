@@ -15,12 +15,12 @@ export const ROUTINES: { id: RoutineId; label: string }[] = [
 ];
 
 /** Shown on home and in the sheet: the sources that exist but are not connected yet. */
-export const NOT_CONNECTED = ["Camera", "Microphone", "Bedside sensor"];
+export const NOT_CONNECTED = ["Microphone", "Bedside sensor"];
 
 export const DEFAULT_QUIET_HOURS = { from: "22:00", to: "08:00" };
 
 export function sourcesOf(s: Settings): Sources {
-  return { typing: s.sources?.typing ?? true, dayRhythm: s.sources?.dayRhythm ?? true };
+  return { typing: s.sources?.typing ?? true, dayRhythm: s.sources?.dayRhythm ?? true, camera: s.sources?.camera ?? false };
 }
 
 export function routinesOf(s: Settings): Record<RoutineId, boolean> {
@@ -51,11 +51,14 @@ export function pickSmallThing(preferred: RoutineId, on: Record<RoutineId, boole
 /** The data the rule may use: sources the person switched off are left out. */
 export function forRule(data: AppData): AppData {
   const src = sourcesOf(data.settings);
-  if (src.typing && src.dayRhythm) return data;
+  if (src.typing && src.dayRhythm && src.camera) return data;
   return {
     ...data,
     typingSessions: src.typing ? data.typingSessions : [],
+    typingDays: src.typing ? data.typingDays : [],
     activityDays: src.dayRhythm ? data.activityDays : [],
+    // Made-up movement days stay, so the demo tells its story with the camera off.
+    movementSessions: src.camera ? data.movementSessions : (data.movementSessions ?? []).filter((m) => m.source === "demo"),
   };
 }
 

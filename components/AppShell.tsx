@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DesktopBridge } from "@/components/desktop";
 import { TrustedBridge } from "@/components/TrustedBridge";
+import { CameraBridge, CameraOnSign } from "@/components/CameraBridge";
 import { clearDemo, hasDemo, useData } from "@/lib/storage";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="brand">
             Cheer Pressure
           </Link>
+          <CameraOnSign />
           {data?.profile && (
             <Link href="/settings/" className="settings-link" aria-current={onSettings ? "page" : undefined}>
               Settings
@@ -48,6 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
       <DesktopBridge />
       <TrustedBridge />
+      <CameraBridge />
       <main id="main" className="page">
         {children}
       </main>

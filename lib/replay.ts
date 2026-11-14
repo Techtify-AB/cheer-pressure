@@ -17,7 +17,7 @@
 
 import { addDays, daysBetween, minutesToClock } from "./dates";
 import { evaluatePassive, isWeekend, type ChangeTest, type Evaluation } from "./passive";
-import type { ActivityDay, AppData, DailyAnswer, DayKey, TypingDay } from "./types";
+import type { ActivityDay, AppData, DailyAnswer, DayKey, StoredMovementSession, TypingDay } from "./types";
 
 export const REPLAY_DAYS = 56;
 /** Days 1 to 42 are steady; the drift begins on day 43. */
@@ -43,6 +43,8 @@ export interface ReplayData {
   activityDays: ActivityDay[];
   /** Answers to the daily question; some days are not answered. */
   dailyAnswers: DailyAnswer[];
+  /** Stretches with the camera on; on many days it is not on at all. */
+  movementSessions: StoredMovementSession[];
 }
 
 export interface DriftShape {
@@ -72,8 +74,12 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
   const typingDays: TypingDay[] = [];
   const activityDays: ActivityDay[] = [];
   const dailyAnswers: DailyAnswer[] = [];
-  // Its own random numbers, so adding the answers left the other measures as they were.
+  // Their own random numbers, so adding answers and movement left the other measures as they were.
   const ask = rng(seed + 7919);
+  const cam = rng(seed + 104729);
+  const camNoise = (spread: number) => (cam() + cam() + cam() - 1.5) * spread;
+  const movementSessions: StoredMovementSession[] = [];
+  const mover = { level: 0.06 + camNoise(0.012), shifts: 8 + camNoise(2) };
   const round = (v: number) => Math.round(v * 10) / 10;
   // This person's own levels.
   const person = { spread: 88 + noise(10), hold: 94 + noise(8), first: 7 * 60 + 15 + noise(20), last: 22 * 60 + 50 + noise(20) };
@@ -114,6 +120,15 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
       activityDays.push({ date, first: minutesToClock(first), last: minutesToClock(last), source: "demo" });
     }
 
+    // Movement: the camera is on some days, for a while; less movement and fewer position
+    // changes as the drift goes on, gradually, like typing.
+    if (cam() < (weekend ? 0.4 : 0.7)) {
+      const minutes = Math.round(20 + cam() * 200);
+      const level = Math.max(0.005, mover.level + (weekend ? 0.006 : 0) + camNoise(0.016) - drift * 0.03);
+      const shifts = Math.max(0, mover.shifts + camNoise(3) - drift * 3.5);
+      movementSessions.push({ date, minutes, movementMean: Math.round(level * 1000) / 1000, shiftsPerHour: Math.round(shifts * 10) / 10, source: "demo", savedAt: "" });
+    }
+
     // The daily question: answered on about two days in three; "Not so good" now and then,
     // more often as the drift goes on (after sleep has slipped).
     if (ask() < (weekend ? 0.55 : 0.75)) {
@@ -123,7 +138,7 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
       dailyAnswers.push({ date, answer, dismissed: false, at: "", source: "demo" });
     }
   }
-  return { typingDays, activityDays, dailyAnswers };
+  return { typingDays, activityDays, dailyAnswers, movementSessions };
 }
 
 export interface ReplayFrame {
@@ -147,6 +162,7 @@ function asAppData(r: ReplayData): AppData {
     typingDays: r.typingDays,
     activityDays: r.activityDays,
     dailyAnswers: r.dailyAnswers,
+    movementSessions: r.movementSessions,
     checkIns: [],
     settings: { muted: false },
     ladder: null,
@@ -159,6 +175,7 @@ export function upTo(r: ReplayData, date: DayKey): ReplayData {
     typingDays: r.typingDays.filter((s) => s.date <= date),
     activityDays: r.activityDays.filter((d) => d.date <= date),
     dailyAnswers: r.dailyAnswers.filter((d) => d.date <= date),
+    movementSessions: r.movementSessions.filter((d) => d.date <= date),
   };
 }
 
@@ -184,6 +201,7 @@ export function shiftReplay(r: ReplayData, days: number): ReplayData {
     typingDays: r.typingDays.map((s) => ({ ...s, date: addDays(s.date, days) })),
     activityDays: r.activityDays.map((d) => ({ ...d, date: addDays(d.date, days) })),
     dailyAnswers: r.dailyAnswers.map((d) => ({ ...d, date: addDays(d.date, days) })),
+    movementSessions: r.movementSessions.map((d) => ({ ...d, date: addDays(d.date, days) })),
   };
 }
 

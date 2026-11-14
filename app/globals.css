@@ -1323,3 +1323,27 @@ textarea.typing-box { min-height: 72px; }
   .settings-menu .menu-row + .menu-row { border-top: 0; }
   .settings-menu .menu-row:nth-child(n + 3) { border-top: 1px solid var(--glass-line); }
 }
+
+/* The camera: its picture is never shown outside "Movement, live", and a sign while it runs */
+.camera-feed { position: fixed; left: 0; top: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+.camera-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+.camera-on-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-help); }
+.mascot-camera { position: absolute; top: 4px; left: 4px; z-index: 2; }
+.replay-line.long { font-size: var(--font-size-sm); }
+@media (min-width: 900px) {
+  .card.demo-menu { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .demo-menu .menu-row + .menu-row { border-top: 0; }
+  .demo-menu .menu-row:nth-child(n + 3) { border-top: 1px solid var(--glass-line); }
+}
+.demo-menu .menu-row { min-height: 42px; padding-top: 4px; padding-bottom: 4px; }

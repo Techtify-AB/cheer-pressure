@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { afterAnswer, DailyAnswers, useDailyQuestion } from "@/components/DailyQuestion";
 import { QUESTION } from "@/lib/daily";
+import { cameraHeartbeatFresh } from "@/components/CameraBridge";
 import type { DailyAnswerValue } from "@/lib/types";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
@@ -39,6 +40,12 @@ export default function MascotPage() {
   // shrinks back after an answer or "Not now". A greeting from someone trusted comes first.
   const daily = useDailyQuestion(data?.profile ? data : null);
   const [thanks, setThanks] = useState<DailyAnswerValue | null>(null);
+  // "Camera on" when the main window's camera runs (it says so in local storage every 2 s).
+  const [cameraOn, setCameraOn] = useState(false);
+  useEffect(() => {
+    const id = window.setInterval(() => setCameraOn(cameraHeartbeatFresh()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
   const bubble = (daily.due && !greeting) || !!thanks;
   useEffect(() => {
     if (desktop) void mascotExpand(bubble);
@@ -68,6 +75,12 @@ export default function MascotPage() {
 
   return (
     <div className="mascot-page" data-cue={cue || undefined} data-greeting={greeting ? "" : undefined} data-bubble={bubble || undefined}>
+      {cameraOn && (
+        <span className="camera-on mascot-camera" role="status">
+          <span className="camera-on-dot" aria-hidden="true" />
+          Camera on
+        </span>
+      )}
       {bubble && (
         <div className="mascot-question" role="dialog" aria-label={QUESTION}>
           {thanks ? (
