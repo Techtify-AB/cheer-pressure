@@ -231,7 +231,7 @@ async function main() {
       ([profile, quiet]) =>
         localStorage.setItem(
           "companion.v1",
-          JSON.stringify({ version: 1, profile, daily: [], weekly: [], reaction: [], typingSessions: [], activityDays: [], checkIns: [], settings: { muted: false, quietHours: quiet } }),
+          JSON.stringify({ version: 1, profile, daily: [], weekly: [], reaction: [], typingSessions: [], activityDays: [], checkIns: [], settings: { muted: false, quietHours: quiet, dailyQuestion: { every: "off", when: "midday" } } }),
         ),
       [PROFILE, NO_QUIET],
     );

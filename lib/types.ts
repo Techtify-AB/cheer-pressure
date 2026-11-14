@@ -104,7 +104,25 @@ export interface ActivityDay {
  * The passive measures the companion compares with the person's own range. "pauses" is no
  * longer measured (thinking pauses are context only); it can still appear in older check-ins.
  */
-export type PassiveKey = "spread" | "pauses" | "hold" | "firstActivity" | "lastActivity" | "quietNight";
+export type PassiveKey = "spread" | "pauses" | "hold" | "firstActivity" | "lastActivity" | "quietNight" | "ownAnswer";
+
+/** The three answers to the daily question "How are you today?". */
+export type DailyAnswerValue = "good" | "okay" | "not-so-good";
+
+/** One day's daily question: the answer, or that it was dismissed without one. */
+export interface DailyAnswer {
+  date: DayKey;
+  answer: DailyAnswerValue | null;
+  dismissed: boolean;
+  at: string; // ISO
+  source: Source;
+}
+
+/** How often and roughly when the daily question comes up. */
+export interface DailyQuestionSettings {
+  every: "off" | "day" | "other-day" | "twice-week" | "week";
+  when: "morning" | "midday" | "evening";
+}
 
 /** The kind of app typed in, never its name: "all" pools every kind except games, which never count. */
 export type TypingKind = "writing" | "code" | "browser" | "other" | "all";
@@ -177,6 +195,8 @@ export interface Settings {
    * Missing: NEXT_PUBLIC_MESSAGES_URL from the build, else http://localhost:3480. Set under For the demo.
    */
   messagesUrl?: string;
+  /** The daily question. Missing: every day, around midday. */
+  dailyQuestion?: DailyQuestionSettings;
 }
 
 /**
@@ -212,6 +232,8 @@ export interface AppData {
   typingSessions: TypingSession[];
   /** Typing per day and kind of app. Missing in older data. */
   typingDays?: TypingDay[];
+  /** Answers to the daily question. Missing in older data. */
+  dailyAnswers?: DailyAnswer[];
   activityDays: ActivityDay[];
   checkIns: PromptedCheckIn[];
   settings: Settings;

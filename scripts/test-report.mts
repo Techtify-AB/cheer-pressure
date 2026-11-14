@@ -70,6 +70,12 @@ check("the day the replay stops is today", stop.date === TODAY && e.askNow);
   const little = kinds.length - enough;
   const activity = data.activityDays.filter((a) => daysBetween(a.date, TODAY) < REPORT_DAYS).length;
   [enough, little, REPORT_DAYS - enough - little, activity, REPORT_DAYS, MIN_DAY_PRESSES, 10, 4, 3, 6, 0, 2].forEach(add);
+  // Counts of answers per week (the person gave them), counted here on their own.
+  for (let w = 0; w < 4; w++) {
+    const week = (data.dailyAnswers ?? []).filter((a) => daysBetween(a.date, TODAY) >= 7 * w && daysBetween(a.date, TODAY) < 7 * w + 7);
+    for (const v of ["good", "okay", "not-so-good"]) add(week.filter((a) => a.answer === v).length);
+    add(7 - week.filter((a) => a.answer).length);
+  }
   const withoutDates = text
     .replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} [A-Z][a-z]{2,3}\b/g, "")
     .replace(/PHQ-2/g, "")
@@ -103,8 +109,25 @@ check("the day the replay stops is today", stop.date === TODAY && e.askNow);
   check("answers before the period are left out", old.answers.length === 0);
 }
 
+// The daily question's answers: counts per week, in plain words.
+{
+  const own = r.sources.find((s) => s.id === "answers");
+  const weeks = own?.lines.filter((l) => l.label.startsWith("Week from")) ?? [];
+  const lastWeek = (data.dailyAnswers ?? []).filter((a) => daysBetween(a.date, TODAY) < 7);
+  const n = (v: string) => lastWeek.filter((a) => a.answer === v).length;
+  check(
+    "own answers: four weeks of counts, the last week right",
+    own?.label === "My own answers" &&
+      weeks.length === 4 &&
+      weeks[3].text === `${n("good")} Good, ${n("okay")} Okay, ${n("not-so-good")} Not so good, ${7 - lastWeek.filter((a) => a.answer).length} without an answer.`,
+    weeks[3]?.text,
+  );
+  const none = clinicReport({ ...data, dailyAnswers: [] }, TODAY);
+  check("own answers: left out when the person never answered", !none.sources.some((s) => s.id === "answers"));
+}
+
 // Wording
-check("first person throughout: never \"your\" or \"you\"", !/\byou(r)?\b/i.test(text), (text.match(/.{20}\byou(r)?\b.{20}/i) ?? [""])[0]);
+check("first person throughout: never \"your\" or \"you\" (outside the quoted question)", !/\byou(r)?\b/i.test(text.replace(/"How are you today\?"/g, "")), (text.match(/.{20}\byou(r)?\b.{20}/i) ?? [""])[0]);
 check("compared only with my own usual, never with other people", text.includes("never with other people") && !/average|population|others'/i.test(text));
 check("says what each value is and is not", text.includes("not measured sleep") && text.includes("Never which keys"));
 check("the prototype line", text.includes(DISCLAIMER) && DISCLAIMER === "A prototype. Not a diagnosis and not for clinical decisions on its own.");

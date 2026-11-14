@@ -16,10 +16,11 @@ import { isLocalOnly, messagesUrlOf, NOT_CONNECTED, quietHoursOf, ROUTINES, rout
 import { disconnect, invite, useTrusted } from "@/lib/trusted";
 import { deleteEverything, saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
+import { dailyQuestionOf, FREQUENCIES, questionTime, TIMES } from "@/lib/daily";
 import type { AppData } from "@/lib/types";
 
-type View = "list" | "measure" | "routines" | "voice" | "trust" | "data" | "delete";
-const VIEWS: View[] = ["measure", "routines", "voice", "trust", "data", "delete"];
+type View = "list" | "measure" | "routines" | "voice" | "daily" | "trust" | "data" | "delete";
+const VIEWS: View[] = ["measure", "routines", "voice", "daily", "trust", "data", "delete"];
 
 function readHash(): View {
   const h = typeof window === "undefined" ? "" : window.location.hash.slice(1);
@@ -58,6 +59,7 @@ export default function SettingsPage() {
   if (view === "measure") return <Measure data={data} back={back} />;
   if (view === "routines") return <Routines data={data} back={back} />;
   if (view === "voice") return <Voice data={data} back={back} />;
+  if (view === "daily") return <DailyQuestionSettings data={data} back={back} />;
   if (view === "trust") return <Trust data={data} back={back} />;
   if (view === "data") return <YourData data={data} back={back} onDelete={() => go("delete")} />;
   if (view === "delete") return <ConfirmDelete onKeep={() => go("data")} />;
@@ -92,6 +94,7 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
       onClick: () => go("routines"),
     },
     { key: "voice", label: "Voice", value: s.muted ? "Off" : "On", onClick: () => go("voice") },
+    { key: "daily", label: "Daily question", value: dailySummary(s), onClick: () => go("daily") },
     { key: "trust", label: "Someone you trust", value: trusted, onClick: () => go("trust") },
     { key: "values", label: "My values", value: "Each source, and a report for your clinic", href: "/values/" },
     { key: "data", label: "Your data", value: "On this device unless you share a report", onClick: () => go("data") },
@@ -114,7 +117,7 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
         </div>
       }
     >
-      <nav aria-label="Settings" className="card menu">
+      <nav aria-label="Settings" className="card menu settings-menu">
         {rows.map((r) => {
           const inner = (
             <>
@@ -235,6 +238,61 @@ function Routines({ data, back }: { data: AppData; back: React.ReactNode }) {
             />
           </span>
         </div>
+      </section>
+    </Screen>
+  );
+}
+
+function dailySummary(s: AppData["settings"]): string {
+  const d = dailyQuestionOf(s);
+  if (d.every === "off") return "Off";
+  const often = FREQUENCIES.find((f) => f.value === d.every)!.label;
+  return `${often}, around ${questionTime(s)}`;
+}
+
+/** How often and roughly when "How are you today?" comes up. One screen. */
+function DailyQuestionSettings({ data, back }: { data: AppData; back: React.ReactNode }) {
+  const d = dailyQuestionOf(data.settings);
+  const set = (next: Partial<typeof d>) => saveSettings({ dailyQuestion: { ...d, ...next } });
+  return (
+    <Screen
+      lead={
+        <>
+          <h1 className="item-title">Daily question</h1>
+          <p className="muted">
+            Cheri asks &quot;How are you today?&quot; with three answers. One tap, or Not now with no reminder that day.
+            Never in quiet hours.
+          </p>
+        </>
+      }
+      actions={back}
+    >
+      <section className="card stack-sm daily-settings" aria-label="Daily question">
+        <fieldset className="bare-fieldset">
+          <legend className="switch-label">How often</legend>
+          <div className="chips">
+            {FREQUENCIES.map((f) => (
+              <button key={f.value} type="button" className="chip" aria-pressed={d.every === f.value} onClick={() => set({ every: f.value })}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset className="bare-fieldset" disabled={d.every === "off"}>
+          <legend className="switch-label">Roughly when</legend>
+          <div className="chips">
+            {TIMES.map((t) => (
+              <button key={t.value} type="button" className="chip" aria-pressed={d.when === t.value} onClick={() => set({ when: t.value })}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <p className="small muted">
+          {d.every === "off"
+            ? "Off. Cheri asks nothing day to day."
+            : `Around ${questionTime(data.settings)}. If the computer is off then, it comes once when you are next here that day.`}
+        </p>
       </section>
     </Screen>
   );

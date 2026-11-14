@@ -29,6 +29,9 @@ const MAIN: &str = "main";
 const MASCOT: &str = "mascot";
 const MASCOT_W: f64 = 160.0;
 const MASCOT_H: f64 = 180.0;
+/// The mascot window while it shows the daily question's bubble and three answers.
+const MASCOT_EXPANDED_W: f64 = 300.0;
+const MASCOT_EXPANDED_H: f64 = 300.0;
 /// The local hour a new day starts for first and last activity.
 const DAY_STARTS_AT_HOUR: i64 = 4;
 /// Live numbers are sent while there was a press in the last this many ms.
@@ -366,6 +369,23 @@ fn page_ready(window: tauri::WebviewWindow, path: String) {
   println!("cheer-pressure: page ready in window '{}': {}", window.label(), path);
 }
 
+/// Grows the mascot window to hold the daily question's bubble, or shrinks it back, keeping
+/// its bottom-right corner where it is. Never focuses it.
+#[tauri::command]
+fn mascot_expand(app: AppHandle, expanded: bool) {
+  let Some(w) = app.get_webview_window(MASCOT) else { return };
+  let (Ok(pos), Ok(size), Ok(scale)) = (w.outer_position(), w.outer_size(), w.scale_factor()) else { return };
+  let (lw, lh) = if expanded { (MASCOT_EXPANDED_W, MASCOT_EXPANDED_H) } else { (MASCOT_W, MASCOT_H) };
+  let (nw, nh) = ((lw * scale).round() as i32, (lh * scale).round() as i32);
+  if nw == size.width as i32 && nh == size.height as i32 {
+    return;
+  }
+  let right = pos.x + size.width as i32;
+  let bottom = pos.y + size.height as i32;
+  let _ = w.set_size(tauri::PhysicalSize::new(nw as u32, nh as u32));
+  let _ = w.set_position(PhysicalPosition::new(right - nw, bottom - nh));
+}
+
 fn place_mascot(app: &AppHandle) {
   let Some(w) = app.get_webview_window(MASCOT) else { return };
   let monitor = w.primary_monitor().ok().flatten().or_else(|| w.current_monitor().ok().flatten());
@@ -400,6 +420,7 @@ pub fn run() {
       forget_all,
       open_main,
       print_page,
+      mascot_expand,
       page_ready
     ])
     .setup(move |app| {

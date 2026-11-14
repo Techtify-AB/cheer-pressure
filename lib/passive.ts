@@ -28,6 +28,7 @@
 
 import { addDays, clockToMinutes, daysBetween, minutesToClock, parseDay } from "./dates";
 import type { SuggestionId } from "./brain";
+import { ANSWER_VALUE, answerLabel } from "./daily";
 import type { AppData, DayKey, PassiveKey, PromptedCheckIn, TypingDay, TypingKind } from "./types";
 
 /** The person's own typical range, as percentiles of their usual days. */
@@ -102,7 +103,7 @@ export type Judgement =
       split: boolean;
     };
 
-export type SourceId = "typing" | "sleep";
+export type SourceId = "typing" | "sleep" | "answers";
 
 /**
  * Which measures belong to which source, and whether a source can make the companion ask
@@ -113,21 +114,38 @@ export const SOURCES: {
   id: SourceId;
   /** How the person sees it. */
   label: string;
+  /** In the clinic report, which is in the first person. */
+  reportLabel: string;
   /** In running text: "your typing", "your day and night rhythm". */
   words: string;
   measures: PassiveKey[];
   /** How many of its measures must change for it to ask on its own; null: never on its own. */
   aloneAsksAt: number | null;
 }[] = [
-  { id: "typing", label: "Typing", words: "your typing", measures: ["spread", "hold"], aloneAsksAt: null },
+  { id: "typing", label: "Typing", reportLabel: "Typing", words: "your typing", measures: ["spread", "hold"], aloneAsksAt: null },
   {
     id: "sleep",
     label: "Day and night rhythm",
+    reportLabel: "Day and night rhythm",
     words: "your day and night rhythm",
     measures: ["firstActivity", "lastActivity", "quietNight"],
     aloneAsksAt: 2,
   },
+  // The person's own report is the best-supported signal, so it may ask on its own.
+  {
+    id: "answers",
+    label: "Your own answers",
+    reportLabel: "My own answers",
+    words: "your own answers",
+    measures: ["ownAnswer"],
+    aloneAsksAt: 1,
+  },
 ];
+
+/** For the daily question: at least this many "Not so good" among the last week's answers. */
+export const MIN_NOT_SO_GOOD = 4;
+/** Answered days the usual needs before the daily question can count as changed. */
+export const MIN_USUAL_ANSWERS = 4;
 
 /** Different sources that must have changed for the companion to ask. */
 export const MIN_SOURCES_TO_ASK = 2;
@@ -344,7 +362,46 @@ export const PASSIVE_DEFS: Def[] = [
     is: "Time from the last key press one day to the first the next",
     isNot: "An estimate of rest, not measured sleep",
   },
+  {
+    key: "ownAnswer",
+    label: "Daily question",
+    meaning: "Your answers to \"How are you today?\": Good, Okay or Not so good",
+    format: answerLabel,
+    up: "you've answered \"Not so good\" more often",
+    down: "your answers have been better",
+    upWord: "more often \"Not so good\"",
+    downWord: "better",
+    is: "Own answers to \"How are you today?\" (Good, Okay, Not so good)",
+    isNot: "A day without an answer never counts as low",
+  },
 ];
+
+/**
+ * The daily question's own test: at least 4 "Not so good" among the last week's answers, and
+ * a larger share than in the four weeks before. Unanswered days are not values at all.
+ */
+export function judgeAnswers(points: Point[], today: DayKey): Judgement {
+  const age = (p: Point) => daysBetween(p.date, today);
+  const recent = points.filter((p) => age(p) >= 0 && age(p) < RECENT_DAYS);
+  const usual = points.filter((p) => age(p) >= RECENT_DAYS && age(p) < RECENT_DAYS + USUAL_DAYS);
+  if (usual.length < MIN_USUAL_ANSWERS) return { status: "learning", usual: null, recent: null, recentValues: null, direction: null, split: false };
+  const sorted = usual.map((p) => p.value).sort((a, b) => a - b);
+  const range: Range = { low: quantile(sorted, BAND.low), median: quantile(sorted, 0.5), high: quantile(sorted, BAND.high), n: usual.length };
+  if (recent.length < MIN_RECENT_DAYS) return { status: "no-recent", usual: range, recent: null, recentValues: null, direction: null, split: false };
+  const low = ANSWER_VALUE["not-so-good"];
+  const nowLow = recent.filter((p) => p.value === low).length;
+  const usualShare = usual.filter((p) => p.value === low).length / usual.length;
+  const changed = nowLow >= MIN_NOT_SO_GOOD && nowLow / recent.length > usualShare;
+  const recentValues = recent.map((p) => p.value);
+  return {
+    status: changed ? "changed" : "steady",
+    usual: range,
+    recent: { median: median(recentValues), n: recent.length },
+    recentValues,
+    direction: changed ? "up" : null,
+    split: false,
+  };
+}
 
 const TYPING_KINDS: TypingKind[] = ["writing", "code", "browser", "other"];
 
@@ -385,6 +442,11 @@ export function typingKindFor(days: TypingDay[], today: DayKey): TypingKind {
 
 function seriesFor(data: AppData, key: PassiveKey, today: DayKey, kind: TypingKind): Point[] {
   if (key === "spread" || key === "hold") return typingPoints(data.typingDays ?? [], key, kind, today);
+  if (key === "ownAnswer") {
+    return (data.dailyAnswers ?? [])
+      .filter((a) => a.answer && a.date <= today)
+      .map((a) => ({ date: a.date, value: ANSWER_VALUE[a.answer!] }));
+  }
   const days = data.activityDays.filter((d) => d.date <= today);
   if (key === "firstActivity") return days.map((d) => ({ date: d.date, value: clockToDayMinutes(d.first) }));
   // Today's last activity is not known until the day is over.
@@ -406,7 +468,7 @@ function seriesFor(data: AppData, key: PassiveKey, today: DayKey, kind: TypingKi
 function metric(data: AppData, def: Def, today: DayKey, kind: TypingKind, test: ChangeTest): PassiveMetric {
   const typing = def.key === "spread" || def.key === "hold";
   const points = seriesFor(data, def.key, today, kind);
-  const j = judgeDays(points, today, test);
+  const j = def.key === "ownAnswer" ? judgeAnswers(points, today) : judgeDays(points, today, test);
   const base = {
     key: def.key,
     source: sourceOf(def.key),

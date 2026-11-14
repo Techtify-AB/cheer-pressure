@@ -42,7 +42,15 @@ header says so on every screen, with a link that clears it.
 ## Three places, the ladder and the replay
 
 The interface has three places. **Home** is the companion, one calm line and one row,
-"What I'm noticing", that opens **My values**. "Talk to me" starts the **conversation** when the
+"What I'm noticing", that opens **My values**. Once a day (or as often as the person sets under
+Settings, Daily question: off, every day, every other day, twice or once a week; morning,
+midday or evening) Cheri asks **"How are you today?"** with three answers, "Good", "Okay" and
+"Not so good": on Home as its one thing, and in the desktop app as a bubble from the mascot
+window, which grows to hold it without taking focus and shrinks back. One tap answers and
+closes it; "Not now" closes it with no reminder that day. Never in quiet hours; a time that
+passed while the computer was off brings it once when the person is next there that day, never
+stacked (`lib/daily.ts`, tested in `scripts/test-daily.mts`). "Not so good" shows one gentle
+line and the quiet "Talk to me"; it does not start the ladder by itself. "Talk to me" starts the **conversation** when the
 person wants to; when the measures stand out, the companion looks attentive and home offers
 "Have a look" instead. **Settings** is a short list: what is measured (each source on or off,
 Pause everything), which small things it may suggest and quiet hours (22:00 to 08:00 by
@@ -155,27 +163,33 @@ like with like: the kind of app with the most counted presses this week, against
 own usual, when it has enough days in both windows; otherwise every kind pooled.
 
 **When it asks.** The measures belong to **sources** (one table, `SOURCES`): **typing**
-(evenness, hold time) and **day and night rhythm** (first activity, last activity, quiet
-night). It proposes a check-in when measures have changed in **two different sources**, or when
-**at least two day and night measures** have changed even if nothing else has. **Typing alone
+(evenness, hold time), **day and night rhythm** (first activity, last activity, quiet
+night) and **your own answers** to the daily question (Good, Okay, Not so good as 0, 1, 2). It
+proposes a check-in when measures have changed in **two different sources**, or when **at least
+two day and night measures** have changed even if nothing else has, or when the person's **own
+answers** have changed on their own: at least 4 "Not so good" among the last week's answers and
+a larger share than in the four weeks before (at least 4 answered days in each). Unanswered or
+dismissed days are never counted as low. **Typing alone
 never asks**; My values still shows it, and says so. The ladder's "the
 measures have come back" uses the same test. After asking it waits **3 days**, unless a measure
 changes that was not part of the last check-in.
 
 **Measured, not guessed** (`npx tsx scripts/measure-rule.mts`): 400 made-up periods (weekday
 and weekend differences, days away, days with too little writing, day-to-day wobble), six
-steady weeks and then a one-week drift (sleep slips first, typing follows). Asks by chance
-during the steady weeks (after learning), and finds the drift, with the per-source rule:
+steady weeks and then a one-week drift (sleep slips first, typing follows, "Not so good" grows
+slowly), with daily answers on about two days in three. Asks by chance during the steady weeks
+(after learning), and finds the drift, with the per-source rule and all three sources:
 
 | "Changed" test | Asks by chance | Finds the drift in its first week | Day of the drift, on average |
 | --- | --- | --- | --- |
-| median of the week outside the widened band (chosen) | 2 of 400 | 400 of 400 | 5.1 |
-| at least 5 of the last 7 days outside the band | 6 of 400 | 372 of 400 (400 within two weeks) | 6.1 |
-| at least 4 of the last 7 days outside the band | 51 of 400 | 400 of 400 | 4.8 |
-| median of the week outside the 10 to 90 band | 132 of 400 | 400 of 400 | 4.1 |
+| median of the week outside the widened band (chosen) | 7 of 400 | 400 of 400 | 5.0 |
+| at least 5 of the last 7 days outside the band | 11 of 400 | 376 of 400 (400 within two weeks) | 6.1 |
+| at least 4 of the last 7 days outside the band | 55 of 400 | 400 of 400 | 4.7 |
+| median of the week outside the 10 to 90 band | 135 of 400 | 400 of 400 | 4.1 |
 
-With the chosen test, "two different sources only" asks by chance in 1 of 400 and "any two
-measures" in 3 of 400. The script prints all of these.
+Before the own answers were a source, the chosen test asked by chance in 2 of 400. With it,
+"two different sources only" asks by chance in 1 of 400 and "any two measures" in 3 of 400.
+The script prints all of these.
 
 The check-in explains in plain words what changed over the last week compared with the four
 weeks before, and how many days that rests on, then asks one question with three answers. No
@@ -260,10 +274,13 @@ The person's own data is in `localStorage` under `companion.v1`, as one JSON obj
 - `typingSessions[]`: from earlier versions, one per typing session. Still loads; the rule no
   longer reads it.
 - `activityDays[]`: first and last key press per day (`"HH:MM"`), from the desktop app.
+- `dailyAnswers[]`: one per day the daily question came up: the date, the answer (`good`,
+  `okay`, `not-so-good`) or null when it was dismissed, and when.
 - `checkIns[]`: each proposed check-in and its answer, which measures triggered it, how
   many days it was based on, and whether it was simulated.
 - `settings`: whether read-aloud is muted, a running "Simulate a change", sources, small
-  things, quiet hours, and `messagesUrl`, where the messages service lives.
+  things, quiet hours, `dailyQuestion` (how often and roughly when), and `messagesUrl`, where
+  the messages service lives.
 - `ladder`: the steps after "Not my best" and the answers to them.
 
 The messages with someone you trust are kept apart, under `cheerpressure.messages.v1`

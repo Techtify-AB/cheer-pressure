@@ -80,6 +80,7 @@ export function measureLine(m: PassiveMetric, today: DayKey, who: "my" | "your")
 export interface SourceView {
   id: SourceId;
   label: string;
+  reportLabel: string;
   standsOut: boolean;
   metrics: PassiveMetric[];
 }
@@ -87,7 +88,7 @@ export interface SourceView {
 export function sourcesOfEvaluation(e: Evaluation): SourceView[] {
   return SOURCES.map((s) => {
     const metrics = e.metrics.filter((m) => m.source === s.id);
-    return { id: s.id, label: s.label, standsOut: metrics.some((m) => m.status === "changed"), metrics };
+    return { id: s.id, label: s.label, reportLabel: s.reportLabel, standsOut: metrics.some((m) => m.status === "changed"), metrics };
   });
 }
 
@@ -97,7 +98,7 @@ export function valuesSummary(e: Evaluation, who: "my" | "your"): string {
   const out = sourcesOfEvaluation(e).filter((s) => s.standsOut);
   if (!out.length) return `Over the last week ${who} values were within ${who} own usual.`;
   if (onlyQuietSources(e.changed)) return "Over the last week only typing stood out, which on its own never makes Cheri ask.";
-  const names = out.map((s) => s.label.toLowerCase()).join(" and ");
+  const names = out.map((s) => (who === "my" ? s.reportLabel : s.label).toLowerCase()).join(" and ");
   return `Over the last week ${names} stood out from ${who} own usual${enoughToAsk(e.changed) ? ", enough for Cheri to ask" : ""}.`;
 }
 
@@ -132,18 +133,40 @@ export interface Report {
   simulated: boolean;
 }
 
+/** The daily question per week, last four weeks, newest last, in plain words. */
+export function answerWeeks(data: AppData, today: DayKey): { label: string; text: string }[] {
+  const out: { label: string; text: string }[] = [];
+  for (let w = 3; w >= 0; w--) {
+    const end = addDays(today, -7 * w);
+    const start = addDays(end, -6);
+    const week = (data.dailyAnswers ?? []).filter((a) => a.date >= start && a.date <= end);
+    const count = (v: string) => week.filter((a) => a.answer === v).length;
+    const unanswered = 7 - week.filter((a) => a.answer).length;
+    out.push({
+      label: `Week from ${formatDay(start)}`,
+      text: `${count("good")} Good, ${count("okay")} Okay, ${count("not-so-good")} Not so good, ${unanswered} without an answer.`,
+    });
+  }
+  return out;
+}
+
 /** The clinic report, in the first person: the person shares it about themselves. */
 export function clinicReport(data: AppData, today: DayKey, evaluation?: Evaluation): Report {
   const e = evaluation ?? evaluatePassive(data, today);
   const from = addDays(today, -(REPORT_DAYS - 1));
   const inPeriod = (d: DayKey) => d >= from && d <= today;
 
-  const sources = sourcesOfEvaluation(e).map((s) => ({
-    id: s.id,
-    label: s.label,
-    standsOut: s.standsOut,
-    lines: s.metrics.map((m) => ({ label: m.label, text: measureLine(m, today, "my") })),
-  }));
+  const sources = sourcesOfEvaluation(e)
+    .filter((s) => s.id !== "answers" || s.metrics.some((m) => m.points.length))
+    .map((s) => ({
+      id: s.id,
+      label: s.reportLabel,
+      standsOut: s.standsOut,
+      lines: [
+        ...s.metrics.map((m) => ({ label: m.label, text: measureLine(m, today, "my") })),
+        ...(s.id === "answers" ? answerWeeks(data, today) : []),
+      ],
+    }));
 
   // Data quality: how many days each source rests on.
   const typingRows = (data.typingDays ?? []).filter((t) => inPeriod(t.date) && t.kind === "all");

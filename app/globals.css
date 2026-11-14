@@ -1293,3 +1293,33 @@ textarea.typing-box { min-height: 72px; }
   .values-card > p { grid-column: 1 / -1; }
 }
 .value-measure .strip { display: flex; flex-direction: column; }
+
+/* The daily question: on home, and as a bubble from the mascot */
+.daily-question { font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); }
+.daily-answers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+.daily-option { justify-content: center; text-align: center; min-height: var(--tap-size); padding: var(--space-2); }
+.mascot-page[data-bubble] { flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: var(--space-1); padding: var(--space-2); box-sizing: border-box; }
+.mascot-question {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border-radius: 14px 14px 4px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.mascot-question-text { margin: 0; font-weight: var(--font-weight-medium); }
+.mascot-answers .daily-option { min-height: 40px; font-size: var(--font-size-sm); padding: var(--space-1); }
+.mascot-not-now { align-self: flex-start; min-height: 32px; padding: 0; }
+.mascot-page[data-bubble] .mascot-button { padding: 0; }
+.daily-settings legend { padding: 0; margin-bottom: var(--space-2); }
+/* Settings: a longer list, so rows are a little tighter, and two columns on a laptop */
+.settings-menu .menu-row { min-height: 46px; padding-top: 5px; padding-bottom: 5px; }
+@media (min-width: 900px) {
+  .card.settings-menu { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-menu .menu-row + .menu-row { border-top: 0; }
+  .settings-menu .menu-row:nth-child(n + 3) { border-top: 1px solid var(--glass-line); }
+}

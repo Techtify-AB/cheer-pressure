@@ -2,7 +2,8 @@
 
 // Home is the companion and one calm line. It measures by itself and speaks up only
 // when the person's measures stand out from their own usual range (lib/passive.ts,
-// lib/ladder.ts). Nothing is needed from the person day to day: "Talk to me" is there
+// lib/ladder.ts). The one thing it asks day to day is the optional daily question (one tap,
+// or "Not now"; lib/daily.ts), as often as the person sets. "Talk to me" is there
 // for when they want to, and one summary row opens what is being noticed.
 //
 // When someone the person trusts sends a greeting or a question (lib/trusted.ts), it becomes
@@ -12,6 +13,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GreetingScreen, ReplyCrisisScreen, who } from "@/components/Greeting";
+import { afterAnswer, DailyAnswers, useDailyQuestion } from "@/components/DailyQuestion";
+import { QUESTION } from "@/lib/daily";
+import type { DailyAnswerValue } from "@/lib/types";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
 import { Screen } from "@/components/Screen";
@@ -47,6 +51,14 @@ export default function HomePage() {
 
   // Crisis words in a written answer: the help card stays until the person moves on.
   const [crisisFor, setCrisisFor] = useState<string | null>(null);
+  // The daily question, and the line after an answer ("Not so good" keeps its gentle line).
+  const daily = useDailyQuestion(data);
+  const [answeredToday, setAnsweredToday] = useState<DailyAnswerValue | null>(null);
+  useEffect(() => {
+    if (!answeredToday || answeredToday === "not-so-good") return;
+    const t = window.setTimeout(() => setAnsweredToday(null), SENT_LINE_MS);
+    return () => window.clearTimeout(t);
+  }, [answeredToday]);
 
   if (!data || !ready || !evaluation || !outcome || !reflection) return null;
 
@@ -68,8 +80,37 @@ export default function HomePage() {
   const menuPaused = running && !!status?.paused;
   const quiet = quietHoursOf(settings);
 
+  if (daily.due) {
+    return (
+      <Screen
+        lead={
+          <div className="home-hero">
+            <Companion state="attention" size={220} />
+            <h1 className="calm-line daily-question">{QUESTION}</h1>
+          </div>
+        }
+        actions={
+          <div className="links">
+            <button type="button" className="btn btn-quiet" onClick={daily.dismiss}>
+              Not now
+            </button>
+          </div>
+        }
+      >
+        <DailyAnswers
+          onAnswer={(v) => {
+            daily.answer(v);
+            setAnsweredToday(v);
+          }}
+        />
+      </Screen>
+    );
+  }
+
   let line: string;
-  if (answered && answerState) {
+  if (answeredToday) {
+    line = afterAnswer(answeredToday);
+  } else if (answered && answerState) {
     line =
       answerState.status === "sent"
         ? `Sent to ${answered.name}.`
@@ -85,7 +126,7 @@ export default function HomePage() {
   else if (isActive(data.ladder)) line = "I'm keeping an eye on things and will look again in a few days. Nothing is needed from you.";
   else line = reflection.passive.calmLine;
 
-  const mood = answered ? "joy" : moodFor({ wantsToAsk: outcome.speakUp, quiet: outcome.quiet && !pausedAll });
+  const mood = answered || answeredToday === "good" ? "joy" : moodFor({ wantsToAsk: outcome.speakUp, quiet: outcome.quiet && !pausedAll });
 
   // The one-line summary of what is being noticed, truthfully for where this runs.
   const names = [sources.typing && "Typing rhythm", sources.dayRhythm && "day and night rhythm"].filter(Boolean) as string[];

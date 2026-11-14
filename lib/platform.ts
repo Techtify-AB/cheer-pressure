@@ -110,6 +110,9 @@ export async function printPage() {
   window.print();
 }
 
+/** Grows the mascot window for the daily question's bubble, or shrinks it back. Never focuses it. */
+export const mascotExpand = (expanded: boolean) => invoke<void>("mascot_expand", { expanded });
+
 /** Starts moving the current frameless window with the mouse. */
 export async function startWindowDrag() {
   if (!isDesktop()) return;

@@ -11,6 +11,7 @@ import { useSyncExternalStore } from "react";
 import type {
   ActivityDay,
   AppData,
+  DailyAnswer,
   DailyEntry,
   LadderState,
   Profile,
@@ -28,6 +29,7 @@ function empty(): AppData {
   return { version: 1, profile: null, daily: [], weekly: [], reaction: [], typingSessions: [],
     activityDays: [],
     typingDays: [],
+    dailyAnswers: [],
     checkIns: [],
     settings: { muted: false },
     ladder: null,
@@ -71,6 +73,7 @@ function load(): AppData {
       typingSessions: parsed.typingSessions ?? [],
       activityDays: parsed.activityDays ?? [],
       typingDays: Array.isArray(parsed.typingDays) ? parsed.typingDays : [],
+      dailyAnswers: Array.isArray(parsed.dailyAnswers) ? parsed.dailyAnswers : [],
       checkIns: parsed.checkIns ?? [],
       ladder: parsed.ladder ?? null,
     };
@@ -92,6 +95,7 @@ function commit(next: AppData) {
     typingSessions: sortByDate(next.typingSessions),
     activityDays: sortByDate(next.activityDays),
     typingDays: sortByDate(next.typingDays ?? []),
+    dailyAnswers: sortByDate(next.dailyAnswers ?? []),
     checkIns: sortByDate(next.checkIns),
   };
   cache = tidy;
@@ -193,6 +197,12 @@ export function saveActivityDays(days: ActivityDay[]) {
   if (changed) commit({ ...d, activityDays: [...byDate.values()] });
 }
 
+/** Stores today's answer to the daily question, or that it was dismissed. One per day. */
+export function saveDailyAnswer(entry: DailyAnswer) {
+  const d = readData();
+  commit({ ...d, dailyAnswers: [...(d.dailyAnswers ?? []).filter((a) => a.date !== entry.date), entry] });
+}
+
 /** Stores the answer to a proposed check-in, and ends a simulated change. */
 export function saveCheckIn(entry: PromptedCheckIn) {
   const d = readData();
@@ -221,6 +231,7 @@ export function addDemo(demo: {
   typingSessions: TypingSession[];
   typingDays: TypingDay[];
   activityDays: ActivityDay[];
+  dailyAnswers?: DailyAnswer[];
 }) {
   const d = clearDemoFrom(readData());
   const realDaily = new Set(d.daily.map((e) => e.date));
@@ -232,6 +243,10 @@ export function addDemo(demo: {
     weekly: [...d.weekly, ...demo.weekly.filter((e) => !realWeekly.has(e.date))],
     reaction: [...d.reaction, ...demo.reaction],
     typingSessions: [...d.typingSessions, ...demo.typingSessions],
+    dailyAnswers: [
+      ...(d.dailyAnswers ?? []),
+      ...(demo.dailyAnswers ?? []).filter((a) => !(d.dailyAnswers ?? []).some((u) => u.date === a.date)),
+    ],
     typingDays: [
       ...(d.typingDays ?? []),
       ...demo.typingDays.filter((t) => !(d.typingDays ?? []).some((u) => u.date === t.date && u.kind === t.kind)),
@@ -248,6 +263,7 @@ function clearDemoFrom(d: AppData): AppData {
     reaction: d.reaction.filter((e) => e.source !== "demo"),
     typingSessions: d.typingSessions.filter((e) => e.source !== "demo"),
     typingDays: (d.typingDays ?? []).filter((e) => e.source !== "demo"),
+    dailyAnswers: (d.dailyAnswers ?? []).filter((e) => e.source !== "demo"),
     activityDays: d.activityDays.filter((e) => e.source !== "demo"),
     settings: { ...d.settings, simulatedChangeAt: undefined },
     // A ladder that started from made-up data goes with it.
@@ -260,7 +276,7 @@ export function clearDemo() {
 }
 
 export function hasDemo(d: AppData): boolean {
-  return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions, ...(d.typingDays ?? []), ...d.activityDays].some(
+  return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions, ...(d.typingDays ?? []), ...(d.dailyAnswers ?? []), ...d.activityDays].some(
     (e) => e.source === "demo",
   );
 }

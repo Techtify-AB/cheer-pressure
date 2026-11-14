@@ -34,6 +34,7 @@ function appData(r: ReturnType<typeof makeReplayData>, upTo: DayKey): AppData {
     typingSessions: [],
     typingDays: r.typingDays.filter((d) => d.date <= upTo),
     activityDays: r.activityDays.filter((d) => d.date <= upTo),
+    dailyAnswers: r.dailyAnswers.filter((d) => d.date <= upTo),
     checkIns: [],
     settings: { muted: false },
   };

@@ -17,7 +17,7 @@
 
 import { addDays, daysBetween, minutesToClock } from "./dates";
 import { evaluatePassive, isWeekend, type ChangeTest, type Evaluation } from "./passive";
-import type { ActivityDay, AppData, DayKey, TypingDay } from "./types";
+import type { ActivityDay, AppData, DailyAnswer, DayKey, TypingDay } from "./types";
 
 export const REPLAY_DAYS = 56;
 /** Days 1 to 42 are steady; the drift begins on day 43. */
@@ -41,6 +41,8 @@ function rng(seed: number) {
 export interface ReplayData {
   typingDays: TypingDay[];
   activityDays: ActivityDay[];
+  /** Answers to the daily question; some days are not answered. */
+  dailyAnswers: DailyAnswer[];
 }
 
 export interface DriftShape {
@@ -69,6 +71,9 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
   const noise = (spread: number) => (rand() + rand() + rand() - 1.5) * spread;
   const typingDays: TypingDay[] = [];
   const activityDays: ActivityDay[] = [];
+  const dailyAnswers: DailyAnswer[] = [];
+  // Its own random numbers, so adding the answers left the other measures as they were.
+  const ask = rng(seed + 7919);
   const round = (v: number) => Math.round(v * 10) / 10;
   // This person's own levels.
   const person = { spread: 88 + noise(10), hold: 94 + noise(8), first: 7 * 60 + 15 + noise(20), last: 22 * 60 + 50 + noise(20) };
@@ -108,8 +113,17 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
       const last = person.last + noise(34) + (weekend ? 35 : 0) + sleepDrift * 80;
       activityDays.push({ date, first: minutesToClock(first), last: minutesToClock(last), source: "demo" });
     }
+
+    // The daily question: answered on about two days in three; "Not so good" now and then,
+    // more often as the drift goes on (after sleep has slipped).
+    if (ask() < (weekend ? 0.55 : 0.75)) {
+      const low = 0.1 + 0.45 * drift;
+      const r = ask();
+      const answer = r < low ? "not-so-good" : r < low + (1 - low) * 0.5 ? "okay" : "good";
+      dailyAnswers.push({ date, answer, dismissed: false, at: "", source: "demo" });
+    }
   }
-  return { typingDays, activityDays };
+  return { typingDays, activityDays, dailyAnswers };
 }
 
 export interface ReplayFrame {
@@ -132,6 +146,7 @@ function asAppData(r: ReplayData): AppData {
     typingSessions: [],
     typingDays: r.typingDays,
     activityDays: r.activityDays,
+    dailyAnswers: r.dailyAnswers,
     checkIns: [],
     settings: { muted: false },
     ladder: null,
@@ -143,6 +158,7 @@ export function upTo(r: ReplayData, date: DayKey): ReplayData {
   return {
     typingDays: r.typingDays.filter((s) => s.date <= date),
     activityDays: r.activityDays.filter((d) => d.date <= date),
+    dailyAnswers: r.dailyAnswers.filter((d) => d.date <= date),
   };
 }
 
@@ -167,6 +183,7 @@ export function shiftReplay(r: ReplayData, days: number): ReplayData {
   return {
     typingDays: r.typingDays.map((s) => ({ ...s, date: addDays(s.date, days) })),
     activityDays: r.activityDays.map((d) => ({ ...d, date: addDays(d.date, days) })),
+    dailyAnswers: r.dailyAnswers.map((d) => ({ ...d, date: addDays(d.date, days) })),
   };
 }
 

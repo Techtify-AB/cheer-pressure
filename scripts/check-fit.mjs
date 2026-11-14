@@ -150,7 +150,7 @@ async function run(size) {
       ([profile, settings]) =>
         localStorage.setItem(
           "companion.v1",
-          JSON.stringify({ version: 1, profile, daily: [], weekly: [], reaction: [], typingSessions: [], activityDays: [], checkIns: [], settings: { muted: true, quietHours: { from: "03:00", to: "03:01" }, ...settings } }),
+          JSON.stringify({ version: 1, profile, daily: [], weekly: [], reaction: [], typingSessions: [], activityDays: [], checkIns: [], settings: { muted: true, quietHours: { from: "03:00", to: "03:01" }, dailyQuestion: { every: "off", when: "midday" }, ...settings } }),
         ),
       [PROFILE, settings],
     );
@@ -348,6 +348,51 @@ async function run(size) {
   const promptLine = await page.locator(".bubble").first().innerText();
   results.push({ ok: promptLine.trim() === line.trim(), name: "replay explanation equals the conversation's", vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
   await measure(page, "replay-see-what-it-asks");
+
+  // The daily question at a fixed time of day, on home and in the mascot window.
+  {
+    const ctx = await browser.newContext({ viewport: size });
+    await ctx.clock.setFixedTime(new Date("2026-11-14T13:05:00"));
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => errors.push(`${size.width}: ${String(e).slice(0, 160)}`));
+    await p.goto(BASE + "/setup/");
+    await p.evaluate((profile) => localStorage.setItem("companion.v1", JSON.stringify({ version: 1, profile, settings: { muted: true, quietHours: { from: "22:00", to: "08:00" } } })), PROFILE);
+    await p.goto(BASE + "/", { waitUntil: "networkidle" });
+    await p.waitForTimeout(300);
+    const shown = await p.getByRole("heading", { name: "How are you today?" }).count();
+    await measure(p, "home-daily-question");
+    await p.getByRole("button", { name: "Not so good" }).click();
+    await p.waitForTimeout(300);
+    const after = await p.locator(".calm-line").innerText();
+    await measure(p, "home-daily-not-so-good");
+    const stored = await p.evaluate(() => JSON.parse(localStorage.getItem("companion.v1")).dailyAnswers);
+    results.push({ ok: shown === 1 && after.startsWith("Thanks for telling me") && stored.length === 1 && stored[0].answer === "not-so-good", name: "daily question: shown, answered, stored once", vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
+    await p.goto(BASE + "/", { waitUntil: "networkidle" });
+    results.push({ ok: (await p.getByRole("heading", { name: "How are you today?" }).count()) === 0, name: "daily question: not again the same day", vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
+    if (size.width === 1366) {
+      // The mascot window: small, then grown for the bubble.
+      await p.evaluate(() => {
+        const v = JSON.parse(localStorage.getItem("companion.v1"));
+        v.dailyAnswers = [];
+        localStorage.setItem("companion.v1", JSON.stringify(v));
+      });
+      const m = await ctx.newPage();
+      await m.setViewportSize({ width: 300, height: 300 });
+      await m.goto(BASE + "/mascot/", { waitUntil: "networkidle" });
+      await m.waitForTimeout(300);
+      await measure(m, "mascot-daily-bubble");
+      const bubble = await m.locator(".mascot-question").count();
+      await m.getByRole("button", { name: "Good", exact: true }).click();
+      await m.waitForTimeout(3000);
+      await m.setViewportSize({ width: 160, height: 180 });
+      await m.waitForTimeout(200);
+      await measure(m, "mascot-after-answer");
+      results.push({ ok: bubble === 1 && (await m.locator(".mascot-question").count()) === 0, name: "mascot: bubble, then gone after an answer", vp: "300x300", overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
+    }
+    await ctx.close();
+  }
+  await go("/settings/#daily");
+  await measure(page, "settings-daily");
 
   await browser.close();
 

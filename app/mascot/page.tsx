@@ -10,7 +10,10 @@
 // It reads that from this device's copy (lib/trusted.ts) and never polls itself.
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { afterAnswer, DailyAnswers, useDailyQuestion } from "@/components/DailyQuestion";
+import { QUESTION } from "@/lib/daily";
+import type { DailyAnswerValue } from "@/lib/types";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
 import { useCompanionStatus } from "@/components/hooks";
@@ -18,7 +21,7 @@ import { moodFor } from "@/lib/mood";
 import { useData } from "@/lib/storage";
 import { pendingMessage } from "@/lib/contact";
 import { useTrusted } from "@/lib/trusted";
-import { openMainWindow, pageReady, startWindowDrag } from "@/lib/platform";
+import { mascotExpand, openMainWindow, pageReady, startWindowDrag } from "@/lib/platform";
 
 const DRAG_START_PX = 4;
 
@@ -32,6 +35,19 @@ export default function MascotPage() {
   const { outcome } = useCompanionStatus(data?.profile ? data : null);
   const greeting = pendingMessage(useTrusted());
   const cue = !!outcome?.speakUp || !!greeting;
+  // The daily question as a bubble: the window grows to hold it (without taking focus) and
+  // shrinks back after an answer or "Not now". A greeting from someone trusted comes first.
+  const daily = useDailyQuestion(data?.profile ? data : null);
+  const [thanks, setThanks] = useState<DailyAnswerValue | null>(null);
+  const bubble = (daily.due && !greeting) || !!thanks;
+  useEffect(() => {
+    if (desktop) void mascotExpand(bubble);
+  }, [desktop, bubble]);
+  useEffect(() => {
+    if (!thanks) return;
+    const t = window.setTimeout(() => setThanks(null), thanks === "not-so-good" ? 8000 : 2500);
+    return () => window.clearTimeout(t);
+  }, [thanks]);
 
   useEffect(() => {
     if (desktop) pageReady(window.location.pathname);
@@ -51,7 +67,43 @@ export default function MascotPage() {
   });
 
   return (
-    <div className="mascot-page" data-cue={cue || undefined} data-greeting={greeting ? "" : undefined}>
+    <div className="mascot-page" data-cue={cue || undefined} data-greeting={greeting ? "" : undefined} data-bubble={bubble || undefined}>
+      {bubble && (
+        <div className="mascot-question" role="dialog" aria-label={QUESTION}>
+          {thanks ? (
+            <>
+              <p className="mascot-question-text">{afterAnswer(thanks)}</p>
+              {thanks === "not-so-good" && (
+                <button
+                  type="button"
+                  className="btn btn-quiet mascot-not-now"
+                  onClick={() => {
+                    setThanks(null);
+                    if (desktop) void openMainWindow("/prompt/");
+                    else router.push("/prompt/");
+                  }}
+                >
+                  Talk to me
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="mascot-question-text">{QUESTION}</p>
+              <DailyAnswers
+                className="daily-answers mascot-answers"
+                onAnswer={(v) => {
+                  daily.answer(v);
+                  setThanks(v);
+                }}
+              />
+              <button type="button" className="btn btn-quiet mascot-not-now" onClick={daily.dismiss}>
+                Not now
+              </button>
+            </>
+          )}
+        </div>
+      )}
       <button
         type="button"
         className="mascot-button"
@@ -100,7 +152,7 @@ export default function MascotPage() {
             <span />
           </span>
         )}
-        <Companion state={state} size={140} />
+        <Companion state={bubble ? "attention" : state} size={bubble ? 96 : 140} />
       </button>
     </div>
   );

@@ -25,7 +25,7 @@ import { REPORT_DAYS, changedSince, measureNumbers, sourcesOfEvaluation, valuesS
 import { useData } from "@/lib/storage";
 import type { DayKey } from "@/lib/types";
 
-const COUNT = ["None", "One", "Both", "Three"];
+const COUNT = ["None", "One", "Two", "Three"];
 
 /** Short plain meanings, next to every number. */
 const SHORT: Record<string, string> = {
