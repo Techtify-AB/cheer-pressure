@@ -24,6 +24,7 @@ import { newId } from "@/lib/dates";
 import { saveHelps } from "@/lib/storage";
 import { CrisisCard } from "@/components/CrisisCard";
 import { OwnWords } from "@/components/OwnWords";
+import { OtherWays } from "@/components/OtherWays";
 import { notConnectedInputs, SOURCES, type CategoryId } from "@/lib/passive";
 import { addPerson, PERSON_STATE_WORDS, personName, personState, removeEveryone, removePerson, usePeople } from "@/lib/trusted";
 import type { PersonView } from "@/lib/messages";
@@ -129,11 +130,11 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
       value: helpsCount ? `${helpsCount} on your list` : "Nothing on your list yet",
       onClick: () => go("helps"),
     },
-    { key: "voice", label: "Voice", value: s.muted ? "Off" : "On", onClick: () => go("voice") },
-    { key: "daily", label: "Daily hello and quiet hours", value: dailySummary(s), onClick: () => go("daily") },
-    { key: "look", label: "Cheri's look", value: lookSummary(s), onClick: () => go("look") },
     { key: "trust", label: "People you trust", value: trusted, onClick: () => go("trust") },
     { key: "clinic", label: "My clinic", value: CLINIC_CHOICES.find((c) => c.value === clinicOf(s).share)!.label, onClick: () => go("clinic") },
+    { key: "daily", label: "Daily hello and quiet hours", value: dailySummary(s), onClick: () => go("daily") },
+    { key: "look", label: "Cheri's look", value: lookSummary(s), onClick: () => go("look") },
+    { key: "voice", label: "Voice", value: s.muted ? "Off" : "On", onClick: () => go("voice") },
     { key: "values", label: "My values", value: "Each category, and a report for your clinic", href: "/values/" },
     { key: "data", label: "Your data", value: "On this device unless you share a report", onClick: () => go("data") },
     { key: "help", label: "Need help now", value: "112 and your clinic", href: "/help/" },
@@ -144,7 +145,6 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
       lead={
         <>
           <h1 className="item-title">Settings</h1>
-          <p className="muted">A few choices. Your measurements stay on this device unless you save or print a report for your clinic.</p>
         </>
       }
       actions={
@@ -566,8 +566,10 @@ function Trust({ data, back }: { data: AppData; back: React.ReactNode }) {
   const everyone = usePeople();
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [others, setOthers] = useState(false);
   const url = messagesUrlOf(data.settings);
   const person = open ? everyone.find((v) => v.id === open) ?? null : null;
+  if (others) return <OtherWays onBack={() => setOthers(false)} title="Other ways to reach someone" />;
   if (adding) return <AddPerson url={url} onDone={(id) => { setAdding(false); setOpen(id); }} onCancel={() => setAdding(false)} />;
   if (person) return <Person v={person} url={url} onBack={() => setOpen(null)} />;
   const shown = everyone.slice(0, 4);
@@ -587,6 +589,11 @@ function Trust({ data, back }: { data: AppData; back: React.ReactNode }) {
           <button type="button" className="btn btn-primary" disabled={everyone.length >= 6} onClick={() => setAdding(true)}>
             {everyone.length ? "Add someone else" : "Add someone"}
           </button>
+          <div className="links">
+            <button type="button" className="btn btn-quiet" onClick={() => setOthers(true)}>
+              {everyone.length ? "Other ways to reach someone" : "No one comes to mind?"}
+            </button>
+          </div>
           {back}
         </>
       }

@@ -27,6 +27,24 @@ export const SOMEONE_AFTER_DAYS = 2;
 export const CLINIC_AFTER_DAYS = 7;
 export const DECLINE_RESPECTED_DAYS = 3;
 
+// --- Step 2 when there is no one to ask ----------------------------------------------------
+
+/** The request in the peer demo (components/OtherWays.tsx). Never sent anywhere. */
+export const PEER_REQUEST_TEXT = "Could we talk for a bit?";
+/** The made-up reply in the peer demo, always labelled Demo. */
+export const PEER_DEMO_REPLY = "Hi, I'm Sam. I finished treatment last spring. Happy to talk, when suits you?";
+export const PEER_DEMO_REPLY_AFTER_MS = 2500;
+
+export type SomeoneOption = "pick-people" | "other-ways" | "add-someone" | "clinic-contact" | "peer-demo";
+
+/**
+ * What step 2 offers, on one screen. With people to ask: pick who, and other ways as a third,
+ * quiet option. With no one: at most three ways forward, so step 2 is never a dead end.
+ */
+export function someoneOptions(reachablePeople: number): SomeoneOption[] {
+  return reachablePeople > 0 ? ["pick-people", "other-ways"] : ["add-someone", "clinic-contact", "peer-demo"];
+}
+
 /** What the companion would bring up next. "ask" is the first "How are you doing?". */
 export type Due = "none" | "ask" | "small-thing" | "someone" | "clinic";
 

@@ -252,6 +252,17 @@ console.log(`  replay seed ${REPLAY_SEED}: stops on day ${[...new Set(stopDays)]
   check("clinic: approved when asked: done, never again", dueWith(approved, 9, ASK).reason === "done" && approved.clinic?.sharedId === "entry-2");
   check("clinic: Not now at step 3 is respected for 3 days", dueWith(answerClinic(l, "not-now", addDays(DAY0, 7)), 9, ASK).reason === "declined-recently");
 
+  // No one to ask: step 2 still has a way forward
+  const { someoneOptions, PEER_DEMO_REPLY } = await import("../lib/ladder.ts");
+  const none = someoneOptions(0);
+  check("no trusted people: step 2 offers at most three ways forward", none.length > 0 && none.length <= 3 && none.join() === "add-someone,clinic-contact,peer-demo");
+  check("with people: pick who, and other ways as a quiet third", someoneOptions(2).join() === "pick-people,other-ways");
+  const alone = answerSmallThing(startWithHelp(DAY0, null, false), "try", DAY0);
+  check("no trusted people: step 2 is still offered after two days", dueWith(alone, 2).due === "someone");
+  const viaPeer = answerSomeone(alone, "yes", addDays(DAY0, 2), ["peer-demo"]);
+  check("no trusted people: a way taken moves the ladder on to step 3", dueWith(viaPeer, 7).reason === "clinic-due" && dueWith(viaPeer, 3).due === "none");
+  check("peer demo reply is the fixed made-up line", PEER_DEMO_REPLY.startsWith("Hi, I'm Sam."));
+
   // "Always": weekly, and a note when two categories stand out
   const base = { profile: { createdAt: "2026-10-01T10:00:00Z", earlySigns: [] }, settings: {}, clinicShared: [] } as unknown as Parameters<typeof alwaysShareDue>[0];
   check("always: the first weekly summary is due", alwaysShareDue(base, DAY0, false, "always") === "weekly");

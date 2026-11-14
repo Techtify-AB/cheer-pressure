@@ -90,49 +90,67 @@ async function measure(page, name) {
 const results = [];
 const errors = [];
 
-/** A fake messages service on http://localhost:3480, answered inside the browser context. */
+/** A fake messages service on http://localhost:3480, answered inside the browser context. Several pairs, one per person. */
 async function fakeService(context) {
-  const state = { trustedName: null, events: [], n: 0 };
-  const PAIR = "ABC234";
+  const pairs = [];
+  let n = 0;
   const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS" };
   const reply = (route, status, body) => route.fulfill({ status, headers: { ...cors, "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const event = (fields) => ({ v: 1, id: `evt${String(++state.n).padStart(6, "0")}`, ts: new Date().toISOString(), pair: PAIR, ...fields });
+  const event = (pair, fields) => ({ v: 1, id: `evt${String(++n).padStart(6, "0")}`, ts: new Date().toISOString(), pair, ...fields });
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   await context.route("http://localhost:3480/**", async (route) => {
     const req = route.request();
     const url = new URL(req.url());
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
     if (url.pathname === "/api/pairs" && req.method() === "POST") {
+      const PAIR = `ABC${letters[pairs.length % letters.length]}${letters[(pairs.length + 3) % letters.length]}2`;
+      pairs.push({ pair: PAIR, trustedName: null, events: [] });
       return reply(route, 201, { pair: PAIR, userToken: "u".repeat(43), inviteToken: "i".repeat(43), inviteUrl: `http://localhost:3480/t/${PAIR}?i=${"i".repeat(43)}`, userUrl: `http://localhost:3480/u/${PAIR}?u=${"u".repeat(43)}`, expiresAt: new Date(Date.now() + 172800000).toISOString() });
     }
-    if (url.pathname === `/api/pairs/${PAIR}/events` && req.method() === "GET") {
-      return reply(route, 200, { events: state.events, role: "user", trustedName: state.trustedName, serverTime: new Date().toISOString(), expiresAt: new Date(Date.now() + 172800000).toISOString() });
+    const m = /^\/api\/pairs\/([A-Z0-9]+)(\/events)?$/.exec(url.pathname);
+    const st = m && pairs.find((p) => p.pair === m[1]);
+    if (st && m[2] && req.method() === "GET") {
+      return reply(route, 200, { events: st.events, role: "user", trustedName: st.trustedName, serverTime: new Date().toISOString(), expiresAt: new Date(Date.now() + 172800000).toISOString() });
     }
-    if (url.pathname === `/api/pairs/${PAIR}/events` && req.method() === "POST") {
+    if (st && m[2] && req.method() === "POST") {
       const d = JSON.parse(req.postData() ?? "{}");
-      const e = event({ ...d, from: { role: "user" } });
-      state.events.push(e);
+      const e = event(st.pair, { ...d, from: { role: "user" } });
+      st.events.push(e);
       return reply(route, 201, { event: e });
     }
-    if (url.pathname === `/api/pairs/${PAIR}` && req.method() === "DELETE") {
-      state.events = [];
-      state.trustedName = null;
+    if (st && !m[2] && req.method() === "DELETE") {
+      pairs.splice(pairs.indexOf(st), 1);
       return reply(route, 200, {});
     }
     return reply(route, 404, { error: "not found" });
   });
   return {
-    join: (name) => (state.trustedName = name),
-    greet: (text, kind = "question") => state.events.push(event({ type: "greeting", clientId: `g${state.n}abcdefgh`, from: { role: "trusted", name: state.trustedName }, text, kind, replyTo: null })),
+    /** The newest pair joins. */
+    join: (name) => (pairs[pairs.length - 1].trustedName = name),
+    /** From the newest pair someone has joined. */
+    greet: (text, kind = "question") => {
+      const p = [...pairs].reverse().find((x) => x.trustedName);
+      p.events.push(event(p.pair, { type: "greeting", clientId: `g${n}abcdefgh`, from: { role: "trusted", name: p.trustedName }, text, kind, replyTo: null }));
+    },
+    count: () => pairs.length,
   };
 }
+
+/** A note in the results that is not a screen measurement. */
+const note = (ok, name, size) => ({ ok, name, vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
 
 async function run(size) {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: size });
+  // Never the real camera or microphone: every request for one is refused, as a person might.
+  await context.addInitScript(() => {
+    if (navigator.mediaDevices) navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException("refused in the check", "NotAllowedError"));
+  });
   const service = await fakeService(context);
   const page = await context.newPage();
   page.on("console", (msg) => {
-    if (msg.type() === "error") errors.push(`${size.width}: ${msg.text().slice(0, 160)}`);
+    // MediaPipe writes its own start-up notes ("INFO: Created TensorFlow Lite ...") as errors.
+    if (msg.type() === "error" && !msg.text().startsWith("INFO:")) errors.push(`${size.width}: ${msg.text().slice(0, 160)}`);
   });
   page.on("pageerror", (e) => errors.push(`${size.width}: ${String(e).slice(0, 160)}`));
   const go = async (p) => {
@@ -145,19 +163,59 @@ async function run(size) {
     await page.getByRole("button", { name }).or(page.getByRole("link", { name })).first().click();
     await page.waitForTimeout(350);
   };
-  const seed = async (settings = {}) => {
+  const seed = async (settings = {}, extra = {}) => {
     await page.evaluate(
-      ([profile, settings]) =>
+      ([profile, settings, extra]) => {
+        for (const k of Object.keys(localStorage)) if (k.startsWith("cheerpressure.messages") || k === "cheerpressure.people.v1") localStorage.removeItem(k);
         localStorage.setItem(
           "companion.v1",
-          JSON.stringify({ version: 1, profile, daily: [], weekly: [], reaction: [], typingSessions: [], activityDays: [], checkIns: [], settings: { muted: true, quietHours: { from: "03:00", to: "03:01" }, dailyQuestion: { every: "off", when: "midday" }, ...settings } }),
-        ),
-      [PROFILE, settings],
+          JSON.stringify({ version: 1, profile, daily: [], weekly: [], reaction: [], typingSessions: [], activityDays: [], checkIns: [], onboarding: { version: 2 }, settings: { muted: true, quietHours: { from: "03:00", to: "03:01" }, dailyQuestion: { every: "off", when: "midday" }, ...settings }, ...extra }),
+        );
+      },
+      [PROFILE, settings, extra],
     );
   };
+  const raw = async () => page.evaluate(() => JSON.parse(localStorage.getItem("companion.v1")));
 
   await go("/setup/");
   await measure(page, "setup");
+  // Onboarding, one question per screen: every step in the address.
+  for (const h of ["helps", "signs", "trust", "clinic", "look-at-1", "look-at-2", "look-at-3", "look-at-4", "daily", "look"]) {
+    await go(`/setup/#${h}`);
+    await measure(page, `setup-${h}`);
+  }
+  await go("/setup/#trust");
+  results.push(note((await page.getByText("No one comes to mind? That's okay. There will be other ways to reach someone.").count()) === 1, "onboarding: the quiet line for no one", size));
+  await click("Invite someone");
+  await page.locator(".qr img").waitFor({ timeout: 5000 });
+  await measure(page, "setup-trust-invited");
+  await go("/setup/#helps");
+  await page.fill("#own-help", "I want to die");
+  await page.locator("#own-help").blur();
+  await page.waitForTimeout(900);
+  results.push(note((await page.locator(".crisis-card").count()) === 1, "onboarding: crisis words in What helps you show the help card", size));
+  await measure(page, "setup-helps-crisis");
+  // Walk it through: hello, pick two things, skip the rest, done.
+  await go("/setup/");
+  await page.evaluate(() => localStorage.clear());
+  await go("/setup/");
+  await click("Get started");
+  await click("Music");
+  await click("Being outdoors or in nature");
+  await click("Continue");
+  for (let i = 0; i < 8; i++) await page.locator(".screen-actions").getByRole("button", { name: /^(Skip|Skip for now)$/ }).first().click().then(() => page.waitForTimeout(250));
+  await measure(page, "setup-walked-to-look");
+  await click("Done");
+  await page.waitForURL((u) => !u.pathname.startsWith("/setup"), { timeout: 5000 }).catch(() => {});
+  const walked = await raw();
+  results.push(note(!!walked?.profile && walked.onboarding?.version === 2 && walked.helps?.filter((h) => h.on).length === 2, "onboarding: walked through, profile and list stored", size));
+  // Existing users: the new questions, offered once and quietly.
+  await seed({}, { onboarding: undefined });
+  await go("/");
+  results.push(note((await page.getByRole("link", { name: "A few new questions, if you like" }).count()) === 1, "existing user: new questions offered quietly on home", size));
+  await measure(page, "home-new-questions-offered");
+  await click("A few new questions, if you like");
+  await measure(page, "setup-new-questions");
   await seed();
   await go("/");
   await measure(page, "home");
@@ -171,7 +229,7 @@ async function run(size) {
   await click("Talk to me");
   await measure(page, "talk-own-choice");
 
-  for (const h of ["", "#measure", "#routines", "#voice", "#trust", "#data", "#delete"]) {
+  for (const h of ["", "#measure", "#helps", "#voice", "#daily", "#trust", "#clinic", "#data", "#delete"]) {
     await go(`/settings/${h}`);
     await measure(page, `settings${h.replace("#", "-")}`);
   }
@@ -201,19 +259,26 @@ async function run(size) {
   await measure(page, "demo");
   await go("/live/");
   await measure(page, "live");
-  // The box: real writing counts, a held key does not.
-  await page.locator("#typing-box").click();
-  await page.keyboard.type("we walked to the harbour and back before lunch", { delay: 120 });
-  await page.waitForTimeout(700);
-  const writing = await page.locator(".burst-state").innerText();
-  await measure(page, "live-counting");
-  await page.waitForTimeout(2600);
-  for (let i = 0; i < 30; i++) await page.keyboard.down("k");
-  await page.keyboard.up("k");
-  await page.waitForTimeout(700);
-  const held = await page.locator(".burst-state").innerText();
-  await measure(page, "live-held-key");
-  results.push({ ok: writing.startsWith("Counting") && held.includes("held keys"), name: `live box: "${writing}" then "${held}"`, vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
+  // The box: real writing counts, a held key does not. (Live now opens on the categories; the
+  // box is behind "Typing in detail". Checked when it is on screen, and said so when it is not.)
+  if (!(await page.locator("#typing-box").isVisible())) {
+    const detail = page.getByRole("button", { name: "Typing in detail" }).first();
+    if (await detail.count()) await detail.click().then(() => page.waitForTimeout(300));
+  }
+  if (await page.locator("#typing-box").isVisible()) {
+    await page.locator("#typing-box").click();
+    await page.keyboard.type("we walked to the harbour and back before lunch", { delay: 120 });
+    await page.waitForTimeout(700);
+    const writing = await page.locator(".burst-state").innerText();
+    await measure(page, "live-counting");
+    await page.waitForTimeout(2600);
+    for (let i = 0; i < 30; i++) await page.keyboard.down("k");
+    await page.keyboard.up("k");
+    await page.waitForTimeout(700);
+    const held = await page.locator(".burst-state").innerText();
+    await measure(page, "live-held-key");
+    results.push({ ok: writing.startsWith("Counting") && held.includes("held keys"), name: `live box: "${writing}" then "${held}"`, vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
+  } else results.push(note(false, "live box: not found on screen (not checked)", size));
 
   // The ladder, live: Simulate a change, Not my best, then skip ahead.
   await go("/demo/");
@@ -223,8 +288,12 @@ async function run(size) {
   await measure(page, "ask-question");
   await click("Not my best");
   await measure(page, "step1-small-thing");
+  await click("Something else");
+  await measure(page, "step1-something-else");
   await click("I'll try that");
   await measure(page, "step1-done");
+  const s1 = await raw();
+  results.push(note((s1.suggestions ?? []).length === 2 && s1.suggestions[0].answer === "other" && s1.suggestions[1].answer === "try", "step 1: both offers recorded, other then try", size));
   await go("/");
   await measure(page, "home-ladder-waiting");
   await go("/demo/");
@@ -232,12 +301,24 @@ async function run(size) {
   await measure(page, "step2-someone");
   await go("/");
   await measure(page, "home-step2-due");
+  // No one to ask: other ways, never a dead end. The peer contact is a demo and says so.
   await go("/prompt/");
+  await measure(page, "step2-other-ways");
+  await click("Your clinic's contact person");
+  await measure(page, "step2-clinic-contact");
+  await click("Back");
+  await click("Someone who has been through this too");
+  await measure(page, "step2-peer-how");
+  results.push(note((await page.getByText("Demo. Peer contact is not connected yet.").count()) === 1, "peer: the whole screen says it is a demo", size));
+  await click("Show me how it would go");
+  await measure(page, "step2-peer-sent");
+  await page.waitForTimeout(3200);
+  await measure(page, "step2-peer-reply");
+  results.push(note((await page.getByText("Hi, I'm Sam.", { exact: false }).count()) === 1 && (await page.getByText("Demo. Peer contact is not connected yet.").count()) === 1, "peer: the demo reply is labelled demo", size));
   await click("Yes");
-  await page.waitForTimeout(4200);
-  await measure(page, "step2-reply");
-  await click("Yes");
-  await measure(page, "step2-reply-yes");
+  await measure(page, "step2-peer-done");
+  const s2 = await raw();
+  results.push(note(s2.ladder?.someone?.answer === "yes" && (await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("cheerpressure.messages")).length)) === 0, "peer: step 2 goes on, nothing to the messages service", size));
   for (let i = 0; i < 3; i++) {
     await go("/demo/");
     await click("Skip ahead two days");
@@ -247,8 +328,36 @@ async function run(size) {
   await page.waitForURL("**/share/**");
   await page.waitForTimeout(400);
   await measure(page, "step3-share");
-  await click("Approve for the demo clinic");
+  await click("Approve, share with my clinic");
   await measure(page, "step3-approved");
+  const s3 = await raw();
+  results.push(note((s3.clinicShared ?? []).some((e) => e.kind === "approved" && e.demoRecipient), "step 3 asked first: approved, kept on Shared with my clinic", size));
+  // Step 3 with the automatic yes: told after 7 days, shown exactly.
+  await seed({ clinic: { share: "always", tellAfterDays: true } });
+  await go("/demo/");
+  await click("Simulate a change");
+  await click("Next");
+  await click("Not my best");
+  await click("Not now");
+  for (let i = 0; i < 4; i++) {
+    await go("/demo/");
+    await click("Skip ahead two days");
+  }
+  await go("/");
+  await page.waitForTimeout(400);
+  await go("/prompt/");
+  await page.getByText("I've told your clinic, as you asked.").waitFor({ timeout: 5000 });
+  await measure(page, "step3-auto-told");
+  const auto = await raw();
+  results.push(note((auto.clinicShared ?? []).some((e) => e.kind === "automatic") && (auto.clinicShared ?? []).some((e) => e.kind === "weekly"), "step 3 automatic: told once, and Always added its weekly entry", size));
+  await click("Show what was shared");
+  await page.waitForURL("**/share/**");
+  await page.waitForTimeout(300);
+  await measure(page, "step3-auto-what-was-shared");
+  await go("/settings/#clinic");
+  await click("Shared with my clinic");
+  await measure(page, "settings-clinic-shared-list");
+  await seed();
   // My values on made-up data, one source per view, and the clinic report.
   await go("/values/");
   await measure(page, "values-summary");
@@ -296,20 +405,32 @@ async function run(size) {
   await go("/demo/");
   await click("Messages service");
   await measure(page, "demo-service-address");
+  const pairsBefore = service.count();
   await go("/settings/#trust");
-  await click("Invite someone");
+  await click("Add someone");
+  await measure(page, "trust-add");
+  await page.fill("#person-label", "Sara");
+  await click("Make an invite link");
   await page.locator(".qr img").waitFor({ timeout: 5000 });
   await measure(page, "trust-invite-waiting");
   service.join("Sara");
-  await page.getByText("Connected with Sara").waitFor({ timeout: 5000 });
+  await page.getByText("Connected", { exact: true }).waitFor({ timeout: 5000 });
   await measure(page, "trust-connected");
   await click("Your own phone");
   await page.locator(".qr img").waitFor({ timeout: 5000 });
   await measure(page, "trust-own-phone");
   await click("Back");
-  await click("Disconnect");
-  await measure(page, "trust-disconnect-confirm");
-  await click("Keep the connection");
+  await click("Remove");
+  await measure(page, "trust-remove-confirm");
+  await click("Keep Sara");
+  await click("Back to people you trust");
+  await click("Add someone else");
+  await page.fill("#person-label", "Lea");
+  await click("Make an invite link");
+  await page.locator(".qr img").waitFor({ timeout: 5000 });
+  await click("Back to people you trust");
+  await measure(page, "trust-list-two");
+  results.push(note((await page.locator(".people-list .menu-row").count()) === 2 && service.count() === pairsBefore + 2, "people you trust: two people, two pairs", size));
 
   // A greeting at any time: home, writing back, and the help card after crisis words.
   service.greet("Walk after lunch?");
@@ -334,18 +455,26 @@ async function run(size) {
   // Step two with a real pair: the request, the reply, the answer.
   await go("/prompt/");
   await click("I'd like someone to check in on me");
-  await click("Yes");
-  await page.locator(".request-status").waitFor({ timeout: 5000 });
+  await measure(page, "step2-pick-people");
+  await click("Sara");
+  await click("Lea");
+  await measure(page, "step2-picked-two");
+  await click("Ask these 2");
+  await page.locator(".request-status").first().waitFor({ timeout: 5000 });
+  await page.waitForTimeout(2000);
   await measure(page, "step2-real-sent");
+  results.push(note((await page.locator(".asked-list li").count()) === 2, "step 2: a status per person asked", size));
   service.greet("Call tonight?");
   await page.locator(".greeting-line").waitFor({ timeout: 5000 });
   await measure(page, "step2-real-reply");
   await click("Yes");
   await measure(page, "step2-real-answered");
   await go("/settings/#trust");
-  await click("Disconnect");
-  await click("Yes, disconnect");
-  await page.getByText("Not connected").waitFor({ timeout: 5000 });
+  await click("Lea");
+  await click("Remove");
+  await click("Yes, remove");
+  await page.waitForTimeout(400);
+  results.push(note((await page.locator(".people-list .menu-row").count()) === 1 && service.count() === pairsBefore + 1, "remove one person: only that pair goes", size));
 
   // Quiet hours now: the companion sleeps on home.
   const now = new Date();
@@ -419,6 +548,55 @@ async function run(size) {
   await go("/settings/#daily");
   await measure(page, "settings-daily");
 
+  // The daily hello: ask, hold to talk with the microphone refused, one tap, the reply, the
+  // reaction check, already today, and the camera refused.
+  await seed({ dailyQuestion: { every: "day", when: "morning", firstTwoWeeksDaily: true } });
+  await go("/hello/");
+  await measure(page, "hello-ask");
+  const hold = page.getByRole("button", { name: "Hold to talk" });
+  if (await hold.count()) {
+    const box = await hold.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(900);
+    await measure(page, "hello-holding");
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    await measure(page, "hello-after-talk-refused");
+  }
+  await click("Use the camera");
+  await page.waitForTimeout(1200);
+  await measure(page, "hello-camera-refused");
+  const camText = await page.locator(".hello-sensors").innerText();
+  results.push(note(/Camera not allowed|No camera here/.test(camText), `hello: camera refused is said plainly ("${camText.replace(/\s+/g, " ")}")`, size));
+  await click("Okay");
+  await page.waitForTimeout(500);
+  await measure(page, "hello-reply");
+  const h1 = await raw();
+  results.push(note(h1.dailyAnswers?.length === 1 && h1.dailyAnswers[0].answer === "okay" && (h1.helloReadings ?? []).length === 1, "hello: one answer and one reading stored, same place as the daily question", size));
+  if (await page.getByRole("button", { name: "A 15-second reaction check" }).count()) {
+    await click("A 15-second reaction check");
+    await measure(page, "hello-reaction-check");
+  }
+  await go("/hello/");
+  await measure(page, "hello-already-today");
+  await go("/");
+  results.push(note((await page.getByRole("heading", { name: "How are you today?" }).count()) === 0, "hello answered: home does not ask again", size));
+
+  // "Did it help?" the next time home is opened, after I'll try that with no activity behind it.
+  const today = new Date();
+  const dk = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  await seed({}, { suggestions: [{ id: "s1", ladderStartedOn: dk, offeredOn: dk, item: "music", label: "Music", answer: "try", learned: false, answeredAt: new Date(Date.now() - 3600_000).toISOString(), simulated: false }] });
+  await go("/");
+  await measure(page, "home-did-it-help");
+  results.push(note((await page.getByText("Did music help?").count()) === 1, "home: Did music help? asked quietly", size));
+  await click("A little");
+  await measure(page, "home-did-it-help-thanks");
+  const fbk = await raw();
+  results.push(note(fbk.suggestions[0].helped === "a-little", "home: the answer is stored on the suggestion", size));
+  await go("/");
+  results.push(note((await page.getByText("Did music help?").count()) === 0, "home: Did it help? asked once", size));
+
   await browser.close();
 
   // Reduced motion: the dots step without transitions.
@@ -436,7 +614,14 @@ async function run(size) {
 }
 
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
-for (const size of SIZES) await run(size);
+// FIT_SIZE=390 runs one size only. A step that fails is reported and the next size still runs.
+for (const size of SIZES.filter((x) => !process.env.FIT_SIZE || String(x.width) === process.env.FIT_SIZE)) {
+  try {
+    await run(size);
+  } catch (e) {
+    results.push(note(false, `stopped: ${String(e?.message ?? e).split("\n")[0].slice(0, 140)}`, size));
+  }
+}
 
 for (const r of results) {
   console.log(

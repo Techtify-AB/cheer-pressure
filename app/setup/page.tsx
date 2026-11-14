@@ -522,6 +522,9 @@ function TrustStep({ data, progress, nav, onDone }: StepProps & { data: AppData 
             </button>
           )}
           {nav(already ? "Continue" : "Skip for now")}
+          {!already && (
+            <p className="small muted center no-one-line">No one comes to mind? That&apos;s okay. There will be other ways to reach someone.</p>
+          )}
         </>
       }
     >

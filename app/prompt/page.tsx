@@ -31,6 +31,7 @@ import { useCompanionStatus, useCompanionVoice, useReflection, useRequireProfile
 import type { CompanionState } from "@/components/companion/Companion";
 import { brain, helpChoiceInput, type HelpChoice } from "@/lib/brain";
 import { GreetingScreen, ReplyCrisisScreen, who } from "@/components/Greeting";
+import { OtherWays } from "@/components/OtherWays";
 import { chooseContact, CONTACT_REQUEST_TEXT, type Contact, type ContactState } from "@/lib/contact";
 import type { Answer } from "@/lib/events";
 import { formatDay, newId } from "@/lib/dates";
@@ -46,6 +47,7 @@ import {
   offerNext,
   requestSomeone,
   seenClinic,
+  someoneOptions,
   startWithHelp,
   type Due,
 } from "@/lib/ladder";
@@ -144,6 +146,7 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
   // The plain line when step one's suggestion comes first because of what followed it before.
   const [reason, setReason] = useState<string | null>(null);
   const [listDone, setListDone] = useState(false);
+  const [otherWays, setOtherWays] = useState(false);
   useEffect(() => () => stopContact.current?.(), []);
 
   const record = (value: CheckInAnswer) =>
@@ -349,9 +352,28 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
     );
   }
 
-  // Step 2: someone you trust. The person picks who.
+  // Step 2: someone you trust. The person picks who. With no one to ask (or by choice), other
+  // ways to reach someone: add someone, the clinic's contact person, or the peer demo.
   if (view === "someone") {
     const can = reachable(everyone);
+    const declineSomeone = () => {
+      const l = readData().ladder;
+      if (l) saveLadder(answerSomeone(l, "not-now", today));
+      setView("declined");
+    };
+    if (someoneOptions(can.length).includes("peer-demo") || otherWays) {
+      return (
+        <OtherWays
+          onBack={can.length ? () => setOtherWays(false) : declineSomeone}
+          backLabel={can.length ? "Back" : "Not now"}
+          onChose={(way) => {
+            // A way forward was taken: step 2 counts as answered, so the ladder can go on.
+            const l = readData().ladder;
+            if (l && l.someone?.answer !== "yes") saveLadder(answerSomeone(l, "yes", today, [way]));
+          }}
+        />
+      );
+    }
     const ask = async () => {
       const chosen = can.filter((v) => picked.includes(v.id));
       const l = readData().ladder;
@@ -388,25 +410,12 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
               <button type="button" className="btn btn-primary" disabled={!picked.length} onClick={ask}>
                 {picked.length > 1 ? `Ask these ${picked.length}` : "Ask them"}
               </button>
-            ) : demo ? (
-              <button type="button" className="btn btn-primary" onClick={ask}>
-                Yes, show me
-              </button>
-            ) : (
-              <Link href="/settings/#trust" className="btn btn-primary">
-                Add someone you trust
-              </Link>
-            )}
+            ) : null}
             <div className="links">
-              <button
-                type="button"
-                className="btn btn-quiet"
-                onClick={() => {
-                  const l = readData().ladder;
-                  if (l) saveLadder(answerSomeone(l, "not-now", today));
-                  setView("declined");
-                }}
-              >
+              <button type="button" className="btn btn-quiet" onClick={() => setOtherWays(true)}>
+                Other ways
+              </button>
+              <button type="button" className="btn btn-quiet" onClick={declineSomeone}>
                 Not now
               </button>
             </div>
