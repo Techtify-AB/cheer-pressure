@@ -202,6 +202,9 @@ export default function HomePage() {
             <Link href="/prompt/" className="btn btn-quiet">
               Talk to me
             </Link>
+            <Link href="/activities/" className="btn btn-quiet">
+              Things to do
+            </Link>
             {offerNew && (
               <Link href="/setup/" className="btn btn-quiet">
                 A few new questions, if you like

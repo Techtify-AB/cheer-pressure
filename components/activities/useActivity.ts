@@ -92,9 +92,10 @@ export function useActivity(id: ActivityId): ActivityRun {
         feedback: null,
       };
       saveActivityDone(entry);
-      // TODO(helps): lib/helps.ts has no export that marks a step-one suggestion as taken; the
-      // ladder's step-one screen records "try" itself when the person says "I'll try that".
-      // When lib/helps.ts gets one, call it here with the matching item.
+      // TODO(helps): lib/helps.ts has no export that marks a step-one suggestion as taken from
+      // here. The ladder's step-one screen records "try" itself (answerOffer, viaActivity) before
+      // it opens the activity, and lib/helps.ts reads this record's "Did that help?" through
+      // feedbackFromActivities. If a "taken" mark is ever wanted from the activity, add it here.
       setDone({ entry, message, stage: "feedback", ended });
     },
     [id, easier, stopAll],

@@ -23,6 +23,7 @@
 // score, no diagnosis words.
 
 import Link from "next/link";
+import { activityForHelp, activityHref } from "@/lib/activities";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Disclosure, Says, Screen, StepCount } from "@/components/Screen";
@@ -71,9 +72,8 @@ function joinNames(names: string[]): string {
  * or null to stay in the conversation. The activity library plugs in here, and only here.
  */
 function activityLinkFor(item: Pick<HelpItem, "id" | "label" | "own">): string | null {
-  // activity link goes here
-  void item;
-  return null;
+  const activity = activityForHelp(item.id, item.label);
+  return activity ? activityHref(activity) : null;
 }
 
 /** Offers one thing from the person's list (the brain chooses) and records it. Null: nothing is on. */
