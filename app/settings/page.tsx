@@ -76,7 +76,7 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
   const src = sourcesOf(s);
   const on = routinesOf(s);
   const q = quietHoursOf(s);
-  const measuring = [src.typing && "Typing rhythm", src.dayRhythm && "day rhythm"].filter(Boolean).join(", ");
+  const measuring = [src.typing && "Typing rhythm", src.dayRhythm && "day and night rhythm"].filter(Boolean).join(", ");
   const trusted = trustedSummary(snap);
   const rows: { key: string; label: string; value: string; onClick?: () => void; href?: string; demo?: boolean }[] = [
     {
@@ -176,7 +176,7 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
           onChange={(v) => set({ typing: v })}
         />
         <SwitchRow
-          label="Day rhythm"
+          label="Day and night rhythm"
           hint="Your first and last key press each day"
           on={src.dayRhythm}
           onChange={(v) => set({ dayRhythm: v })}

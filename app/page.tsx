@@ -90,7 +90,7 @@ export default function HomePage() {
   const mood = answered ? "joy" : moodFor({ wantsToAsk: outcome.speakUp, quiet: outcome.quiet && !pausedAll });
 
   // The one-line summary of what is being noticed, truthfully for where this runs.
-  const names = [sources.typing && "Typing rhythm", sources.dayRhythm && "day rhythm"].filter(Boolean) as string[];
+  const names = [sources.typing && "Typing rhythm", sources.dayRhythm && "day and night rhythm"].filter(Boolean) as string[];
   const what = names.length ? names.join(" and ").replace(/^./, (c) => c.toUpperCase()) : "";
   let summary: string;
   if (!what) summary = "Nothing: every source is off";

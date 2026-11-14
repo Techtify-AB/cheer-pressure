@@ -11,6 +11,10 @@ import {
   dayMinutesToClock,
   suggestionFor,
   weeklyInsight,
+  enoughToAsk,
+  PASSIVE_DEFS,
+  sourceOf,
+  SOURCES,
 } from "../lib/passive.ts";
 import type { ActivityDay, AppData, TypingSession } from "../lib/types.ts";
 
@@ -57,15 +61,23 @@ function day(date: string, first: string, last: string): ActivityDay {
 }
 
 /** n days ending yesterday (or today), steady, then the last `drift` days changed. */
-function history(n: number, drift: number, opts: { spread?: boolean; first?: boolean } = {}) {
+function history(n: number, drift: number, opts: { spread?: boolean; pauses?: boolean; hold?: boolean; first?: boolean; last?: boolean } = {}) {
   const d = empty();
   for (let i = n; i >= 1; i--) {
     const date = addDays(TODAY, -i);
     const inDrift = i <= drift;
     const wobble = (i % 3) * 4; // 0, 4, 8
-    d.typingSessions.push(session(date, inDrift && opts.spread ? 160 + wobble : 90 + wobble));
+    d.typingSessions.push(
+      session(
+        date,
+        inDrift && opts.spread ? 160 + wobble : 90 + wobble,
+        inDrift && opts.pauses ? 900 + wobble : 600 + wobble,
+        inDrift && opts.hold ? 130 + wobble : 95 + wobble,
+      ),
+    );
     const first = inDrift && opts.first ? `09:${30 + (i % 3) * 5}` : `07:${10 + (i % 3) * 5}`;
-    d.activityDays.push(day(date, first, `23:${10 + (i % 3) * 5}`));
+    const last = inDrift && opts.last ? `01:${10 + (i % 3) * 5}` : `23:${10 + (i % 3) * 5}`;
+    d.activityDays.push(day(date, first, last));
   }
   return d;
 }
@@ -112,6 +124,31 @@ check(
   explainChange(et),
 );
 check("based on 3 sessions and 3 days", et.basedOn.sessions === 3 && et.basedOn.days === 3);
+
+// Sources: typing alone never asks; two sources, or two sleep measures alone, do.
+check("every measure belongs to one source", PASSIVE_DEFS.every((d) => SOURCES.filter((x) => x.measures.includes(d.key)).length === 1));
+const typingOnly = history(20, 3, { spread: true, pauses: true, hold: true });
+const eto = evaluatePassive(typingOnly, TODAY);
+check(
+  "typing alone, all three typing measures changed: does not ask",
+  !eto.askNow && eto.changed.length === 3 && eto.changed.every((m) => m.source === "typing") && eto.reason === "typing-only",
+  `${eto.changed.map((m) => m.key).join()} ${eto.reason}`,
+);
+check("typing alone: the companion says nothing", explainChange(eto) === "Nothing stands out compared with your usual right now." && calmLine(eto) === calmLine(ec));
+check("typing alone: Your own level shows it and says typing alone does not ask", weeklyInsight(eto).includes("your typing has been more uneven") && weeklyInsight(eto).endsWith("Typing alone never makes me ask."), weeklyInsight(eto));
+const sleepTwo = history(20, 3, { first: true, last: true });
+const est2 = evaluatePassive(sleepTwo, TODAY);
+check(
+  "two sleep measures alone: asks",
+  est2.askNow && est2.changed.every((m) => m.source === "sleep") && est2.changed.length >= 2,
+  est2.changed.map((m) => m.key).join(),
+);
+check("enoughToAsk: one typing and one sleep", enoughToAsk([{ key: "hold" }, { key: "quietNight" }]));
+check("enoughToAsk: two sleep", enoughToAsk([{ key: "firstActivity" }, { key: "quietNight" }]));
+check("enoughToAsk: three typing is not enough", !enoughToAsk([{ key: "spread" }, { key: "pauses" }, { key: "hold" }]));
+check("enoughToAsk: one sleep is not enough", !enoughToAsk([{ key: "lastActivity" }]));
+check("explanation names both sources in plain words", /your typing has been more uneven, your days have started later/.test(explainChange(et)), explainChange(et));
+check("brain input carries each measure's source", passiveInput(et).measures.every((m) => m.source === sourceOf(m.key)));
 
 const asked = history(20, 3, { spread: true, first: true });
 asked.checkIns.push({

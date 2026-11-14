@@ -15,7 +15,7 @@
 // it says which step is due. The screens only show it and store the answers.
 
 import { daysBetween, addDays, formatDay } from "./dates";
-import { MIN_CHANGED_TO_ASK, joinPhrases, type Evaluation } from "./passive";
+import { enoughToAsk, joinPhrases, type Evaluation } from "./passive";
 import { inQuietHours } from "./settings";
 import type { DayKey, LadderState, PromptedCheckIn, RoutineId } from "./types";
 
@@ -57,9 +57,9 @@ export interface LadderOutcome {
   close: boolean;
 }
 
-/** The measures still stand out the way the rule asks about: at least two have changed. */
+/** The measures still stand out the way the rule asks about (enoughToAsk in lib/passive.ts). */
 export function stillChanged(p: Pick<Evaluation, "changed">): boolean {
-  return p.changed.length >= MIN_CHANGED_TO_ASK;
+  return enoughToAsk(p.changed);
 }
 
 export function isActive(l: LadderState | null | undefined): l is LadderState {

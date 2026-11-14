@@ -3,8 +3,10 @@
 //
 // The days are steady for five weeks, with the ordinary ups and downs of a real person
 // (some days without the computer, a slightly later start on the sixth and seventh day
-// of each week, uneven sessions). In the sixth week four measures drift, gradually:
-// typing gets more uneven, pauses get longer, and the whole day starts and ends later.
+// of each week, uneven sessions). In the sixth week the drift begins, and sleep slips
+// first: from day 36 the day starts and ends later, quickly (sleepDriftOn), while typing
+// gets more uneven and its pauses longer only gradually (driftOn). Typing alone never makes
+// the companion ask, so the story is told by the day and night rhythm, then typing joins.
 //
 // Nothing here decides what the replay shows. Each frame is `evaluatePassive` from
 // lib/passive.ts on the data up to that day, exactly as the app runs it on real data.
@@ -33,6 +35,11 @@ function rng(seed: number) {
 export interface ReplayData {
   typingSessions: TypingSession[];
   activityDays: ActivityDay[];
+}
+
+/** Sleep slips first: 0 for days 1 to 35, then faster than driftOn (0.38 on day 36, 0.65 on day 38, 1 on day 42). */
+export function sleepDriftOn(day: number): number {
+  return Math.sqrt(driftOn(day));
 }
 
 /** 0 for days 1 to 35, then 1/7, 2/7 ... up to 1 on day 42. */
@@ -80,8 +87,9 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED): ReplayData 
 
     const noActivity = drift === 0 && rand() < 0.06;
     if (!noActivity) {
-      const first = 7 * 60 + 20 + noise(28) + (weekend ? 35 : 0) + drift * 100;
-      const last = 22 * 60 + 50 + noise(28) + (weekend ? 25 : 0) + drift * 70;
+      const sleepDrift = sleepDriftOn(day);
+      const first = 7 * 60 + 20 + noise(28) + (weekend ? 35 : 0) + sleepDrift * 100;
+      const last = 22 * 60 + 50 + noise(28) + (weekend ? 25 : 0) + sleepDrift * 110;
       activityDays.push({ date, first: minutesToClock(first), last: minutesToClock(last), source: "demo" });
     }
   }

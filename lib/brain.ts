@@ -32,6 +32,7 @@ import {
   type Evaluation,
   type PassiveMetric,
   type Range,
+  type SourceId,
 } from "./passive";
 import type { DailyEntry, PassiveKey, Profile, RoutineId, WeeklyEntry } from "./types";
 
@@ -46,6 +47,8 @@ export interface Suggestion {
 /** One passive measure, as plain data. */
 export interface PassiveMeasureInput {
   key: PassiveKey;
+  /** The source it belongs to (SOURCES in lib/passive.ts): "typing" or "sleep" (day and night rhythm). */
+  source: SourceId;
   label: string;
   /** "session": one value per typing session. "day": one value per day. */
   unit: "session" | "day";
@@ -90,6 +93,7 @@ export function passiveInput(e: Evaluation): PassiveInput {
     simulated: e.simulated,
     measures: e.metrics.map((m) => ({
       key: m.key,
+      source: m.source,
       label: m.label,
       unit: m.unit,
       status: m.status,

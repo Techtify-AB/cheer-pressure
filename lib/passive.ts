@@ -7,7 +7,16 @@
 //   of their earlier sessions or days. (Using only the median of the last 3 asked
 //   by chance about 7 times in 10 on random data; three in a row asks about 3 in 100.) It needs at least 7 earlier ones,
 //   and the last 3 must include something from the past 7 days.
-// - When at least 2 measures have changed, the companion proposes a check-in.
+// - The measures are grouped into sources (SOURCES below): "typing" and "sleep" (shown to
+//   the person as "Day and night rhythm", an estimate of rest from the first and last key
+//   press, never measured sleep). The companion proposes a check-in when measures have
+//   changed in at least TWO DIFFERENT sources, or when at least TWO sleep measures have
+//   changed even if nothing else has. Typing alone never asks, however many typing measures
+//   changed. Measured with scripts/measure-rule.mts on 400 made-up five-week periods
+//   (lib/replay.ts, steady, then a drift in week six): this rule asked by chance in 16 of
+//   400; "at least 2 measures of any kind" (the earlier rule) in 18, "two different sources"
+//   in 4, "one sleep measure alone" in 178 (far too noisy). All noticed the drift in 400 of
+//   400, this rule on average on day 38.4 (the earlier rule on day 38.1).
 // - Until there are 7 days with any data, it is still learning and never asks.
 // - After a proposed check-in it waits 3 days, unless a measure changes that was
 //   not part of the last one.
@@ -30,7 +39,8 @@ export const RECENT_POINTS = 3;
 export const MIN_USUAL_POINTS = 7;
 export const RECENT_MAX_AGE_DAYS = 7;
 export const LEARNING_DAYS = 7;
-export const MIN_CHANGED_TO_ASK = 2;
+/** Different sources that must have changed for the companion to ask. */
+export const MIN_SOURCES_TO_ASK = 2;
 export const PAUSE_AFTER_ASKING_DAYS = 3;
 /** A day runs from 04:00 to 04:00 (the desktop app uses the same boundary). */
 export const DAY_STARTS_AT_MIN = 4 * 60;
@@ -53,8 +63,60 @@ export type Judgement =
   | { status: "learning"; usual: null; recent: null; direction: null }
   | { status: "steady" | "changed"; usual: Range; recent: { median: number; n: number }; direction: Direction | null };
 
+export type SourceId = "typing" | "sleep";
+
+/**
+ * Which measures belong to which source, and whether a source can make the companion ask
+ * on its own. One table, so a later source is one more row: "movement" from the camera,
+ * "voice", or a bedside sensor adding its measures to "sleep".
+ */
+export const SOURCES: {
+  id: SourceId;
+  /** How the person sees it. */
+  label: string;
+  /** In running text: "your typing", "your day and night rhythm". */
+  words: string;
+  measures: PassiveKey[];
+  /** How many of its measures must change for it to ask on its own; null: never on its own. */
+  aloneAsksAt: number | null;
+}[] = [
+  { id: "typing", label: "Typing", words: "your typing", measures: ["spread", "pauses", "hold"], aloneAsksAt: null },
+  {
+    id: "sleep",
+    label: "Day and night rhythm",
+    words: "your day and night rhythm",
+    measures: ["firstActivity", "lastActivity", "quietNight"],
+    aloneAsksAt: 2,
+  },
+];
+
+export function sourceOf(key: PassiveKey): SourceId {
+  const s = SOURCES.find((x) => x.measures.includes(key));
+  if (!s) throw new Error(`measure ${key} has no source`);
+  return s.id;
+}
+
+/**
+ * Whether these changed measures are enough to ask: two different sources, or a source that
+ * may ask on its own with enough of its measures. The ladder uses the same test for "the
+ * measures have come back".
+ */
+export function enoughToAsk(changed: { key: PassiveKey }[]): boolean {
+  const bySource = new Map<SourceId, number>();
+  for (const m of changed) bySource.set(sourceOf(m.key), (bySource.get(sourceOf(m.key)) ?? 0) + 1);
+  if (bySource.size >= MIN_SOURCES_TO_ASK) return true;
+  return SOURCES.some((s) => s.aloneAsksAt !== null && (bySource.get(s.id) ?? 0) >= s.aloneAsksAt);
+}
+
+/** Changed measures that cannot make the companion ask on their own source (typing alone). */
+export function onlyQuietSources(changed: { key: PassiveKey }[]): boolean {
+  return changed.length > 0 && !enoughToAsk(changed) && changed.every((m) => SOURCES.find((s) => s.id === sourceOf(m.key))?.aloneAsksAt === null);
+}
+
 export interface PassiveMetric {
   key: PassiveKey;
+  /** Which source the measure belongs to (SOURCES). */
+  source: SourceId;
   label: string;
   meaning: string;
   /** "session": one value per typing session. "day": one value per day. */
@@ -80,7 +142,7 @@ export interface Evaluation {
   basedOn: { sessions: number; days: number };
   askNow: boolean;
   /** Why the companion does or does not ask. */
-  reason: "learning" | "steady" | "one-change" | "changed" | "waiting-after-last" | "simulated";
+  reason: "learning" | "steady" | "one-change" | "typing-only" | "changed" | "waiting-after-last" | "simulated";
   /** The data includes made-up demo data, or the change was simulated. */
   simulated: boolean;
 }
@@ -197,8 +259,8 @@ export const PASSIVE_DEFS: Def[] = [
       "Time from your last activity one day to your first the next. An estimate of rest, not measured sleep",
     unit: "day",
     format: (v) => `${v.toFixed(1)} h`,
-    up: "your quiet time at night has been longer",
-    down: "your quiet time at night has been shorter",
+    up: "your nights have been longer",
+    down: "your nights have been shorter",
   },
 ];
 
@@ -228,7 +290,7 @@ function seriesFor(data: AppData, key: PassiveKey, today: DayKey): Point[] {
 function metric(data: AppData, def: Def, today: DayKey): PassiveMetric {
   const points = seriesFor(data, def.key, today);
   const j = judge(points.map((p) => p.value));
-  const base = { key: def.key, label: def.label, meaning: def.meaning, unit: def.unit, format: def.format, points };
+  const base = { key: def.key, source: sourceOf(def.key), label: def.label, meaning: def.meaning, unit: def.unit, format: def.format, points };
   if (j.status === "learning") {
     return { ...base, status: "learning", usual: null, recent: null, recentValues: null, direction: null, phrase: null };
   }
@@ -253,6 +315,7 @@ function lastCheckIn(data: AppData): PromptedCheckIn | null {
 
 export function evaluatePassive(data: AppData, today: DayKey): Evaluation {
   const metrics = PASSIVE_DEFS.map((d) => metric(data, d, today));
+  // In source order (typing, then day and night rhythm), so the wording groups them.
   const changed = metrics.filter((m) => m.status === "changed");
   const dates = new Set([...data.typingSessions.map((s) => s.date), ...data.activityDays.map((d) => d.date)]);
   const daysOfData = [...dates].filter((d) => d <= today).length;
@@ -269,7 +332,7 @@ export function evaluatePassive(data: AppData, today: DayKey): Evaluation {
   let askNow = false;
   if (learning) reason = "learning";
   else if (changed.length === 0) reason = "steady";
-  else if (changed.length < MIN_CHANGED_TO_ASK) reason = "one-change";
+  else if (!enoughToAsk(changed)) reason = onlyQuietSources(changed) ? "typing-only" : "one-change";
   else if (data.settings.simulatedChangeAt) {
     reason = "simulated";
     askNow = true;
@@ -299,6 +362,11 @@ export interface PassiveView {
   changed: Pick<PassiveMetric, "key" | "direction" | "phrase">[];
 }
 
+/** True when what changed is only typing: shown under the demo, never asked about. */
+export function typingAloneChanged(e: PassiveView): boolean {
+  return !e.learning && onlyQuietSources(e.changed);
+}
+
 const COUNT_WORDS = ["No things", "One thing", "Two things", "Three things", "Four things", "Five things", "Six things"];
 
 export function joinPhrases(parts: string[]): string {
@@ -316,7 +384,7 @@ function basedOnText(b: PassiveView["basedOn"]): string {
 /** "Two things have changed compared with your usual: ... This is based on ..." */
 export function explainChange(e: PassiveView): string {
   const phrases = e.changed.map((m) => m.phrase).filter((p): p is string => !!p);
-  if (!phrases.length) return "Nothing stands out compared with your usual right now.";
+  if (!phrases.length || typingAloneChanged(e)) return "Nothing stands out compared with your usual right now.";
   const n = phrases.length;
   const head = `${COUNT_WORDS[n] ?? `${n} things`} ${n === 1 ? "has" : "have"} changed compared with your usual:`;
   return `${head} ${joinPhrases(phrases)}. ${basedOnText(e.basedOn)}`.trim();
@@ -336,7 +404,8 @@ export function weeklyInsight(e: PassiveView): string {
   if (e.learning) return `Still learning your usual rhythm: ${e.daysOfData} of ${LEARNING_DAYS} days so far.`;
   const phrases = e.changed.map((m) => m.phrase).filter((p): p is string => !!p);
   if (!phrases.length) return "Lately your rhythm looks like your usual.";
-  return `Lately, compared with your usual, ${joinPhrases(phrases)}.`;
+  const line = `Lately, compared with your usual, ${joinPhrases(phrases)}.`;
+  return typingAloneChanged(e) ? `${line} Typing alone never makes me ask.` : line;
 }
 
 /** One small thing to try after "Not my best", picked from what changed. */

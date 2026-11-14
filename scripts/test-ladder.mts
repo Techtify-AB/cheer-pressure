@@ -14,7 +14,7 @@ import {
   type LadderInput,
 } from "../lib/ladder.ts";
 import { createLocalContact, SIMULATED_REPLY } from "../lib/contact.ts";
-import { evaluatePassive } from "../lib/passive.ts";
+import { enoughToAsk, evaluatePassive } from "../lib/passive.ts";
 import { firstAsk, makeReplayData, replayFrames, shiftReplay, STEADY_DAYS, REPLAY_DAYS, driftOn } from "../lib/replay.ts";
 import { inQuietHours, pickSmallThing, ROUTINES, DEFAULT_QUIET_HOURS } from "../lib/settings.ts";
 import { clockToDayMinutes } from "../lib/passive.ts";
@@ -71,6 +71,11 @@ check("step 2 after two days when the measures have not come back", due(tried, 2
 const back = due(tried, 2, BACK);
 check("measures back in the usual range: nothing escalates, and the ladder may close", back.due === "none" && back.close, back.reason);
 check("one measure left changed does not escalate either (the rule needs two)", due(tried, 2, ONE).due === "none");
+const TYPING_ONLY = { askNow: false, changed: [{ key: "spread" }, { key: "pauses" }, { key: "hold" }] } as unknown as LadderInput["passive"];
+const typingLeft = due(tried, 2, TYPING_ONLY);
+check("only typing still changed counts as come back, the same test as asking", typingLeft.due === "none" && typingLeft.close, typingLeft.reason);
+const SLEEP_TWO = { askNow: true, changed: [{ key: "firstActivity" }, { key: "quietNight" }] } as unknown as LadderInput["passive"];
+check("two day and night measures still changed keep the ladder going", due(tried, 2, SLEEP_TWO).due === "someone");
 let escalated = false;
 for (let d = 0; d <= 14; d++) for (const l of [tried, answerSomeone(tried, "yes", addDays(DAY0, 2))]) {
   const r = due(l, d, BACK);
@@ -161,8 +166,8 @@ for (const last of ["2026-11-14", "2027-03-29", "2026-06-30"]) {
   check(`replay (${last}): the rule never asks in the first ${STEADY_DAYS} days`, askedSteady.length === 0, askedSteady.join());
   const a = firstAsk(frames);
   check(
-    `replay (${last}): it asks in the last week, about at least two measures`,
-    !!a && a.day > STEADY_DAYS && a.day <= REPLAY_DAYS && a.evaluation.changed.length >= 2,
+    `replay (${last}): it asks in the last week, with the day and night rhythm among what changed`,
+    !!a && a.day > STEADY_DAYS && a.day <= REPLAY_DAYS - 3 && enoughToAsk(a.evaluation.changed) && a.evaluation.changed.some((m) => m.source === "sleep"),
     a ? `day ${a.day}: ${a.evaluation.changed.map((m) => m.key).join(", ")}` : "never",
   );
   check(`replay (${last}): still learning on days 1 to 6`, frames.slice(0, 6).every((f) => f.evaluation.learning && !f.evaluation.askNow));

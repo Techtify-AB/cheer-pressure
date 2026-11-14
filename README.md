@@ -54,7 +54,7 @@ After "Not my best" the ladder (`lib/ladder.ts`, one pure function, tested in
 `scripts/test-ladder.mts`) offers one step at a time: one small thing from the routines that
 are on, then after two days "Would you like someone you trust to check in on you?", then after
 seven days a short summary for the clinic, shown word for word before anything is approved.
-It escalates only while at least two measures still stand out, respects "Not now" for three
+It escalates only while the measures still stand out the way the rule asks about, respects "Not now" for three
 days, and stays quiet in quiet hours. "I'd like someone to check in on me" goes straight to the
 second step. Reaching someone goes through `lib/contact.ts`: when a pair exists it sends a real
 request through the messages service (see below); without one it sends nothing, and only in
@@ -90,8 +90,9 @@ opened it on their phone and typed a first name, then "Connected with Sara". A q
   `server/README.md`.
 
 **Six weeks in 20 seconds** (`/demo/replay/`) replays made-up days (`lib/replay.ts`): five
-steady weeks, then a gradual drift in typing evenness, longer pauses and first and last
-activity. Each day it runs the real rule on the data up to that day and shows four measures
+steady weeks, then a drift in which sleep slips first (the day starts and ends later, quickly)
+and typing follows gradually (evenness, longer pauses). With the default days it stops on day
+38 of 42, on typing evenness and first activity. Each day it runs the real rule on the data up to that day and shows four measures
 against their usual band. It stops when the rule would ask, with the same explanation the
 conversation shows, and "See what it asks" opens the conversation on those days. A test checks
 that the rule does not ask during the steady weeks.
@@ -111,8 +112,19 @@ the phone shows "They said yes"; then the service is stopped, the desktop's requ
 - A measure has **changed** when all of its last 3 sessions or days lie on the same side
   outside the person's own typical range, the 10th to 90th percentile of their earlier sessions or
   days. It needs at least 7 earlier ones, and the last 3 must include the past 7 days.
-- When **at least 2** measures have changed, the companion proposes a check-in: a gentle
-  cue on the mascot (no sound), and on home. The check-in explains what changed in plain
+- The measures belong to **sources** (one table, `SOURCES` in `lib/passive.ts`): **typing**
+  (evenness, longer pauses, hold time) and **day and night rhythm** (first activity, last
+  activity, quiet night; an estimate of rest, never measured sleep). The companion proposes a
+  check-in when measures have changed in **two different sources**, or when **at least two day
+  and night measures** have changed even if nothing else has. **Typing alone never asks**,
+  however many typing measures changed; "Your own level" under the demo still shows it, and
+  says so. The ladder's "the measures have come back" uses the same test.
+- Measured with `npx tsx scripts/measure-rule.mts` on 400 made-up five-week periods, steady
+  and then drifting in week six: this rule asks by chance in 16 of 400 and notices the drift in
+  400 of 400 (on average on day 38.4). The variants it was chosen from: at least 2 measures of
+  any kind (the earlier rule) 18 of 400, two different sources only 4 of 400, one day and night
+  measure alone 178 of 400 (far too noisy); all of them noticed the drift.
+- When it asks: a gentle cue on the mascot (no sound), and on home. The check-in explains what changed in plain
   words and how many sessions and days it is based on, then asks one question with three
   answers. The answer is stored with the measures that triggered it.
 - Until there are **7 days** of data it is still learning and never asks.

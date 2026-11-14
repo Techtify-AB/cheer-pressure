@@ -2,7 +2,8 @@
 
 // The conversation with the companion. It opens on what is due (lib/ladder.ts):
 //
-// - When at least two measures stand out (lib/passive.ts): first a plain explanation
+// - When the measures stand out the way lib/passive.ts asks about (two different sources,
+//   or two parts of the day and night rhythm; typing alone never): first a plain explanation
 //   of what changed, then "How are you doing?" with three answers.
 // - Opened by the person's own choice with nothing standing out: the question only.
 // - After "Not my best": step 1, one small thing from the routines the person has on.
@@ -558,7 +559,7 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
         <Disclosure title="How this is worked out">
           <p>
             A measure counts as changed only when your last three sessions or days in a row are all outside your usual
-            range on the same side. I only ask when at least two have changed.
+            range on the same side. I only ask how you are doing when two different kinds of measure have changed (typing and your day and night rhythm), or at least two parts of your day and night rhythm. Typing alone never makes me ask.
           </p>
           <ul className="worked-out">
             {evaluation.changed.map((m) => (

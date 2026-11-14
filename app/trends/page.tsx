@@ -103,12 +103,12 @@ const COUNT_WORDS = ["None", "One", "Two", "Three", "Four", "Five", "Six"];
 const HOW_IT_WORKS = (
   <>
     <p>
-      Your usual range is the middle half of your own earlier sessions or days. You are never compared with other
+      Your usual range is the middle 80 percent of your own earlier sessions or days. You are never compared with other
       people.
     </p>
     <p>
       A measure counts as changed only when your last three sessions or days in a row are all outside that range on
-      the same side. I only ask how you are doing when at least two measures have changed.
+      the same side. I only ask how you are doing when two different kinds of measure have changed (typing and your day and night rhythm), or at least two parts of your day and night rhythm. Typing alone never makes me ask.
     </p>
     <p>
       Each chart shows the last 14 days, one dot per day (for typing, the middle of that day&apos;s sessions). The
@@ -241,7 +241,7 @@ export default function TrendsPage() {
         <section className="card stack-sm" aria-label="How a change is decided">
           <p>
             A measure counts as changed only when your last three sessions or days in a row are all outside your usual
-            range on the same side, and I only ask how you are doing when at least two measures have changed.
+            range on the same side. I only ask how you are doing when two different kinds of measure have changed (typing and your day and night rhythm), or at least two parts of your day and night rhythm. Typing alone never makes me ask.
           </p>
           <Disclosure title="How this is worked out">{HOW_IT_WORKS}</Disclosure>
         </section>
