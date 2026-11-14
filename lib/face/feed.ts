@@ -22,8 +22,8 @@ export type FaceLive =
       valence: number;
       arousal: number;
       probs: Record<Expression, number>;
-      /** MediaPipe blendshape measures, when the board computes them. */
-      blend: Record<string, number> | null;
+      /** Blendshape measures: smile, browDown, jawOpen (0 to 1) and animation (movement over the last second). */
+      blend: { smile: number; browDown: number; jawOpen: number; animation: number } | null;
     };
 
 /** One finished minute. `valid` is false when the face was in view for under 20 seconds. */
@@ -41,7 +41,8 @@ export interface FaceMinute {
   variability: number | null;
   /** Share of the minute each expression label gets. */
   labels: Record<Expression, number> | null;
-  blend: Record<string, number> | null;
+  /** Minute means of the blendshape measures, plus the share of frames smiling / with brows lowered. */
+  blend: { smile: number; browDown: number; jawOpen: number; animation: number; smile_share: number; brow_share: number } | null;
 }
 
 /** A sitting, an hour or a day: medians over valid minutes. `enough` needs 5 valid minutes. */
@@ -138,6 +139,15 @@ export function useFaceSignal(base: string | null, handlers: FaceHandlers = {}):
 /** The current snapshot, for the speech pipeline: add `text` to the prompt next to what the person said. */
 export async function faceContext(base: string): Promise<FaceContext> {
   return (await fetch(`${base}/context`)).json();
+}
+
+/**
+ * The face over the last `lastS` seconds, for a speech pipeline that runs off the board: call it when the
+ * person stops talking. With `text`, `prompt` is the fused paragraph for the language model.
+ */
+export async function faceDuring(base: string, lastS = 5, text?: string): Promise<{ face: FaceSpeech["face"]; trend: string; prompt: string | null }> {
+  const q = new URLSearchParams({ last_s: String(lastS), ...(text ? { text } : {}) });
+  return (await fetch(`${base}/face?${q}`)).json();
 }
 
 /** Averages per hour or per day, for the report to the care team. */
