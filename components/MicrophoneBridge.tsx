@@ -5,7 +5,7 @@
 //
 // - It listens only while the person has it on in Settings (off by default), nothing is paused,
 //   and the window is open and showing. It is asked for only then.
-// - It hands the microphone to "Voice, live" (/demo/voice/) while that screen is open.
+// - It hands the microphone to "Voice, live" (/demo/voice/) and "Live" (/live/) while they are open.
 // - Every finished stretch (numbers only: pace, how much the pitch moved, loudness) is stored
 //   once, here. No audio is kept or sent and no words are recognised (lib/voice/tone.ts).
 // - While it listens, a heartbeat in local storage lets the mascot window show "Microphone on".
@@ -40,7 +40,8 @@ export function MicrophoneBridge() {
   const pathname = usePathname();
   const view = useVoice();
   const visible = useSyncExternalStore(subscribeVisibility, isVisible, () => true);
-  const onVoiceScreen = !!pathname?.startsWith("/demo/voice");
+  // "Voice, live" and "Live" start the microphone themselves, only on a press.
+  const onVoiceScreen = !!pathname?.startsWith("/demo/voice") || !!pathname?.startsWith("/live");
   const wanted = !!data?.profile && sourcesOf(data.settings).microphone && !data.settings.pausedAll && visible;
   const ours = useRef(false);
 

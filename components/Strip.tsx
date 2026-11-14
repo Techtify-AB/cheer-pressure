@@ -6,8 +6,9 @@
 import type { PassiveMetric } from "@/lib/passive";
 
 const W = 300;
-const H = 44;
 const PAD = 5;
+/** Room on the left for the level names of a level strip ("Not so good"). */
+const LEVEL_LABELS_W = 84;
 
 /**
  * One measure: the person's usual range as a band and one dot per day. The last week (what the
@@ -18,13 +19,21 @@ export function Strip({
   points: STRIP_POINTS,
   state: stateText,
   head = true,
+  levels,
 }: {
   m: PassiveMetric;
   points: number;
   state?: string;
   /** False when the caller shows the label and state itself. */
   head?: boolean;
+  /**
+   * For a measure with a few named values (the daily answer: Good, Okay, Not so good): the name
+   * of each value, index = value, drawn as rows with the first on top.
+   */
+  levels?: string[];
 }) {
+  const H = levels ? 58 : 44;
+  const left = levels ? LEVEL_LABELS_W : 0;
   const pts = m.points.slice(-STRIP_POINTS);
   // Keys per point so dots slide left as days go by.
   const seen = new Map<string, number>();
@@ -37,7 +46,10 @@ export function Strip({
   // stays readable; a value beyond that sits at the edge.
   let lo: number;
   let hi: number;
-  if (m.usual) {
+  if (levels) {
+    lo = -0.5;
+    hi = levels.length - 0.5;
+  } else if (m.usual) {
     const w = Math.max(m.usual.high - m.usual.low, 1e-6);
     lo = m.usual.low - 2 * w;
     hi = m.usual.high + 2 * w;
@@ -51,8 +63,10 @@ export function Strip({
     }
   }
   const clampY = (v: number) => Math.min(hi, Math.max(lo, v));
-  const y = (v: number) => H - PAD - ((clampY(v) - lo) / (hi - lo)) * (H - PAD * 2);
-  const x = (i: number) => PAD + (i + (STRIP_POINTS - pts.length)) * ((W - PAD * 2) / (STRIP_POINTS - 1));
+  const up = (v: number) => H - PAD - ((clampY(v) - lo) / (hi - lo)) * (H - PAD * 2);
+  // A level strip has its first level on top.
+  const y = (v: number) => (levels ? H - up(v) : up(v));
+  const x = (i: number) => left + PAD + (i + (STRIP_POINTS - pts.length)) * ((W - left - PAD * 2) / (STRIP_POINTS - 1));
   // The last week is what the rule compares; it gets the change colour only when it counts as a change.
   const recentFrom = pts.length - (m.recentValues?.length ?? 0);
   const changed = m.status === "changed";
@@ -72,8 +86,23 @@ export function Strip({
       </div>
       )}
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-hidden="true">
+        {levels?.map((name, v) => (
+          <g key={name}>
+            <line x1={left} x2={W} y1={y(v)} y2={y(v)} className="strip-level" />
+            <text x={0} y={y(v)} dy="0.35em" className="strip-level-name">
+              {name}
+            </text>
+          </g>
+        ))}
         {m.usual && (
-          <rect x={0} y={y(m.usual.high)} width={W} height={Math.max(3, y(m.usual.low) - y(m.usual.high))} rx={3} className="strip-band" />
+          <rect
+            x={left}
+            y={Math.min(y(m.usual.high), y(m.usual.low)) - (levels ? 4 : 0)}
+            width={W - left}
+            height={Math.max(3, Math.abs(y(m.usual.low) - y(m.usual.high))) + (levels ? 8 : 0)}
+            rx={3}
+            className="strip-band"
+          />
         )}
         {keyed.map((p, i) => {
           const recent = i >= recentFrom;

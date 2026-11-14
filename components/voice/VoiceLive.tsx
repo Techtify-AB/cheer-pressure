@@ -40,7 +40,7 @@ function leadLine(v: VoiceView): string {
   }
 }
 
-function pitchWords(st: number): string {
+export function pitchWords(st: number): string {
   if (st < 0.8) return "Moves little";
   if (st < 2) return "Moves some";
   return "Moves a lot";
@@ -108,8 +108,8 @@ export function VoiceLive() {
                   Play a recorded example
                 </button>
               ))}
-            <Link href="/demo/" className="btn btn-quiet">
-              Back to the demo
+            <Link href="/live/" className="btn btn-quiet">
+              Back to Live
             </Link>
           </div>
         </>

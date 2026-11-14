@@ -6,7 +6,7 @@
 import type { ExpressionLive, LiveMovement, PostureLive } from "@/lib/camera";
 import s from "./camera.module.css";
 
-function movementWords(v: number): string {
+export function movementWords(v: number): string {
   if (v < 8) return "Still";
   if (v < 35) return "A little";
   if (v < 70) return "Some";
@@ -19,7 +19,7 @@ function clock(sec: number): string {
   return m ? `${m}:${String(r).padStart(2, "0")}` : `${r} s`;
 }
 
-function postureWords(p: PostureLive): string {
+export function postureWords(p: PostureLive): string {
   switch (p.state) {
     case "learning":
       return `Learning how you usually sit, ${clock(p.learningLeftSec)} left`;
@@ -34,7 +34,7 @@ function postureWords(p: PostureLive): string {
   }
 }
 
-function Bar({ value, label, words, data }: { value: number; label: string; words: string; data: string }) {
+export function Bar({ value, label, words, data }: { value: number; label: string; words: string; data: string }) {
   return (
     <div
       className={s.meter}

@@ -4,8 +4,8 @@
 //
 // - The camera runs only while the person has it on in Settings (off by default), nothing is
 //   paused, and the Cheer Pressure window is open and showing. It is asked for only then.
-// - It hands the camera to "Camera, live" (/demo/camera/) while that screen is open, which
-//   runs the same controller with its own picture.
+// - It hands the camera to "Camera, live" (/demo/camera/) and "Live" (/live/) while they are
+//   open; they run the same controller and start it only on a press.
 // - Every finished stretch (numbers only) is stored once, here: lib/storage.ts.
 // - While it runs, a small key in local storage says so, so the mascot window, which has no
 //   camera of its own, can show "Camera on" too. The picture is never kept or sent.
@@ -42,7 +42,8 @@ export function CameraBridge() {
   const video = useRef<HTMLVideoElement>(null);
   const view = useCamera();
   const visible = useSyncExternalStore(subscribeVisibility, isVisible, () => true);
-  const onCameraScreen = !!pathname?.startsWith("/demo/camera");
+  // "Camera, live" and "Live" start the camera themselves, only on a press.
+  const onCameraScreen = !!pathname?.startsWith("/demo/camera") || !!pathname?.startsWith("/live");
   const wanted = !!data?.profile && sourcesOf(data.settings).camera && !data.settings.pausedAll && visible;
 
   // Finished stretches go into storage, once, while the person has the camera on: movement

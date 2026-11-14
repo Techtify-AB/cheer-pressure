@@ -13,7 +13,7 @@ import { makeDemoData } from "@/lib/demo";
 import { isActive, shiftLadder, type Due } from "@/lib/ladder";
 import { defaultBaseUrl } from "@/lib/messages";
 import { messagesUrlOf, parseMessagesUrl } from "@/lib/settings";
-import { addDemo, clearDemo, hasDemo, readData, saveLadder, saveSettings, useData } from "@/lib/storage";
+import { addDemo, hasDemo, readData, saveLadder, saveSettings, useData } from "@/lib/storage";
 import { useTrusted } from "@/lib/trusted";
 import type { AppData } from "@/lib/types";
 
@@ -83,6 +83,25 @@ export default function DemoPage() {
       }
     >
       <nav aria-label="Demo controls" className="card menu demo-menu">
+        <Link href="/live/" className="menu-row">
+          <span className="menu-label">Live</span>
+          <span className="menu-value">Sleep, Energy, Social and Mood, right now</span>
+        </Link>
+        <button
+          type="button"
+          className="menu-row"
+          onClick={() => {
+            if (!demoOn) loadDemo();
+            router.push("/values/");
+          }}
+        >
+          <span className="menu-label">My values (demo data)</span>
+          <span className="menu-value">{demoOn ? "Eight made-up weeks are loaded" : "Loads eight made-up weeks, all four categories"}</span>
+        </button>
+        <Link href="/demo/clinic/" className="menu-row">
+          <span className="menu-label">What a clinic could see</span>
+          <span className="menu-value">Made-up patients who chose to share</span>
+        </Link>
         <button type="button" className="menu-row" onClick={simulate}>
           <span className="menu-label">Simulate a change</span>
           <span className="menu-value">Loads made-up data and Cheri asks</span>
@@ -91,30 +110,10 @@ export default function DemoPage() {
           <span className="menu-label">Skip ahead two days</span>
           <span className="menu-value">{ladderText}</span>
         </button>
-        <button type="button" className="menu-row" onClick={demoOn ? clearDemo : loadDemo}>
-          <span className="menu-label">{demoOn ? "Clear demo data" : "Load demo data"}</span>
-          <span className="menu-value">{demoOn ? "Your own data is kept" : "Eight weeks of made-up days"}</span>
-        </button>
         <button type="button" className="menu-row" onClick={() => setEditing(true)}>
           <span className="menu-label">Messages service</span>
           <span className="menu-value">{messagesUrlOf(data.settings)}</span>
         </button>
-        <Link href="/demo/camera/" className="menu-row">
-          <span className="menu-label">Camera, live</span>
-          <span className="menu-value">Movement, face and posture, on this computer</span>
-        </Link>
-        <Link href="/demo/voice/" className="menu-row">
-          <span className="menu-label">Voice, live</span>
-          <span className="menu-value">Pace and tone, no words recognised</span>
-        </Link>
-        <Link href="/live/" className="menu-row">
-          <span className="menu-label">Live view</span>
-          <span className="menu-value">Typing numbers as you type</span>
-        </Link>
-        <Link href="/demo/clinic/" className="menu-row">
-          <span className="menu-label">What a clinic could see</span>
-          <span className="menu-value">Made-up patients who chose to share</span>
-        </Link>
       </nav>
     </Screen>
   );

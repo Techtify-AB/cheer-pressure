@@ -2,7 +2,8 @@
 
 // "Eight weeks in 20 seconds": made-up days, replayed one day at a time. For each day the
 // REAL rule (evaluatePassive in lib/passive.ts) runs on the data up to that day, and
-// this screen shows only what it concludes. When it would ask, the replay stops and
+// this screen shows only what it concludes: one strip per category, Sleep, Energy, Social and
+// Mood, each against the person's own usual band. When it would ask, the replay stops and
 // the explanation is the one the real conversation shows.
 
 import Link from "next/link";
@@ -14,7 +15,8 @@ import { Screen } from "@/components/Screen";
 import { Strip } from "@/components/Strip";
 import { brain, passiveInput } from "@/lib/brain";
 import { computeLevels } from "@/lib/levels";
-import { LEARNING_DAYS, SOURCES, type PassiveMetric } from "@/lib/passive";
+import { ANSWER_LEVELS, CATEGORY_IDS, MEASURE_WORDS, categorySentence, stripMetric } from "@/lib/categories";
+import { LEARNING_DAYS, SOURCES, type CategoryId, type Evaluation } from "@/lib/passive";
 import {
   firstAsk,
   makeReplayData,
@@ -25,24 +27,31 @@ import {
   upTo,
   type ReplayFrame,
 } from "@/lib/replay";
-import type { PassiveKey } from "@/lib/types";
 import { addDemo, saveSettings, useData } from "@/lib/storage";
 
-/** The four strips shown by default. A changed measure outside these takes the last unchanged place. */
-const SHOWN: PassiveKey[] = ["spread", "hold", "firstActivity", "lastActivity"];
-const MAX_STRIPS = 4;
 /** The four weeks of the usual and the last week. */
 const STRIP_POINTS = 35;
 
-function shownMetrics(metrics: PassiveMetric[]): PassiveMetric[] {
-  const byKey = new Map(metrics.map((m) => [m.key, m]));
-  const list = SHOWN.map((k) => byKey.get(k)!).filter(Boolean);
-  for (const m of metrics) {
-    if (m.status !== "changed" || list.includes(m)) continue;
-    const i = list.map((x) => x.status !== "changed").lastIndexOf(true);
-    if (i >= 0) list[i] = m;
-  }
-  return list.slice(0, MAX_STRIPS);
+/** One category as one strip: its name, which measure it is, and where it stands. */
+function CategoryStrip({ e, id }: { e: Evaluation; id: CategoryId }) {
+  const m = stripMetric(e, id);
+  const changed = !!categorySentence(e, id);
+  let state: string;
+  if (changed) state = "Changed";
+  else if (m.status === "learning") state = "Still learning";
+  else if (m.status === "no-recent") state = "Too few days";
+  else state = "Within your usual";
+  const label = SOURCES.find((c) => c.id === id)!.label;
+  return (
+    <div className="replay-strip" data-category={id} data-changed={changed || undefined}>
+      <p className="replay-strip-head">
+        <span className="strip-label">{label}</span>
+        <span className="replay-strip-state">{state}</span>
+      </p>
+      <p className="replay-strip-measure">{MEASURE_WORDS[m.key] ?? m.label}</p>
+      <Strip m={m} points={STRIP_POINTS} head={false} levels={m.key === "ownAnswer" ? ANSWER_LEVELS : undefined} />
+    </div>
+  );
 }
 
 function subscribeMotion(cb: () => void) {
@@ -141,10 +150,9 @@ function Replay() {
   let line: string;
   if (fired) line = explanation ?? "";
   else if (e.learning) line = `Still learning your usual rhythm: ${e.daysOfData} of ${LEARNING_DAYS} days so far.`;
-  else if (e.changed.length === 1) line = "One thing looks different. That alone is not enough for me to ask.";
-  else if (e.reason === "quiet-only") {
-    const only = SOURCES.find((c) => e.changed.some((m) => m.source === c.id))?.label ?? "One category";
-    line = `${only} looks different. One category alone never makes me ask.`;
+  else if (e.changed.length && !e.askNow) {
+    const said = CATEGORY_IDS.map((id) => categorySentence(e, id)).filter((x): x is string => !!x);
+    line = `${said.join(". ")}. One category alone never makes me ask.`;
   }
   else if (index === 0 && !playing) line = "Eight made-up weeks. I look at each day the way I look at yours.";
   else line = "Nothing stands out compared with the usual.";
@@ -155,9 +163,10 @@ function Replay() {
     <Screen
       lead={
         <div className="replay-lead">
-          <Companion state={mood} size={narrow ? (fired ? 96 : 120) : fired ? 200 : 240} />
+          <Companion state={mood} size={narrow ? (fired ? 72 : 120) : fired ? 200 : 240} />
           <div className="replay-status">
             <span className="placeholder-tag">Simulated, made-up days</span>
+            <h1 className="replay-title">Eight weeks in 20 seconds</h1>
             <p className="replay-day" aria-live="off">
               Day {frame.day} <span className="muted">of {REPLAY_DAYS}</span>
             </p>
@@ -193,13 +202,12 @@ function Replay() {
         </>
       }
     >
-      <section className={reduced ? "card strips no-motion" : "card strips"} aria-label="Four of the measures">
-        {shownMetrics(e.metrics).map((m) => (
-          <Strip key={m.key} m={m} points={STRIP_POINTS} />
+      <section className={reduced ? "card strips no-motion" : "card strips"} aria-label="The four categories">
+        {CATEGORY_IDS.map((id) => (
+          <CategoryStrip key={id} e={e} id={id} />
         ))}
         <p className="small muted strips-note">
-          Band: the usual range, from the four weeks before. Dots: one per day, the last week larger. About 20
-          seconds in all.
+          Band: the usual range, from the four weeks before. Dots: one per day, the last week larger.
         </p>
       </section>
     </Screen>

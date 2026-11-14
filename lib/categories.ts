@@ -5,10 +5,10 @@
 
 import { formatDay } from "./dates";
 import { dailyQuestionOf } from "./daily";
-import { SOURCES, type CategoryId, type Evaluation, type Input } from "./passive";
+import { joinPhrases, SOURCES, type CategoryId, type Evaluation, type Input, type PassiveMetric } from "./passive";
 import { changedSince } from "./report";
 import { sourcesOf } from "./settings";
-import type { AppData, DayKey } from "./types";
+import type { AppData, DayKey, PassiveKey } from "./types";
 
 export type InputState = "measuring" | "off" | "not-connected";
 
@@ -65,3 +65,50 @@ export function categoryLine(id: CategoryId, data: AppData, e: Evaluation, today
 }
 
 export const CATEGORY_IDS: CategoryId[] = SOURCES.map((c) => c.id);
+
+/**
+ * The one measure each category is drawn with in the replay, in order of preference: the first
+ * one that has changed, else the first one with days. Energy is movement, never typing; Mood is
+ * the person's own answer, never a sensor.
+ */
+export const STRIP_MEASURES: Record<CategoryId, PassiveKey[]> = {
+  sleep: ["quietNight", "firstActivity", "lastActivity"],
+  energy: ["movementLevel", "positionChanges"],
+  social: ["contact"],
+  mood: ["ownAnswer"],
+};
+
+/** Which measure a strip is, in small words under the category's name. */
+export const MEASURE_WORDS: Partial<Record<PassiveKey, string>> = {
+  quietNight: "Estimated night (this computer)",
+  firstActivity: "The day's start (this computer)",
+  lastActivity: "The day's end (this computer)",
+  movementLevel: "Movement (camera)",
+  positionChanges: "Position changes (camera)",
+  contact: "Contact with the person you trust",
+  ownAnswer: "Your daily answers",
+};
+
+/** The daily answer's values as rows, index = value (lib/daily.ts ANSWER_VALUE). */
+export const ANSWER_LEVELS = ["Good", "Okay", "Not so good"];
+
+export function stripMetric(e: Evaluation, id: CategoryId): PassiveMetric {
+  const list = STRIP_MEASURES[id].map((k) => e.metrics.find((m) => m.key === k)!).filter(Boolean);
+  return list.find((m) => m.status === "changed") ?? list.find((m) => m.points.length > 0) ?? list[0];
+}
+
+/** "Sleep: your nights have been shorter than your usual", or null when the category has not changed. */
+export function categorySentence(e: Evaluation, id: CategoryId): string | null {
+  const phrases = e.metrics.filter((m) => m.source === id && m.status === "changed" && m.phrase).map((m) => m.phrase!);
+  if (!phrases.length) return null;
+  return `${SOURCES.find((c) => c.id === id)!.label}: ${joinPhrases(phrases)} than your usual`;
+}
+
+/** Where one measure stands against the person's own usual, as one short observation. */
+export function againstUsual(m: PassiveMetric | undefined): string {
+  if (!m || (!m.points.length && m.status === "learning")) return "No days yet";
+  if (m.status === "learning") return "Still learning your usual";
+  if (m.status === "no-recent") return "Too few days this week to compare";
+  if (m.status === "changed" && m.phrase) return `${m.phrase.charAt(0).toUpperCase()}${m.phrase.slice(1)} than your usual`;
+  return "Within your usual";
+}

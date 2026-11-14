@@ -115,8 +115,8 @@ export function MovementLive() {
                   Play a recorded example
                 </button>
               ))}
-            <Link href="/demo/" className="btn btn-quiet">
-              Back to the demo
+            <Link href="/live/" className="btn btn-quiet">
+              Back to Live
             </Link>
           </div>
         </>
