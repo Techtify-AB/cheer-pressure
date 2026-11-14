@@ -5,9 +5,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { brain, passiveInput, type BrainOutput } from "@/lib/brain";
 import { addDays, todayKey } from "@/lib/dates";
 import { computeLevels, type Levels } from "@/lib/levels";
+import { closeLadder, isActive, ladderDue, type LadderOutcome } from "@/lib/ladder";
 import { evaluatePassive, type Evaluation } from "@/lib/passive";
+import { forRule, quietHoursOf } from "@/lib/settings";
 import { containsCrisisWords, containsCrisisWordsWhileTyping } from "@/lib/crisis";
-import { readData } from "@/lib/storage";
+import { readData, saveLadder } from "@/lib/storage";
 import type { AppData } from "@/lib/types";
 import { speak, stopSpeaking, subscribeVoices, voiceAvailability, type VoiceAvailability } from "@/lib/voice";
 import type { CompanionState } from "./companion/Companion";
@@ -65,7 +67,7 @@ export function useToday(): string {
 export function useReflection(data: AppData | null, fixed?: Evaluation) {
   const today = useToday();
   const levels = useMemo<Levels | null>(() => (data ? computeLevels(data, today) : null), [data, today]);
-  const live = useMemo<Evaluation | null>(() => (data ? evaluatePassive(data, today) : null), [data, today]);
+  const live = useMemo<Evaluation | null>(() => (data ? evaluatePassive(forRule(data), today) : null), [data, today]);
   const passive = fixed ?? live;
   const [result, setResult] = useState<BrainOutput | null>(null);
 
@@ -94,10 +96,55 @@ export function useReflection(data: AppData | null, fixed?: Evaluation) {
   return { levels, passive, reflection: result };
 }
 
-/** The passive measures against the person's own range, and whether to ask. */
+/** The passive measures against the person's own range, and whether to ask. Sources switched off are left out. */
 export function usePassive(data: AppData | null): Evaluation | null {
   const today = useToday();
-  return useMemo(() => (data ? evaluatePassive(data, today) : null), [data, today]);
+  return useMemo(() => (data ? evaluatePassive(forRule(data), today) : null), [data, today]);
+}
+
+function minutesNow(): number {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/** Minutes after midnight, updated every half minute. */
+export function useClockMinutes(): number {
+  const [m, setM] = useState(minutesNow);
+  useEffect(() => {
+    const id = window.setInterval(() => setM(minutesNow()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  return m;
+}
+
+/**
+ * What the companion would bring up now (lib/ladder.ts) and whether it may speak up,
+ * given the rule's result, the ladder, quiet hours and Pause everything. When the
+ * measures are back in the usual range, a running ladder is closed here.
+ */
+export function useCompanionStatus(data: AppData | null): {
+  evaluation: Evaluation | null;
+  outcome: LadderOutcome | null;
+} {
+  const today = useToday();
+  const minutes = useClockMinutes();
+  const evaluation = usePassive(data);
+  const outcome = useMemo(() => {
+    if (!data || !evaluation) return null;
+    return ladderDue({
+      ladder: data.ladder,
+      today,
+      minutesNow: minutes,
+      quietHours: quietHoursOf(data.settings),
+      pausedAll: !!data.settings.pausedAll,
+      passive: evaluation,
+    });
+  }, [data, evaluation, today, minutes]);
+  const ladder = data?.ladder;
+  useEffect(() => {
+    if (outcome?.close && isActive(ladder)) saveLadder(closeLadder(ladder, today));
+  }, [outcome?.close, ladder, today]);
+  return { evaluation, outcome };
 }
 
 /** How long typing has to pause before the full crisis check runs, last word included. */

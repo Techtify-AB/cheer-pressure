@@ -19,7 +19,8 @@ import {
   type DesktopStatus,
   type LiveTyping,
 } from "@/lib/platform";
-import { saveActivityDays, saveTypingSessions } from "@/lib/storage";
+import { sourcesOf } from "@/lib/settings";
+import { readData, saveActivityDays, saveTypingSessions } from "@/lib/storage";
 import type { TypingSession } from "@/lib/types";
 
 const noSubscribe = () => () => {};
@@ -79,11 +80,18 @@ export function DesktopBridge() {
   useEffect(() => {
     if (!isDesktop()) return;
     pageReady(window.location.pathname);
+    // A source switched off in Settings, or Pause everything: nothing new is kept.
+    const allowed = () => {
+      const s = readData().settings;
+      const src = sourcesOf(s);
+      return { typing: src.typing && !s.pausedAll, day: src.dayRhythm && !s.pausedAll };
+    };
     const collect = async () => {
-      const list = await takeTypingSessions();
-      saveTypingSessions(list.map(fromDesktopSession));
+      const list = await takeTypingSessions(); // handed over once, so a switched-off source is dropped here
+      if (allowed().typing) saveTypingSessions(list.map(fromDesktopSession));
     };
     const syncDays = async () => {
+      if (!allowed().day) return;
       const days = await dayRhythm();
       saveActivityDays(days.map((d) => ({ ...d, source: "user" as const })));
     };

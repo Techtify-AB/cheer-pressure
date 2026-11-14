@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import { Disclosure, Pager, Says, Screen } from "@/components/Screen";
 import { Sparkline, type ChartMetric } from "@/components/Sparkline";
 import { addDays, describeMinutes, formatShortDay } from "@/lib/dates";
-import { makeDemoData } from "@/lib/demo";
 import { CHART_DAYS, type Levels, type MetricLevel } from "@/lib/levels";
 import { MIN_USUAL_POINTS, RECENT_POINTS, type PassiveMetric } from "@/lib/passive";
-import { addDemo, clearDemo, hasDemo, saveSettings, useData } from "@/lib/storage";
+import { useData } from "@/lib/storage";
 
 const SCALE_WORDS = ["not at all", "several days", "more than half the days", "nearly every day"];
 
@@ -118,7 +116,7 @@ const HOW_IT_WORKS = (
       where dots outside your range are coloured. The verdict uses only the last three values on the card.
     </p>
     <p>For your own entries, the last 7 days are compared with your usual from the 8 weeks before.</p>
-    <p>&quot;Load demo data&quot; adds six weeks of made-up measurements where the last days change. Your own data is kept.</p>
+    <p>&quot;Load demo data&quot; (For the demo, in Settings) adds six weeks of made-up measurements where the last days change. Your own data is kept.</p>
   </>
 );
 
@@ -191,22 +189,13 @@ export default function TrendsPage() {
   const today = useToday();
   const voice = useCompanionVoice();
   const { levels, passive, reflection } = useReflection(data);
-  const router = useRouter();
   const [view, setView] = useState<number | null>(null);
 
   if (!data || !ready || !levels || !passive || !reflection) return null;
 
-  const demoOn = hasDemo(data);
   const weeklyList = data.weekly.slice(-4).reverse(); // newest first; four fit on a phone
   const insight = reflection.passive.insight;
   const changedCount = passive.changed.length;
-
-  const loadDemo = () => addDemo(makeDemoData(today, data.profile?.earlySigns ?? []));
-  const simulate = () => {
-    loadDemo();
-    saveSettings({ simulatedChangeAt: new Date().toISOString() });
-    router.push("/prompt/");
-  };
 
   const items: Item[] = [
     ...passive.metrics.map(
@@ -242,23 +231,9 @@ export default function TrendsPage() {
               <button type="button" className="btn btn-quiet" onClick={() => voice.say(insight)}>
                 Read this aloud
               </button>
-              <Link href="/" className="btn btn-quiet">
-                Back to home
+              <Link href="/demo/" className="btn btn-quiet">
+                Back to the demo
               </Link>
-            </div>
-            <div className="links demo-links" role="group" aria-label="Made-up demo data">
-              <span className="placeholder-tag">Demo, made up</span>
-              <button type="button" className="btn btn-quiet" onClick={loadDemo}>
-                {demoOn ? "Reload demo data" : "Load demo data"}
-              </button>
-              <button type="button" className="btn btn-quiet" onClick={simulate}>
-                Simulate a change
-              </button>
-              {demoOn && (
-                <button type="button" className="btn btn-quiet" onClick={clearDemo}>
-                  Clear demo data
-                </button>
-              )}
             </div>
           </>
         }

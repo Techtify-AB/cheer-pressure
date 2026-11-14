@@ -2,7 +2,7 @@
 
 // The mascot window in the desktop app: only the character, on a transparent page.
 // Drag it to move the window; click it to open the main window. When the companion
-// would like to ask how the person is doing (lib/passive.ts), it shows a gentle
+// would like to ask how the person is doing (lib/ladder.ts), it shows a gentle
 // visual cue: a soft glow and a small speech bubble. No sound, no badge count.
 // Clicking then opens the proposed check-in. In a browser the click navigates here.
 
@@ -10,7 +10,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
-import { usePassive } from "@/components/hooks";
+import { useCompanionStatus } from "@/components/hooks";
+import { moodFor } from "@/lib/mood";
 import { useData } from "@/lib/storage";
 import { openMainWindow, pageReady, startWindowDrag } from "@/lib/platform";
 
@@ -22,8 +23,9 @@ export default function MascotPage() {
   const press = useRef<{ x: number; y: number; dragging: boolean } | null>(null);
   // Same storage as the main window, so this updates when new data arrives there.
   const data = useData();
-  const passive = usePassive(data?.profile ? data : null);
-  const cue = !!passive?.askNow;
+  // Same rule, ladder, quiet hours and mood mapping as home.
+  const { outcome } = useCompanionStatus(data?.profile ? data : null);
+  const cue = !!outcome?.speakUp;
 
   useEffect(() => {
     if (desktop) pageReady(window.location.pathname);
@@ -35,8 +37,12 @@ export default function MascotPage() {
     else router.push(path ?? "/");
   };
 
-  // It listens while someone types, if measuring is on.
-  const state = live?.typing && status && !status.paused ? "listening" : "idle";
+  // It listens while someone types, if measuring is on; it sleeps in quiet hours.
+  const state = moodFor({
+    wantsToAsk: cue,
+    listening: !!live?.typing && !!status && !status.paused && !data?.settings.pausedAll,
+    quiet: !!outcome?.quiet && !data?.settings.pausedAll,
+  });
 
   return (
     <div className="mascot-page" data-cue={cue || undefined}>

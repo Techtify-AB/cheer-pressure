@@ -113,7 +113,7 @@ function WeeklyFlow({ data }: { data: AppData }) {
         lead={
           <Says state={voice.state} size={88}>
             <p>{doneLine}</p>
-            <p className="small muted">Saved for {formatDay(today)}. You can see it under your own level.</p>
+            <p className="small muted">Saved for {formatDay(today)}, on this device only.</p>
           </Says>
         }
         actions={

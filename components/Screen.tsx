@@ -130,10 +130,15 @@ export function Disclosure({
   label = "Show how this is worked out",
   title,
   children,
+  trigger,
+  triggerClassName = "btn btn-quiet disclosure",
 }: {
   label?: string;
   title: string;
   children: React.ReactNode;
+  /** What the opening button shows, when it is more than a quiet label (for example a summary row). */
+  trigger?: React.ReactNode;
+  triggerClassName?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
@@ -150,12 +155,12 @@ export function Disclosure({
     <>
       <button
         type="button"
-        className="btn btn-quiet disclosure"
+        className={triggerClassName}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
-        {label}
+        {trigger ?? label}
       </button>
       <dialog
         ref={ref}

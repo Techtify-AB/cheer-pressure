@@ -14,6 +14,7 @@ import {
   type DayActivity,
 } from "@/lib/platform";
 import { getRobot, robotSupport, type Robot } from "@/lib/robot";
+import { sourcesOf } from "@/lib/settings";
 import { saveTypingSessions, useData } from "@/lib/storage";
 import { LIVE_WINDOW_MS, TypingCollector, type TypingSessionEnd, type TypingStats } from "@/lib/typing";
 
@@ -135,15 +136,17 @@ export default function LivePage() {
   const data = useData();
   const ready = useRequireProfile(data);
   if (!data || !ready) return null;
-  return <LiveView sessionsSaved={data.typingSessions.filter((t) => t.source === "user").length} />;
+  // Typing rhythm switched off, or everything paused, in Settings: the box measures nothing.
+  const blocked = !!data.settings.pausedAll || !sourcesOf(data.settings).typing;
+  return <LiveView sessionsSaved={data.typingSessions.filter((t) => t.source === "user").length} blocked={blocked} />;
 }
 
-function LiveView({ sessionsSaved }: { sessionsSaved: number }) {
+function LiveView({ sessionsSaved, blocked }: { sessionsSaved: number; blocked: boolean }) {
   const { desktop, status, live, setStatus } = useDesktopTyping();
   const computer = desktop && status?.listener === "running";
   const [boxPaused, setBoxPaused] = useState(false);
-  const paused = computer ? !!status?.paused : boxPaused;
-  const box = useBoxMeter(computer || boxPaused);
+  const paused = computer ? !!status?.paused : boxPaused || blocked;
+  const box = useBoxMeter(computer || boxPaused || blocked);
   const [days, setDays] = useState<DayActivity[]>([]);
   const [checking, setChecking] = useState(false);
 
@@ -280,8 +283,8 @@ function LiveView({ sessionsSaved }: { sessionsSaved: number }) {
               )}
               <RobotConnect />
             </Disclosure>
-            <Link href="/" className="btn btn-quiet">
-              Back to home
+            <Link href="/demo/" className="btn btn-quiet">
+              Back to the demo
             </Link>
           </div>
         </>
