@@ -28,6 +28,8 @@ const MAIN: &str = "main";
 const MASCOT: &str = "mascot";
 const MASCOT_W: f64 = 160.0;
 const MASCOT_H: f64 = 180.0;
+/// The local hour a new day starts for first and last activity.
+const DAY_STARTS_AT_HOUR: i64 = 4;
 /// Live numbers are sent while there was a press in the last this many ms.
 const TYPING_RECENT_MS: f64 = 2_000.0;
 
@@ -218,7 +220,10 @@ fn ticker(app: AppHandle) {
     {
       let mut store = measure.store.lock().unwrap();
       for wall in [first, last].into_iter().flatten() {
-        store.touch(&wall.format("%Y-%m-%d").to_string(), &wall.format("%H:%M").to_string());
+        // A day runs from 04:00 to 04:00, so typing at 00:40 counts as the end of the
+        // evening before, not the start of a new day (same as lib/passive.ts).
+        let day = (wall - chrono::Duration::hours(DAY_STARTS_AT_HOUR)).format("%Y-%m-%d").to_string();
+        store.touch(&day, &wall.format("%H:%M").to_string());
       }
       if ended || tick % 30 == 0 {
         store.save_if_dirty();
@@ -272,6 +277,18 @@ fn typing_take_sessions(measure: tauri::State<'_, Arc<Measure>>) -> Vec<SessionS
   out
 }
 
+/// "Delete everything" in the UI: forgets first and last activity, unsent session
+/// summaries and the running session, and writes the empty file.
+#[tauri::command]
+fn forget_all(measure: tauri::State<'_, Arc<Measure>>) {
+  {
+    let mut inner = measure.inner.lock().unwrap();
+    let _ = inner.collector.end_now();
+    *inner = Inner::default();
+  }
+  measure.store.lock().unwrap().clear();
+}
+
 #[tauri::command]
 fn day_rhythm(measure: tauri::State<'_, Arc<Measure>>) -> Vec<DayRow> {
   let store = measure.store.lock().unwrap();
@@ -285,9 +302,14 @@ fn day_rhythm(measure: tauri::State<'_, Arc<Measure>>) -> Vec<DayRow> {
     .collect()
 }
 
+/// Shows the main window, and opens a page in it if `path` is given (for example
+/// the proposed check-in when the mascot is clicked).
 #[tauri::command]
-fn open_main(app: AppHandle) {
+fn open_main(app: AppHandle, path: Option<String>) {
   show_main(&app);
+  if let Some(p) = path.filter(|p| p.starts_with('/')) {
+    let _ = app.emit_to(MAIN, "navigate", p);
+  }
 }
 
 /// Logged once per window so a smoke test can see that each page's script ran.
@@ -327,6 +349,7 @@ pub fn run() {
       typing_retry,
       typing_take_sessions,
       day_rhythm,
+      forget_all,
       open_main,
       page_ready
     ])

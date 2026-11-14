@@ -83,6 +83,8 @@ export const openInputMonitoringSettings = () => invoke<void>("typing_open_permi
 export const retryTyping = () => invoke<DesktopStatus>("typing_retry");
 /** Session summaries not stored yet. Each one is handed over once. */
 export const takeTypingSessions = async () => (await invoke<DesktopSession[]>("typing_take_sessions")) ?? [];
+/** Forgets everything the desktop app keeps on disk (for "Delete everything"). */
+export const forgetDesktopData = () => invoke<void>("forget_all");
 export const dayRhythm = async () => (await invoke<DayActivity[]>("day_rhythm")) ?? [];
 
 export const onTypingLive = (h: (live: LiveTyping) => void) => listen<LiveTyping>("typing-live", h);
@@ -92,7 +94,10 @@ export const onTypingSessionEnded = (h: () => void) => listen<null>("typing-sess
 
 // Windows
 
-export const openMainWindow = () => invoke<void>("open_main");
+/** Shows the main window; with a path, also opens that page in it. */
+export const openMainWindow = (path?: string) => invoke<void>("open_main", { path: path ?? null });
+/** The main window is asked to open a page (sent by openMainWindow from another window). */
+export const onNavigate = (h: (path: string) => void) => listen<string>("navigate", h);
 export const pageReady = (path: string) => invoke<void>("page_ready", { path });
 
 /** Starts moving the current frameless window with the mouse. */

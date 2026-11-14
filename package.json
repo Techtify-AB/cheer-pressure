@@ -11,7 +11,9 @@
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build --debug",
-    "test:typing": "node --experimental-strip-types scripts/test-typing.mts"
+    "test:typing": "tsx scripts/test-typing.mts",
+    "test:passive": "tsx scripts/test-passive.mts",
+    "test": "tsx scripts/test-typing.mts && tsx scripts/test-passive.mts && cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
@@ -26,6 +28,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

@@ -1,6 +1,7 @@
 //! What the desktop app keeps on disk, in its own app data folder (rhythm.json):
 //!
-//! - per local day, the first and last key press time to the minute ("HH:MM"), and
+//! - per day (04:00 to 04:00 local time), the first and last key press time to the
+//!   minute ("HH:MM"), and
 //! - typing session summaries the web UI has not picked up yet.
 //!
 //! No keys, characters or text are ever written here. Only times and counts.
@@ -79,15 +80,17 @@ impl Store {
     Self { path, data, dirty: false }
   }
 
-  /// Records a key press at a local day and minute.
+  /// Records a key press at a day and clock minute. Times before 04:00 belong to the
+  /// end of the day, so they are compared as later than any time after 04:00.
   pub fn touch(&mut self, day: &str, hhmm: &str) {
+    let key = |t: &str| if t < "04:00" { format!("1{t}") } else { format!("0{t}") };
     match self.data.days.get_mut(day) {
       Some(d) => {
-        if hhmm < d.first.as_str() {
+        if key(hhmm) < key(&d.first) {
           d.first = hhmm.to_string();
           self.dirty = true;
         }
-        if hhmm > d.last.as_str() {
+        if key(hhmm) > key(&d.last) {
           d.last = hhmm.to_string();
           self.dirty = true;
         }
@@ -122,6 +125,12 @@ impl Store {
     std::mem::take(&mut self.data.pending_sessions)
   }
 
+  pub fn clear(&mut self) {
+    self.data = Data::default();
+    self.dirty = true;
+    self.save_if_dirty();
+  }
+
   pub fn save_if_dirty(&mut self) {
     if !self.dirty {
       return;
@@ -151,6 +160,11 @@ mod tests {
     s.touch("2026-11-14", "23:40");
     s.touch("2026-11-14", "12:00");
     assert_eq!(s.data.days["2026-11-14"], DayActivity { first: "08:58".into(), last: "23:40".into() });
+    // After midnight is still the end of the same day.
+    s.touch("2026-11-14", "00:35");
+    assert_eq!(s.data.days["2026-11-14"].last, "00:35");
+    s.touch("2026-11-14", "23:59");
+    assert_eq!(s.data.days["2026-11-14"].last, "00:35");
   }
 
   #[test]

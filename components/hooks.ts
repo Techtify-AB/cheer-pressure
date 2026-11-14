@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { brain, type BrainOutput } from "@/lib/brain";
 import { addDays, todayKey } from "@/lib/dates";
 import { computeLevels, type Levels } from "@/lib/levels";
+import { evaluatePassive, type Evaluation } from "@/lib/passive";
 import { readData } from "@/lib/storage";
 import type { AppData } from "@/lib/types";
 import { speak, stopSpeaking, subscribeVoices, voiceAvailability, type VoiceAvailability } from "@/lib/voice";
@@ -82,4 +83,10 @@ export function useReflection(data: AppData | null) {
   }, [levels, data, today]);
 
   return { levels, reflection: result && result.for === levels ? result.out : null };
+}
+
+/** The passive measures against the person's own range, and whether to ask. */
+export function usePassive(data: AppData | null): Evaluation | null {
+  const today = useToday();
+  return useMemo(() => (data ? evaluatePassive(data, today) : null), [data, today]);
 }

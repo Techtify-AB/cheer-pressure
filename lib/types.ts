@@ -84,9 +84,43 @@ export interface TypingSession {
   savedAt: string;
 }
 
+/**
+ * First and last key press of one day, measured by the desktop app. A day runs from
+ * 04:00 to 04:00, so a late evening stays with the day it belongs to. Times only.
+ */
+export interface ActivityDay {
+  date: DayKey;
+  /** "HH:MM", clock time of the first key press. */
+  first: string;
+  /** "HH:MM", clock time of the last key press (can be after midnight). */
+  last: string;
+  source: Source;
+}
+
+/** The passive measures the companion compares with the person's own range. */
+export type PassiveKey = "spread" | "pauses" | "hold" | "firstActivity" | "lastActivity" | "quietNight";
+
+export type CheckInAnswer = "okay" | "not-best" | "someone" | "not-now";
+
+/** A check-in the companion proposed because measures stood out, and the answer. */
+export interface PromptedCheckIn {
+  id: string;
+  date: DayKey;
+  at: string; // ISO
+  answer: CheckInAnswer;
+  /** Which measures had changed, and which way. */
+  triggeredBy: { key: PassiveKey; direction: "up" | "down" }[];
+  /** How many recent typing sessions and days the comparison used. */
+  basedOn: { sessions: number; days: number };
+  /** True when the change was simulated or the data was made-up demo data. */
+  simulated: boolean;
+}
+
 export interface Settings {
   /** Mutes the companion's read-aloud voice. */
   muted: boolean;
+  /** Set by the demo control "Simulate a change": propose a check-in now, ignoring the 3-day pause. */
+  simulatedChangeAt?: string;
 }
 
 export interface AppData {
@@ -96,5 +130,7 @@ export interface AppData {
   weekly: WeeklyEntry[];
   reaction: ReactionResult[];
   typingSessions: TypingSession[];
+  activityDays: ActivityDay[];
+  checkIns: PromptedCheckIn[];
   settings: Settings;
 }

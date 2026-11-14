@@ -1,83 +1,102 @@
 "use client";
 
+// Home is passive-first: the companion watches the person's rhythm and asks only when
+// their measures stand out from their own usual range (lib/passive.ts). Nothing is
+// needed from the person day to day.
+
 import Link from "next/link";
 import { Companion } from "@/components/companion/Companion";
-import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
-import { daysBetween } from "@/lib/dates";
-import { useData } from "@/lib/storage";
+import { useDesktopTyping } from "@/components/desktop";
+import { useCompanionVoice, usePassive, useRequireProfile, useToday } from "@/components/hooks";
+import { calmLine } from "@/lib/passive";
+import { hasDemo, useData } from "@/lib/storage";
 
 export default function HomePage() {
   const data = useData();
   const ready = useRequireProfile(data);
   const today = useToday();
   const voice = useCompanionVoice();
-  const { reflection } = useReflection(data);
+  const passive = usePassive(data);
+  const { desktop, status } = useDesktopTyping();
 
-  if (!data || !ready) return null;
+  if (!data || !ready || !passive) return null;
 
-  const doneToday = data.daily.some((e) => e.date === today);
-  const lastWeekly = data.weekly[data.weekly.length - 1];
-  const firstDaily = data.daily[0]; // lists are kept oldest first
-  // Offered by itself when 7 days have passed since the last weekly answer, or, for
-  // someone who has never answered, 7 days since their first daily check-in.
-  // The quiet "Weekly questions" link below is always there.
-  const weeklyDue = lastWeekly
-    ? daysBetween(lastWeekly.date, today) >= 7
-    : !!firstDaily && daysBetween(firstDaily.date, today) >= 7;
+  const line = calmLine(passive);
+  const todayActivity = data.activityDays.find((d) => d.date === today && d.source === "user");
+  const measuring = desktop && status?.listener === "running";
 
-  const greeting = doneToday
-    ? "Today's check-in is done. Nothing more is needed today."
-    : "Hi. Today's check-in takes about 30 seconds.";
-  const message = reflection?.noticedChange ? reflection.say : greeting;
-  const suggestion = reflection?.noticedChange ? reflection.suggestion : null;
-  const spoken = suggestion ? `${message} ${suggestion.text}` : message;
+  let typingState: string;
+  if (measuring && status?.paused) typingState = "Paused";
+  else if (measuring) typingState = "Whole computer";
+  else typingState = "Only in the box on Live view";
+
+  let dayState: string;
+  if (measuring && status?.paused) dayState = "Paused";
+  else if (measuring) dayState = todayActivity ? `On. First activity today ${todayActivity.first}` : "On";
+  else dayState = desktop ? "Needs permission, see Live view" : "In the desktop app only";
+
+  const sources: { name: string; state: string; on: boolean }[] = [
+    { name: "Typing rhythm", state: typingState, on: measuring && !status?.paused },
+    { name: "Day rhythm (first and last activity)", state: dayState, on: measuring && !status?.paused },
+    { name: "Camera", state: "Not connected yet", on: false },
+    { name: "Microphone", state: "Not connected yet", on: false },
+    { name: "Bedside sensor", state: "Not connected yet", on: false },
+  ];
 
   return (
     <div className="stack-lg">
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <span className={doneToday ? "status status-done" : "status"} role="status">
-          <span className="status-dot" aria-hidden="true" />
-          {doneToday ? "Today's check-in: done" : "Today's check-in: not done yet"}
-        </span>
-      </div>
-
       <div className="companion-row">
         <Companion state={voice.state} size={170} />
         <div className="bubble" aria-live="polite">
-          <p>{message}</p>
-          {suggestion && (
-            <p className="suggestion">
-              <strong>One small thing to try:</strong> {suggestion.text}
-            </p>
-          )}
+          <p>{line}</p>
         </div>
-        <button type="button" className="btn btn-quiet small" onClick={() => voice.say(spoken)}>
-          Read this aloud
-        </button>
+        {passive.askNow ? (
+          <Link href="/prompt/" className="btn btn-secondary">
+            Have a look
+          </Link>
+        ) : (
+          <button type="button" className="btn btn-quiet small" onClick={() => voice.say(line)}>
+            Read this aloud
+          </button>
+        )}
       </div>
 
-      <div className="stack">
-        {doneToday ? (
-          <p className="notice">
-            <Link href="/check-in/" className="btn btn-quiet">
-              Redo today&apos;s check-in
-            </Link>
-          </p>
-        ) : (
-          <Link href="/check-in/" className="btn btn-primary">
-            Start today&apos;s check-in
-          </Link>
-        )}
-        {weeklyDue && (
-          <p className="notice">
-            <span>Your weekly questions are ready, whenever suits you.</span>
-            <Link href="/weekly/">Answer them</Link>
-          </p>
-        )}
-      </div>
+      {hasDemo(data) && (
+        <p className="notice">
+          <span className="placeholder-tag">Demo</span>
+          <span>Some of what you see is made-up demo data.</span>
+        </p>
+      )}
+
+      <section className="card stack" aria-labelledby="sources-title">
+        <h2 id="sources-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
+          What I&apos;m noticing right now
+        </h2>
+        <ul className="source-list">
+          {sources.map((s) => (
+            <li key={s.name}>
+              <span className={s.on ? "source-dot on" : "source-dot"} aria-hidden="true" />
+              <span className="source-name">{s.name}</span>
+              <span className="source-state">{s.state}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="small muted" style={{ marginBottom: 0 }}>
+          Only timings and times of day are kept, on this device. Never what you type.
+        </p>
+      </section>
 
       <nav aria-label="More">
         <ul className="quiet-links">
+          <li>
+            <Link href="/check-in/">Tell me how you&apos;re doing</Link>
+          </li>
+          <li>
+            <Link href="/live/">Live view</Link>
+          </li>
+          <li>
+            <Link href="/trends/">Your own level</Link>
+          </li>
           <li>
             <Link href="/weekly/">Weekly questions</Link>
           </li>
@@ -85,12 +104,6 @@ export default function HomePage() {
             <Link href="/reaction/">
               Reaction test <span className="badge badge-experiment">Experiment</span>
             </Link>
-          </li>
-          <li>
-            <Link href="/live/">Live view</Link>
-          </li>
-          <li>
-            <Link href="/trends/">Your own level</Link>
           </li>
           <li>
             <Link href="/share/">Share with my clinic</Link>

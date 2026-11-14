@@ -1,4 +1,12 @@
-import type { MetricLevel } from "@/lib/levels";
+import type { DayKey } from "@/lib/types";
+
+/** Anything with 14 days of values and, optionally, the person's usual range. */
+export interface ChartMetric {
+  label: string;
+  format: (v: number) => string;
+  series: { date: DayKey; value: number | null }[];
+  usual: { low: number; median: number; high: number } | null;
+}
 
 const W = 300;
 const H = 84;
@@ -6,7 +14,7 @@ const PAD_X = 8;
 const PAD_Y = 10;
 
 /** Last 14 days as dots, with the person's own usual range as a shaded band. */
-export function Sparkline({ metric }: { metric: MetricLevel }) {
+export function Sparkline({ metric }: { metric: ChartMetric }) {
   const values = metric.series.map((p) => p.value).filter((v): v is number => v !== null);
   const usual = metric.usual;
   const all = [...values, ...(usual ? [usual.low, usual.high] : [])];

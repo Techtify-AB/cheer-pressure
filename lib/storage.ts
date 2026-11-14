@@ -7,12 +7,26 @@
 // read/write helpers below.
 
 import { useSyncExternalStore } from "react";
-import type { AppData, DailyEntry, Profile, ReactionResult, Settings, TypingSession, WeeklyEntry } from "./types";
+import type {
+  ActivityDay,
+  AppData,
+  DailyEntry,
+  Profile,
+  PromptedCheckIn,
+  ReactionResult,
+  Settings,
+  TypingSession,
+  WeeklyEntry,
+} from "./types";
 
 const KEY = "companion.v1";
 
 function empty(): AppData {
-  return { version: 1, profile: null, daily: [], weekly: [], reaction: [], typingSessions: [], settings: { muted: false } };
+  return { version: 1, profile: null, daily: [], weekly: [], reaction: [], typingSessions: [],
+    activityDays: [],
+    checkIns: [],
+    settings: { muted: false },
+  };
 }
 
 let cache: AppData | null = null;
@@ -50,6 +64,8 @@ function load(): AppData {
       weekly: parsed.weekly ?? [],
       reaction: parsed.reaction ?? [],
       typingSessions: parsed.typingSessions ?? [],
+      activityDays: parsed.activityDays ?? [],
+      checkIns: parsed.checkIns ?? [],
     };
   } catch {
     return empty();
@@ -67,6 +83,8 @@ function commit(next: AppData) {
     weekly: sortByDate(next.weekly),
     reaction: sortByDate(next.reaction),
     typingSessions: sortByDate(next.typingSessions),
+    activityDays: sortByDate(next.activityDays),
+    checkIns: sortByDate(next.checkIns),
   };
   cache = tidy;
   rawWrite(JSON.stringify(tidy));
@@ -130,6 +148,32 @@ export function saveTypingSessions(sessions: TypingSession[]) {
   commit({ ...d, typingSessions: [...d.typingSessions, ...fresh] });
 }
 
+/** First and last activity per day from the desktop app. A day with real data replaces demo data. */
+export function saveActivityDays(days: ActivityDay[]) {
+  if (!days.length) return;
+  const d = readData();
+  const byDate = new Map(d.activityDays.map((a) => [a.date, a]));
+  let changed = false;
+  for (const a of days) {
+    const cur = byDate.get(a.date);
+    if (!cur || cur.first !== a.first || cur.last !== a.last || cur.source !== a.source) {
+      byDate.set(a.date, a);
+      changed = true;
+    }
+  }
+  if (changed) commit({ ...d, activityDays: [...byDate.values()] });
+}
+
+/** Stores the answer to a proposed check-in, and ends a simulated change. */
+export function saveCheckIn(entry: PromptedCheckIn) {
+  const d = readData();
+  commit({
+    ...d,
+    checkIns: [...d.checkIns, entry],
+    settings: { ...d.settings, simulatedChangeAt: undefined },
+  });
+}
+
 export function saveSettings(settings: Partial<Settings>) {
   const d = readData();
   commit({ ...d, settings: { ...d.settings, ...settings } });
@@ -141,16 +185,19 @@ export function addDemo(demo: {
   weekly: WeeklyEntry[];
   reaction: ReactionResult[];
   typingSessions: TypingSession[];
+  activityDays: ActivityDay[];
 }) {
   const d = clearDemoFrom(readData());
   const realDaily = new Set(d.daily.map((e) => e.date));
   const realWeekly = new Set(d.weekly.map((e) => e.date));
+  const realActivity = new Set(d.activityDays.map((e) => e.date));
   commit({
     ...d,
     daily: [...d.daily, ...demo.daily.filter((e) => !realDaily.has(e.date))],
     weekly: [...d.weekly, ...demo.weekly.filter((e) => !realWeekly.has(e.date))],
     reaction: [...d.reaction, ...demo.reaction],
     typingSessions: [...d.typingSessions, ...demo.typingSessions],
+    activityDays: [...d.activityDays, ...demo.activityDays.filter((e) => !realActivity.has(e.date))],
   });
 }
 
@@ -161,6 +208,8 @@ function clearDemoFrom(d: AppData): AppData {
     weekly: d.weekly.filter((e) => e.source !== "demo"),
     reaction: d.reaction.filter((e) => e.source !== "demo"),
     typingSessions: d.typingSessions.filter((e) => e.source !== "demo"),
+    activityDays: d.activityDays.filter((e) => e.source !== "demo"),
+    settings: { ...d.settings, simulatedChangeAt: undefined },
   };
 }
 
@@ -169,7 +218,7 @@ export function clearDemo() {
 }
 
 export function hasDemo(d: AppData): boolean {
-  return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions].some((e) => e.source === "demo");
+  return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions, ...d.activityDays].some((e) => e.source === "demo");
 }
 
 /** Removes everything this app has stored in this browser. */

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useRequireProfile, useVoiceAvailability } from "@/components/hooks";
+import { forgetDesktopData } from "@/lib/platform";
 import { deleteEverything, saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
 
@@ -15,7 +16,7 @@ export default function SettingsPage() {
 
   if (!data || !ready) return null;
   const muted = data.settings.muted;
-  const counts = `${data.daily.length} daily check-ins, ${data.weekly.length} weekly answers and ${data.reaction.length} reaction tests`;
+  const counts = `${data.typingSessions.length} typing sessions, ${data.activityDays.length} days of first and last activity, ${data.daily.length} daily check-ins, ${data.weekly.length} weekly answers and ${data.reaction.length} reaction tests`;
 
   return (
     <div className="stack-lg">
@@ -75,7 +76,7 @@ export default function SettingsPage() {
         <h2 id="delete-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
           Delete everything
         </h2>
-        <p style={{ marginBottom: 0 }}>Removes all your answers and settings from this browser and starts over.</p>
+        <p style={{ marginBottom: 0 }}>Removes all your answers, measurements and settings from this device and starts over.</p>
         {!confirming ? (
           <div>
             <button type="button" className="btn btn-secondary" onClick={() => setConfirming(true)}>
@@ -92,8 +93,9 @@ export default function SettingsPage() {
                 type="button"
                 className="btn btn-danger"
                 autoFocus
-                onClick={() => {
+                onClick={async () => {
                   stopSpeaking();
+                  await forgetDesktopData();
                   deleteEverything();
                   router.replace("/setup/");
                 }}

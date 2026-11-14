@@ -3,9 +3,12 @@
 // React glue for the desktop app. Everything goes through lib/platform.ts, and in a
 // plain browser these hooks report "not the desktop app" and do nothing else.
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
+  dayRhythm,
   isDesktop,
+  onNavigate,
   onTypingLive,
   onTypingSessionEnded,
   onTypingStatus,
@@ -16,7 +19,7 @@ import {
   type DesktopStatus,
   type LiveTyping,
 } from "@/lib/platform";
-import { saveTypingSessions } from "@/lib/storage";
+import { saveActivityDays, saveTypingSessions } from "@/lib/storage";
 import type { TypingSession } from "@/lib/types";
 
 const noSubscribe = () => () => {};
@@ -67,10 +70,12 @@ export function fromDesktopSession(d: DesktopSession): TypingSession {
 }
 
 /**
- * Lives in the main window only. Collects finished typing sessions from the desktop
- * app and stores them with the rest of the person's data.
+ * Lives in the main window only. Collects finished typing sessions and first and
+ * last activity from the desktop app and stores them with the rest of the person's
+ * data, and opens pages the mascot asks for.
  */
 export function DesktopBridge() {
+  const router = useRouter();
   useEffect(() => {
     if (!isDesktop()) return;
     pageReady(window.location.pathname);
@@ -78,8 +83,20 @@ export function DesktopBridge() {
       const list = await takeTypingSessions();
       saveTypingSessions(list.map(fromDesktopSession));
     };
+    const syncDays = async () => {
+      const days = await dayRhythm();
+      saveActivityDays(days.map((d) => ({ ...d, source: "user" as const })));
+    };
     void collect();
-    return onTypingSessionEnded(() => void collect());
-  }, []);
+    void syncDays();
+    const daysTimer = window.setInterval(() => void syncDays(), 60_000);
+    const stopSessions = onTypingSessionEnded(() => void collect());
+    const stopNavigate = onNavigate((path) => router.push(path));
+    return () => {
+      window.clearInterval(daysTimer);
+      stopSessions();
+      stopNavigate();
+    };
+  }, [router]);
   return null;
 }

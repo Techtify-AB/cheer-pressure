@@ -1,12 +1,14 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Companion } from "@/components/companion/Companion";
-import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
-import { Sparkline } from "@/components/Sparkline";
-import { describeMinutes, formatShortDay } from "@/lib/dates";
+import { useCompanionVoice, usePassive, useReflection, useRequireProfile, useToday } from "@/components/hooks";
+import { Sparkline, type ChartMetric } from "@/components/Sparkline";
+import { addDays, describeMinutes, formatShortDay } from "@/lib/dates";
 import { makeDemoData } from "@/lib/demo";
-import type { MetricLevel } from "@/lib/levels";
-import { addDemo, clearDemo, hasDemo, useData } from "@/lib/storage";
+import { CHART_DAYS, type MetricLevel } from "@/lib/levels";
+import { MIN_USUAL_POINTS, RECENT_POINTS, weeklyInsight, type PassiveMetric } from "@/lib/passive";
+import { addDemo, clearDemo, hasDemo, saveSettings, useData } from "@/lib/storage";
 
 const SCALE_WORDS = ["not at all", "several days", "more than half the days", "nearly every day"];
 
@@ -39,9 +41,75 @@ function changeText(m: MetricLevel): string {
       return up ? "Quicker than your usual." : "Slower than your usual.";
     case "reaction":
       return up ? "Slower than your usual." : "Quicker than your usual.";
-    case "typing":
-      return up ? "More uneven than your usual." : "More even than your usual.";
   }
+}
+
+function unitWord(m: PassiveMetric, n: number): string {
+  return m.unit === "session" ? (n === 1 ? "session" : "sessions") : n === 1 ? "day" : "days";
+}
+
+function passiveStatus(m: PassiveMetric): string {
+  const need = MIN_USUAL_POINTS + RECENT_POINTS;
+  if (m.status === "learning") {
+    return `Your usual range shows up after ${need} ${unitWord(m, need)}. ${m.points.length} so far.`;
+  }
+  if (m.status === "no-recent") return "Nothing in the last 7 days to compare.";
+  if (m.status === "steady") return "Within your usual range.";
+  const p = m.phrase ?? "";
+  return `${p.charAt(0).toUpperCase()}${p.slice(1)}: outside your usual range.`;
+}
+
+/** The last 14 days for the chart: one value per day (the middle one for sessions). */
+function chartFor(m: PassiveMetric, today: string): ChartMetric {
+  const byDay = new Map<string, number[]>();
+  for (const p of m.points) byDay.set(p.date, [...(byDay.get(p.date) ?? []), p.value]);
+  const series = Array.from({ length: CHART_DAYS }, (_, i) => {
+    const date = addDays(today, i - (CHART_DAYS - 1));
+    const list = byDay.get(date);
+    if (!list) return { date, value: null };
+    const sorted = [...list].sort((a, b) => a - b);
+    return { date, value: sorted[Math.floor((sorted.length - 1) / 2)] };
+  });
+  return { label: m.label, format: m.format, series, usual: m.usual };
+}
+
+function PassiveCard({ m, today }: { m: PassiveMetric; today: string }) {
+  return (
+    <section className="card stack" aria-labelledby={`p-${m.key}`}>
+      <div>
+        <h3 id={`p-${m.key}`} style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
+          {m.label}
+        </h3>
+        <p className="small muted" style={{ marginBottom: 0 }}>
+          {m.meaning}.
+        </p>
+      </div>
+      <dl className="numbers">
+        <div>
+          <dt>Lately</dt>
+          <dd>{m.recent ? m.format(m.recent.median) : m.points.length ? m.format(m.points[m.points.length - 1].value) : "None yet"}</dd>
+          <dd className="small muted">
+            {m.recent
+              ? `middle of your last ${m.recent.n} ${unitWord(m, m.recent.n)}`
+              : m.points.length
+                ? `your latest ${m.unit}`
+                : "nothing measured yet"}
+          </dd>
+        </div>
+        <div>
+          <dt>Your usual range</dt>
+          <dd>{m.usual ? `${m.format(m.usual.low)} to ${m.format(m.usual.high)}` : "Not yet"}</dd>
+          <dd className="small muted">
+            {m.usual ? `from ${m.usual.n} earlier ${unitWord(m, m.usual.n)}` : "still learning"}
+          </dd>
+        </div>
+      </dl>
+      <p style={{ marginBottom: 0 }}>
+        <strong>{passiveStatus(m)}</strong>
+      </p>
+      <Sparkline metric={chartFor(m, today)} />
+    </section>
+  );
 }
 
 export default function TrendsPage() {
@@ -50,21 +118,48 @@ export default function TrendsPage() {
   const today = useToday();
   const voice = useCompanionVoice();
   const { levels, reflection } = useReflection(data);
+  const passive = usePassive(data);
+  const router = useRouter();
 
-  if (!data || !ready || !levels) return null;
+  if (!data || !ready || !levels || !passive) return null;
 
   const demoOn = hasDemo(data);
-  const anything = data.daily.length + data.weekly.length + data.reaction.length + data.typingSessions.length > 0;
+  const anything = data.daily.length + data.weekly.length + data.reaction.length > 0;
   const weeklyList = data.weekly.slice(-6).reverse(); // newest first, so it is visible on a phone
+  const insight = weeklyInsight(passive);
+
+  const loadDemo = () => addDemo(makeDemoData(today, data.profile?.earlySigns ?? []));
+  const simulate = () => {
+    loadDemo();
+    saveSettings({ simulatedChangeAt: new Date().toISOString() });
+    router.push("/prompt/");
+  };
 
   return (
     <div className="stack-lg">
       <div>
         <h1>Your own level</h1>
         <p className="muted" style={{ marginBottom: 0 }}>
-          The last 14 days compared with your usual level. Your usual level comes only from your own earlier
-          entries, never from other people.
+          What is measured by itself, compared with your own usual range: the middle half of your own earlier
+          sessions and days. Never with other people.
         </p>
+      </div>
+
+      <div className="companion-row" style={{ flexDirection: "row", textAlign: "left", alignItems: "flex-start" }}>
+        <div style={{ flex: "0 0 auto" }}>
+          <Companion state={voice.state} size={84} />
+        </div>
+        <div className="bubble" style={{ flex: 1 }} aria-live="polite">
+          <p>{insight}</p>
+          <button
+            type="button"
+            className="btn btn-quiet small"
+            style={{ paddingLeft: 0, minHeight: 36 }}
+            onClick={() => voice.say(insight)}
+          >
+            Read this aloud
+          </button>
+        </div>
       </div>
 
       <section className="demo-box stack" aria-labelledby="demo-title">
@@ -74,17 +169,16 @@ export default function TrendsPage() {
             {demoOn ? "Showing made-up demo data" : "Try it with made-up data"}
           </h2>
           <p className="small muted" style={{ marginBottom: 0 }}>
-            Six weeks of invented entries where the last week changes, so you can see how this works. Your own
-            entries are kept and not overwritten.
+            Six weeks of invented measurements where the last days change, so you can see how this works. Your own
+            data is kept and not overwritten. &quot;Simulate a change&quot; also makes the companion ask right away.
           </p>
         </div>
         <div className="btn-row">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => addDemo(makeDemoData(today, data.profile?.earlySigns ?? []))}
-          >
+          <button type="button" className="btn btn-secondary" onClick={loadDemo}>
             {demoOn ? "Reload demo data" : "Load demo data"}
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={simulate}>
+            Simulate a change
           </button>
           {demoOn && (
             <button type="button" className="btn btn-secondary" onClick={clearDemo}>
@@ -94,54 +188,42 @@ export default function TrendsPage() {
         </div>
       </section>
 
-      {anything && reflection && (
-        <div className="companion-row" style={{ flexDirection: "row", textAlign: "left", alignItems: "flex-start" }}>
-          <div style={{ flex: "0 0 auto" }}>
-            <Companion state={voice.state} size={84} />
-          </div>
-          <div className="bubble" style={{ flex: 1 }} aria-live="polite">
-            <p>{reflection.say}</p>
-            {reflection.suggestion && (
-              <p className="suggestion">
-                <strong>One small thing to try:</strong> {reflection.suggestion.text}
-              </p>
-            )}
-            <button
-              type="button"
-              className="btn btn-quiet small"
-              style={{ paddingLeft: 0, minHeight: 36 }}
-              onClick={() =>
-                voice.say(reflection.suggestion ? `${reflection.say} ${reflection.suggestion.text}` : reflection.say)
-              }
-            >
-              Read this aloud
-            </button>
-          </div>
-        </div>
-      )}
+      <p className="small muted" style={{ marginBottom: 0 }}>
+        In each chart, a dot is one day. The green band is your usual range and the dashed line your usual middle
+        value. The shaded right part is the last 7 days.
+      </p>
 
-      {!anything && (
-        <div className="card">
-          <p style={{ marginBottom: 0 }}>
-            Nothing here yet. After your first check-ins you&apos;ll see them here, and your usual level appears after
-            about a week.
-          </p>
-        </div>
+      <section className="stack" aria-labelledby="passive-title">
+        <h2 id="passive-title" style={{ fontSize: "var(--font-size-xl)", marginBottom: 0 }}>
+          Measured by itself
+        </h2>
+        {passive.metrics.map((m) => (
+          <PassiveCard key={m.key} m={m} today={today} />
+        ))}
+      </section>
+
+      {anything && reflection && (
+        <section className="stack" aria-labelledby="own-title">
+          <div>
+            <h2 id="own-title" style={{ fontSize: "var(--font-size-xl)", marginBottom: 2 }}>
+              Your own entries
+            </h2>
+            <p className="small muted" style={{ marginBottom: 0 }}>
+              What you told me yourself, in check-ins and the reaction test. {reflection.say}
+            </p>
+          </div>
+        </section>
       )}
 
       {anything && (
         <>
-          <p className="small muted" style={{ marginBottom: 0 }}>
-            In each chart, a dot is one day. The green band is your usual range and the dashed line your usual
-            middle value. The shaded right part is the last 7 days.
-          </p>
 
           {levels.metrics.map((m) => (
             <section key={m.key} className="card stack" aria-labelledby={`m-${m.key}`}>
               <div>
-                <h2 id={`m-${m.key}`} style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
+                <h3 id={`m-${m.key}`} style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
                   {m.label} {m.experimental && <span className="badge badge-experiment">Experiment</span>}
-                </h2>
+                </h3>
                 <p className="small muted" style={{ marginBottom: 0 }}>
                   {m.meaning}.
                 </p>
@@ -169,9 +251,9 @@ export default function TrendsPage() {
 
           <section className="card stack" aria-labelledby="weekly-title">
             <div>
-              <h2 id="weekly-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
+              <h3 id="weekly-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
                 Weekly answers
-              </h2>
+              </h3>
               <p className="small muted" style={{ marginBottom: 0 }}>
                 0 means not at all, 1 several days, 2 more than half the days, 3 nearly every day. Newest answer first.
               </p>

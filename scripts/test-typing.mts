@@ -1,6 +1,6 @@
 // Tiny check of the browser-side typing calculation (lib/typing.ts), with the same
 // cases as the Rust tests in src-tauri/src/rhythm.rs.
-// Run: node --experimental-strip-types scripts/test-typing.mts
+// Run: pnpm test:typing
 import { quantile, SESSION_IDLE_MS, TypingCollector, typingStats } from "../lib/typing.ts";
 
 let failed = 0;

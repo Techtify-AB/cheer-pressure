@@ -1,9 +1,10 @@
 // Six weeks of made-up entries for trying the app. Weeks 1 to 5 are steady; in the
-// final week bedtime drifts later, form drops, reading slows, typing gets more uneven
-// and the weekly answers go up. Everything is tagged source "demo" so it can be cleared on its own.
+// final week bedtime drifts later, form drops, reading slows, typing gets more uneven,
+// the whole day shifts later (first and last activity), and the weekly answers go up. The passive measures
+// (typing sessions, first and last activity) are what the companion's rule reads. Everything is tagged source "demo" so it can be cleared on its own.
 
 import { addDays, minutesToClock } from "./dates";
-import type { DailyEntry, ReactionResult, Scale03, TypingSession, WeeklyEntry } from "./types";
+import type { ActivityDay, DailyEntry, ReactionResult, Scale03, TypingSession, WeeklyEntry } from "./types";
 
 const DAYS = 42;
 const DRIFT_DAYS = 6; // the last six days before today
@@ -97,13 +98,24 @@ export function makeDemoData(today: string, earlySigns: string[]) {
         presses,
         medianIntervalMs: round(medianInterval),
         spreadMs: round(spread),
-        p95PauseMs: round((inDrift ? 820 + drift * 260 : 640) + jitter(80)),
-        medianHoldMs: round((inDrift ? 104 : 96) + jitter(6)),
+        p95PauseMs: round(640 + jitter(80)),
+        medianHoldMs: round(96 + jitter(6)),
         source: "demo",
         savedAt: now,
       });
     }
   }
 
-  return { daily, weekly, reaction, typingSessions };
+  // First and last activity per day, as the desktop app would record them.
+  const activityDays: ActivityDay[] = [];
+  for (let i = DAYS; i >= 1; i--) {
+    const date = addDays(today, -i);
+    const inDrift = i <= DRIFT_DAYS; // the whole day shifts about 1.5 hours later
+    if (!inDrift && rand() < 0.08) continue;
+    const first = 7 * 60 + 20 + jitter(30) + (inDrift ? 95 : 0);
+    const last = 22 * 60 + 50 + jitter(30) + (inDrift ? 95 : 0);
+    activityDays.push({ date, first: minutesToClock(first), last: minutesToClock(last), source: "demo" });
+  }
+
+  return { daily, weekly, reaction, typingSessions, activityDays };
 }

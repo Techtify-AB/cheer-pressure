@@ -54,7 +54,7 @@ export interface Brain {
 
 // Rule-based default
 
-const SUGGESTIONS: Record<SuggestionId, string> = {
+export const SUGGESTIONS: Record<SuggestionId, string> = {
   "morning-light": "Get some daylight within an hour of waking, even ten minutes by a window counts.",
   walk: "Take a short walk outside today, at whatever pace feels fine.",
   "regular-bedtime": "Try going to bed around your usual time for the next few nights.",
