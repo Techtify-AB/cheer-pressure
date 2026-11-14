@@ -189,7 +189,7 @@ export function clinicSummary(input: {
     .flatMap((m) => m.points.slice(-3).map((p) => p.date))
     .sort()[0];
   const lines: string[] = [];
-  lines.push("From my Cheer Pressure companion, compared only with my own usual:");
+  lines.push("From Cheri, my Cheer Pressure companion, compared only with my own usual:");
   if (phrases.length) {
     const first = joinPhrases(phrases);
     lines.push(`Since ${since ? formatDay(since) : formatDay(ladder.startedOn)}, ${first}.`);

@@ -22,7 +22,7 @@ const COMMON_SIGNS = [
 ];
 
 const INTRO =
-  "Hi. I'm a small companion for the time after treatment. I'm a tool, not a therapist: I help you notice changes compared with your own usual days.";
+  "Hi, I'm Cheri. I'm a tool, not a therapist: a small companion for the time after treatment that helps you notice changes compared with your own usual days.";
 const QUESTION = "What did you notice first last time?";
 
 export default function SetupPage() {

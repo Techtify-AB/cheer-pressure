@@ -59,7 +59,7 @@ export default function MascotPage() {
           greeting
             ? `${greeting.fromName ?? "Someone you trust"} sent you a few words`
             : cue
-              ? "Cheer Pressure would like to ask how you're doing"
+              ? "Cheri would like to ask how you're doing"
               : "Open Cheer Pressure"
         }
         title={

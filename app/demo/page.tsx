@@ -19,7 +19,7 @@ import type { AppData } from "@/lib/types";
 
 const NEXT_WORDS: Record<Due, string> = {
   none: "nothing is due yet",
-  ask: "the companion would ask how you are doing",
+  ask: "Cheri would ask how you are doing",
   "small-thing": "one small thing",
   someone: "someone you trust",
   clinic: "a summary for your clinic",
@@ -66,7 +66,7 @@ export default function DemoPage() {
         <>
           <span className="placeholder-tag">For the demo</span>
           <h1 className="item-title">For the demo</h1>
-          <p className="muted">Made-up data and controls for showing how the companion works. Not part of everyday use.</p>
+          <p className="muted">Made-up data and controls for showing how Cheri works. Not part of everyday use.</p>
         </>
       }
       actions={
@@ -85,7 +85,7 @@ export default function DemoPage() {
       <nav aria-label="Demo controls" className="card menu demo-menu">
         <button type="button" className="menu-row" onClick={simulate}>
           <span className="menu-label">Simulate a change</span>
-          <span className="menu-value">Loads made-up data and the companion asks</span>
+          <span className="menu-value">Loads made-up data and Cheri asks</span>
         </button>
         <button type="button" className="menu-row" onClick={skip} disabled={!active}>
           <span className="menu-label">Skip ahead two days</span>

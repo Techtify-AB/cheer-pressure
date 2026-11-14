@@ -247,7 +247,7 @@ function Voice({ data, back }: { data: AppData; back: React.ReactNode }) {
       lead={
         <>
           <h1 className="item-title">Voice</h1>
-          <p className="muted">The companion can read its questions aloud with the voices built into this device.</p>
+          <p className="muted">Cheri can read questions aloud with the voices built into this device.</p>
         </>
       }
       actions={back}
@@ -503,7 +503,7 @@ function Trust({ data, back }: { data: AppData; back: React.ReactNode }) {
 }
 
 function YourData({ data, back, onDelete }: { data: AppData; back: React.ReactNode; onDelete: () => void }) {
-  const counts = `${data.typingSessions.length} typing sessions, ${data.activityDays.length} days of activity times, ${data.checkIns.length} answers to the companion and ${data.weekly.length} weekly answers`;
+  const counts = `${data.typingSessions.length} typing sessions, ${data.activityDays.length} days of activity times, ${data.checkIns.length} answers to Cheri and ${data.weekly.length} weekly answers`;
   return (
     <Screen
       lead={
@@ -523,7 +523,7 @@ function YourData({ data, back, onDelete }: { data: AppData; back: React.ReactNo
             <Disclosure label="What is stored, in detail" title="What is stored, in detail">
               <p>
                 Typing sessions and first and last activity are timing numbers and times of day only, never which keys
-                or what you typed. Your answers to the companion keep which answer you picked and which measures had
+                or what you typed. Your answers to Cheri keep which answer you picked and which measures had
                 changed. Weekly answers keep the numbers you picked.
               </p>
               {data.profile?.earlySigns.length ? <p>Your early signs: {data.profile.earlySigns.join(", ")}.</p> : null}

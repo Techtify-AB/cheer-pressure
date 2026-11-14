@@ -30,15 +30,15 @@ export interface CompanionProps {
 }
 
 const STATE_LABEL: Record<CompanionState, string> = {
-  idle: "The companion is resting",
-  speaking: "The companion is speaking",
-  listening: "The companion is listening",
-  thinking: "The companion is thinking",
-  attention: "The companion would like your attention",
-  joy: "The companion is glad",
-  concern: "The companion is concerned",
-  sleeping: "The companion is sleeping",
-  celebrate: "The companion is celebrating",
+  idle: "Cheri is resting",
+  speaking: "Cheri is speaking",
+  listening: "Cheri is listening",
+  thinking: "Cheri is thinking",
+  attention: "Cheri would like your attention",
+  joy: "Cheri is glad",
+  concern: "Cheri is concerned",
+  sleeping: "Cheri is sleeping",
+  celebrate: "Cheri is celebrating",
 };
 
 /** Below this size the extra effects (rings, sparkles) do not fit, so only the dot is drawn. */

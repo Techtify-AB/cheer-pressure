@@ -10,7 +10,7 @@ exception is short messages between the person and one person they trust (a sist
 those pass through a small messages service (`server/`), which deletes them after 48 hours and
 never receives anything about health.
 
-It is a tool, not a therapist. It never diagnoses; it only describes change from the
+The companion is called **Cheri** in the interface (the product stays Cheer Pressure). It is a tool, not a therapist. It never diagnoses; it only describes change from the
 person's own usual level.
 
 The acceptance bar for this MVP is in [BAR.md](BAR.md).
