@@ -142,3 +142,38 @@ export function robotSupport(): RobotSupport {
 export function getRobot(): Robot {
   return isDesktop() ? new TauriRobot() : new WebSerialRobot();
 }
+
+// The robot the person connected in this window, shared by every page, so it stays connected
+// while the app is open and other parts of the app can use it.
+
+let current: Robot | null = null;
+
+/** The connected robot, or null. */
+export function connectedRobot(): Robot | null {
+  return current?.connected ? current : null;
+}
+
+/** Connects (asking the person to pick the port) and keeps it as the app's robot. */
+export async function connectRobot(): Promise<Robot> {
+  const existing = connectedRobot();
+  if (existing) return existing;
+  const r = getRobot();
+  await r.connect();
+  current = r;
+  return r;
+}
+
+/** What the robot is sent when a greeting from someone the person trusts arrives. */
+export const GREETING_LINE = '{"t":"led","mode":"greeting","color":"warm","ms":4000}';
+
+/** Sends one line if a robot is connected; does nothing if none is. Never throws. */
+export async function sendIfConnected(line: string): Promise<boolean> {
+  const r = connectedRobot();
+  if (!r) return false;
+  try {
+    await r.sendLine(line);
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -4,8 +4,14 @@
 // when the person's measures stand out from their own usual range (lib/passive.ts,
 // lib/ladder.ts). Nothing is needed from the person day to day: "Talk to me" is there
 // for when they want to, and one summary row opens what is being noticed.
+//
+// When someone the person trusts sends a greeting or a question (lib/trusted.ts), it becomes
+// home's single primary thing, at any time, also in quiet hours: "Sara: Walk after lunch?"
+// with Yes, No and Write back. Once answered, home goes back to its calm state.
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { GreetingScreen } from "@/components/Greeting";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
 import { Disclosure, Screen } from "@/components/Screen";
@@ -15,6 +21,12 @@ import { moodFor } from "@/lib/mood";
 import type { PassiveMetric } from "@/lib/passive";
 import { NOT_CONNECTED, quietHoursOf, sourcesOf } from "@/lib/settings";
 import { useData } from "@/lib/storage";
+import { answerTo, pendingMessage } from "@/lib/contact";
+import type { Answer } from "@/lib/events";
+import { messagesClient, useTrusted } from "@/lib/trusted";
+
+/** How long "Sent to Sara." stays on home after an answer has gone. */
+const SENT_LINE_MS = 4000;
 
 export default function HomePage() {
   const data = useData();
@@ -23,8 +35,28 @@ export default function HomePage() {
   const { reflection } = useReflection(data);
   const { evaluation, outcome } = useCompanionStatus(data);
   const { desktop, status } = useDesktopTyping();
+  const messages = useTrusted();
+  const pending = pendingMessage(messages);
+  // The message just answered here, so home can say whether the answer has gone.
+  const [answered, setAnswered] = useState<{ id: string; name: string } | null>(null);
+  const answerState = answered && messages ? answerTo(messages, answered.id) : null;
+  const sent = answerState?.status === "sent";
+  useEffect(() => {
+    if (!sent) return;
+    const t = window.setTimeout(() => setAnswered(null), SENT_LINE_MS);
+    return () => window.clearTimeout(t);
+  }, [sent]);
 
   if (!data || !ready || !evaluation || !outcome || !reflection) return null;
+
+  if (pending?.id) {
+    const id = pending.id;
+    const answer = (a: Answer | null, text?: string) => {
+      messagesClient().sendReply(id, a, text);
+      setAnswered({ id, name: pending.fromName ?? "them" });
+    };
+    return <GreetingScreen key={id} reply={pending} onAnswer={answer} hero />;
+  }
 
   const settings = data.settings;
   const sources = sourcesOf(settings);
@@ -34,14 +66,23 @@ export default function HomePage() {
   const quiet = quietHoursOf(settings);
 
   let line: string;
-  if (pausedAll) line = "Measuring is paused. I'll stay quiet until you turn it back on in Settings.";
+  if (answered && answerState) {
+    line =
+      answerState.status === "sent"
+        ? `Sent to ${answered.name}.`
+        : answerState.status === "waiting for connection"
+          ? `Waiting for connection. Your answer goes to ${answered.name} as soon as I can reach the service.`
+          : answerState.status === "not sent"
+            ? `That could not be sent to ${answered.name}.`
+            : `Sending to ${answered.name}.`;
+  } else if (pausedAll) line = "Measuring is paused. I'll stay quiet until you turn it back on in Settings.";
   else if (outcome.speakUp && outcome.due === "ask") line = reflection.passive.calmLine;
   else if (outcome.speakUp) line = "Some things still look different from your usual. When you have a moment, have a look.";
   else if (outcome.quiet) line = `It's quiet hours, so I'm resting until ${quiet.to}. Nothing is needed from you.`;
   else if (isActive(data.ladder)) line = "I'm keeping an eye on things and will look again in a few days. Nothing is needed from you.";
   else line = reflection.passive.calmLine;
 
-  const mood = moodFor({ wantsToAsk: outcome.speakUp, quiet: outcome.quiet && !pausedAll });
+  const mood = answered ? "joy" : moodFor({ wantsToAsk: outcome.speakUp, quiet: outcome.quiet && !pausedAll });
 
   // The one-line summary of what is being noticed, truthfully for where this runs.
   const names = [sources.typing && "Typing rhythm", sources.dayRhythm && "day rhythm"].filter(Boolean) as string[];
@@ -127,7 +168,7 @@ export default function HomePage() {
           overnight: an estimate of rest, not measured sleep.
         </p>
         <p>
-          Everything stays on this device. You choose what is measured in{" "}
+          Measurements, answers and summaries never leave this device. You choose what is measured in{" "}
           <Link href="/settings/#measure">Settings</Link>.
         </p>
       </Disclosure>

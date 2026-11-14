@@ -11,7 +11,9 @@ import { useRequireProfile, useVoiceAvailability } from "@/components/hooks";
 import { Disclosure, Screen } from "@/components/Screen";
 import { SwitchRow } from "@/components/Switch";
 import { forgetDesktopData, setTypingPaused } from "@/lib/platform";
-import { NOT_CONNECTED, quietHoursOf, ROUTINES, routinesOf, sourcesOf } from "@/lib/settings";
+import { LinkCode } from "@/components/LinkCode";
+import { isLocalOnly, messagesUrlOf, NOT_CONNECTED, quietHoursOf, ROUTINES, routinesOf, sourcesOf } from "@/lib/settings";
+import { disconnect, invite, useTrusted } from "@/lib/trusted";
 import { deleteEverything, saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
 import type { AppData } from "@/lib/types";
@@ -56,18 +58,26 @@ export default function SettingsPage() {
   if (view === "measure") return <Measure data={data} back={back} />;
   if (view === "routines") return <Routines data={data} back={back} />;
   if (view === "voice") return <Voice data={data} back={back} />;
-  if (view === "trust") return <Trust back={back} />;
+  if (view === "trust") return <Trust data={data} back={back} />;
   if (view === "data") return <YourData data={data} back={back} onDelete={() => go("delete")} />;
   if (view === "delete") return <ConfirmDelete onKeep={() => go("data")} />;
   return <List data={data} go={go} />;
 }
 
+function trustedSummary(snap: ReturnType<typeof useTrusted>): string {
+  if (!snap?.pairing) return "Not connected";
+  if (snap.connection === "ended") return "The connection ended";
+  return snap.trustedName ? `Connected with ${snap.trustedName}` : "Invite created, waiting for them";
+}
+
 function List({ data, go }: { data: AppData; go: (v: View) => void }) {
+  const snap = useTrusted();
   const s = data.settings;
   const src = sourcesOf(s);
   const on = routinesOf(s);
   const q = quietHoursOf(s);
   const measuring = [src.typing && "Typing rhythm", src.dayRhythm && "day rhythm"].filter(Boolean).join(", ");
+  const trusted = trustedSummary(snap);
   const rows: { key: string; label: string; value: string; onClick?: () => void; href?: string; demo?: boolean }[] = [
     {
       key: "measure",
@@ -82,8 +92,8 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
       onClick: () => go("routines"),
     },
     { key: "voice", label: "Voice", value: s.muted ? "Off" : "On", onClick: () => go("voice") },
-    { key: "trust", label: "Someone you trust", value: "Not connected yet", onClick: () => go("trust") },
-    { key: "data", label: "Your data", value: "Only on this device", onClick: () => go("data") },
+    { key: "trust", label: "Someone you trust", value: trusted, onClick: () => go("trust") },
+    { key: "data", label: "Your data", value: "Measurements and answers stay on this device", onClick: () => go("data") },
     { key: "help", label: "Need help now", value: "112 and your clinic", href: "/help/" },
     { key: "demo", label: "For the demo", value: "Made-up data, replay, live view", href: "/demo/", demo: true },
   ];
@@ -92,7 +102,7 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
       lead={
         <>
           <h1 className="item-title">Settings</h1>
-          <p className="muted">A few choices. Everything stays on this device.</p>
+          <p className="muted">A few choices. Your measurements and answers stay on this device.</p>
         </>
       }
       actions={
@@ -262,26 +272,231 @@ function Voice({ data, back }: { data: AppData; back: React.ReactNode }) {
   );
 }
 
-function Trust({ back }: { back: React.ReactNode }) {
+type TrustStep = "main" | "own-phone" | "confirm";
+
+/**
+ * Someone you trust: one step per screen. Not connected, then "Invite someone" creates the
+ * pair and shows its link; it says "waiting for them to open it" until the trusted person has
+ * given their first name, then "Connected with Sara". A quieter step shows the link for the
+ * person's own phone. Disconnect asks once, then deletes the pair on the service and the
+ * messages on this device.
+ */
+function Trust({ data, back }: { data: AppData; back: React.ReactNode }) {
+  const snap = useTrusted();
+  const [step, setStep] = useState<TrustStep>("main");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [unreachable, setUnreachable] = useState(false);
+  const url = messagesUrlOf(data.settings);
+  const pairing = snap?.pairing ?? null;
+  const ended = snap?.connection === "ended";
+  const name = snap?.trustedName ?? null;
+  const them = name ?? "them";
+
+  const startInvite = async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      if (pairing) await disconnect({ evenOffline: true });
+      await invite(url);
+    } catch {
+      setProblem(`I couldn't reach the messages service at ${url}. Check that it is running, or change the address under For the demo.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const end = async (evenOffline: boolean) => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await disconnect({ evenOffline });
+      setUnreachable(false);
+      setStep("main");
+    } catch {
+      setUnreachable(true);
+      setProblem("I couldn't reach the messages service, so nothing was removed yet.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (step === "confirm" && pairing) {
+    return (
+      <Screen
+        lead={
+          <div role="alertdialog" aria-labelledby="disconnect-text" aria-describedby="disconnect-detail">
+            <h1 id="disconnect-text" className="item-title">
+              Disconnect from {name ?? "this invite"}?
+            </h1>
+            <p id="disconnect-detail" className="muted">
+              This ends the link on the messages service and removes your messages with {them} from this device. Your
+              measurements and answers stay.
+            </p>
+          </div>
+        }
+        actions={
+          <>
+            <button type="button" className="btn btn-primary btn-danger" autoFocus disabled={busy} onClick={() => end(false)}>
+              {busy ? "One moment" : "Yes, disconnect"}
+            </button>
+            <div className="links">
+              {unreachable && (
+                <button type="button" className="btn btn-quiet" disabled={busy} onClick={() => end(true)}>
+                  Remove it from this device anyway
+                </button>
+              )}
+              <button type="button" className="btn btn-quiet" onClick={() => { setProblem(null); setUnreachable(false); setStep("main"); }}>
+                Keep the connection
+              </button>
+            </div>
+          </>
+        }
+      >
+        {problem && (
+          <p className="small problem-text" role="alert">
+            {problem} {unreachable ? "The service deletes it by itself within two days." : ""}
+          </p>
+        )}
+      </Screen>
+    );
+  }
+
+  if (step === "own-phone" && pairing?.userUrl) {
+    return (
+      <Screen
+        lead={
+          <>
+            <h1 className="item-title">Your own phone</h1>
+            <p className="muted">
+              If you like, scan this with your own phone to answer {them} from there too. Only for you: don&apos;t share it.
+            </p>
+          </>
+        }
+        actions={
+          <div className="links">
+            <button type="button" className="btn btn-quiet" onClick={() => setStep("main")}>
+              Back
+            </button>
+          </div>
+        }
+      >
+        <section className="card" aria-label="Link for your own phone">
+          <LinkCode url={pairing.userUrl} label="Link for your own phone" />
+        </section>
+      </Screen>
+    );
+  }
+
+  const localOnly = isLocalOnly(url);
+
+  if (pairing && !ended && !name) {
+    return (
+      <Screen
+        lead={
+          <>
+            <h1 className="item-title">Invite someone</h1>
+            <p className="muted">Let them scan this with their phone&apos;s camera, or send them the link. It works for two days.</p>
+          </>
+        }
+        actions={
+          <>
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={() => setStep("own-phone")}>
+                Your own phone
+              </button>
+              <button type="button" className="btn btn-quiet" onClick={() => setStep("confirm")}>
+                Disconnect
+              </button>
+            </div>
+            {back}
+          </>
+        }
+      >
+        <section className="card stack-sm" aria-label="Invite link">
+          <p className="trust-status" role="status">
+            <span className="source-dot waiting" aria-hidden="true" /> Invite created, waiting for them to open it
+          </p>
+          {pairing.inviteUrl && <LinkCode url={pairing.inviteUrl} label="Invite link for someone you trust" />}
+          {localOnly && (
+            <p className="small muted field-note">
+              This link uses {new URL(url).host}, so it only opens on this computer. For a phone, set this computer&apos;s
+              network address under For the demo first.
+            </p>
+          )}
+        </section>
+      </Screen>
+    );
+  }
+
+  if (pairing && !ended && name) {
+    return (
+      <Screen
+        lead={
+          <>
+            <h1 className="item-title">Someone you trust</h1>
+            <p className="muted">
+              {name} can send you a few words, and when you say yes I can ask them to get in touch. Only those short
+              messages pass through the messages service, and it deletes them after two days.
+            </p>
+          </>
+        }
+        actions={
+          <>
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={() => setStep("own-phone")}>
+                Your own phone
+              </button>
+              <button type="button" className="btn btn-quiet" onClick={() => setStep("confirm")}>
+                Disconnect
+              </button>
+            </div>
+            {back}
+          </>
+        }
+      >
+        <section className="card stack-sm" aria-label="Someone you trust">
+          <p className="trust-status" role="status">
+            <span className="source-dot on" aria-hidden="true" /> Connected with {name}
+          </p>
+        </section>
+      </Screen>
+    );
+  }
+
   return (
     <Screen
       lead={
         <>
           <h1 className="item-title">Someone you trust</h1>
           <p className="muted">
-            Later, you can choose one person I may ask to check in on you. I would only ever ask when you say yes.
+            Choose one person, a sister or a friend, who may send you a few words. I only ever ask them to get in touch
+            when you say yes.
           </p>
         </>
       }
-      actions={back}
+      actions={
+        <>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={startInvite}>
+            {busy ? "One moment" : ended ? "Invite again" : "Invite someone"}
+          </button>
+          {back}
+        </>
+      }
     >
       <section className="card stack-sm" aria-label="Someone you trust">
-        <p className="trust-status">
-          <span className="source-dot" aria-hidden="true" /> Not connected yet
+        <p className="trust-status" role="status">
+          <span className="source-dot" aria-hidden="true" />{" "}
+          {ended ? "The connection ended. Links last two days." : "Not connected"}
         </p>
-        <button type="button" className="btn btn-secondary" disabled>
-          Invite someone
-        </button>
+        <p className="small muted">
+          They get a link to open on their phone. Your measurements, answers and summaries never leave this device.
+        </p>
+        {problem && (
+          <p className="small problem-text" role="alert">
+            {problem}
+          </p>
+        )}
       </section>
     </Screen>
   );
@@ -295,7 +510,7 @@ function YourData({ data, back, onDelete }: { data: AppData; back: React.ReactNo
         <>
           <h1 className="item-title">Your data</h1>
           <p className="muted">
-            Only on this device, with no account and no login. Nothing is sent anywhere. Right now that is {counts}.
+            On this device only, with no account and no login: {counts}. None of it is ever sent anywhere.
           </p>
         </>
       }
@@ -312,6 +527,11 @@ function YourData({ data, back, onDelete }: { data: AppData; back: React.ReactNo
                 changed. Weekly answers keep the numbers you picked.
               </p>
               {data.profile?.earlySigns.length ? <p>Your early signs: {data.profile.earlySigns.join(", ")}.</p> : null}
+              <p>
+                Messages with someone you trust are the one thing that leaves this device: they pass through the
+                messages service, which deletes them after two days and never receives anything about your health.
+                On this device only the newest few are kept, and Disconnect removes them.
+              </p>
               {data.daily.length || data.reaction.length ? (
                 <p>
                   From earlier versions of the app: {data.daily.length} daily check-ins and {data.reaction.length}{" "}
@@ -337,7 +557,8 @@ function ConfirmDelete({ onKeep }: { onKeep: () => void }) {
             Delete everything? This can&apos;t be undone.
           </h1>
           <p id="confirm-detail" className="muted">
-            Removes all your answers, measurements and settings from this device, and you start over with setup.
+            Removes all your answers, measurements and settings from this device, ends the connection with someone you
+            trust and removes your messages with them, and you start over with setup.
           </p>
         </div>
       }
@@ -349,6 +570,9 @@ function ConfirmDelete({ onKeep }: { onKeep: () => void }) {
             autoFocus
             onClick={async () => {
               stopSpeaking();
+              // Ends the pair on the service too; if it cannot be reached, the messages are still
+              // removed from this device (the service deletes them by itself within 48 hours).
+              await disconnect({ evenOffline: true }).catch(() => {});
               await forgetDesktopData();
               deleteEverything();
               router.replace("/setup/");

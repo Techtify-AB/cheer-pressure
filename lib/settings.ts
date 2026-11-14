@@ -3,6 +3,7 @@
 // so older stored data (without these fields) reads as "everything on, 22:00 to 08:00".
 
 import { clockToMinutes } from "./dates";
+import { defaultBaseUrl } from "./messages";
 import type { AppData, RoutineId, Settings, Sources } from "./types";
 
 export const ROUTINES: { id: RoutineId; label: string }[] = [
@@ -56,4 +57,44 @@ export function forRule(data: AppData): AppData {
     typingSessions: src.typing ? data.typingSessions : [],
     activityDays: src.dayRhythm ? data.activityDays : [],
   };
+}
+
+/** The default port of the messages service, added when only an address is typed. */
+export const MESSAGES_PORT = 3480;
+
+/** Where the messages service lives: the stored setting, else NEXT_PUBLIC_MESSAGES_URL, else http://localhost:3480. */
+export function messagesUrlOf(s: Settings): string {
+  return s.messagesUrl || defaultBaseUrl();
+}
+
+/**
+ * Reads a typed service address. "192.168.1.20" becomes "http://192.168.1.20:3480"; an address
+ * with http:// or https:// is kept as typed, without a trailing slash. Anything else is refused.
+ */
+export function parseMessagesUrl(input: string): { ok: true; url: string } | { ok: false; error: string } {
+  const raw = input.trim().replace(/\/+$/, "");
+  if (!raw) return { ok: false, error: "Type an address, for example http://192.168.1.20:3480" };
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `http://${raw}`;
+  let u: URL;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return { ok: false, error: "That doesn't look like an address. For example http://192.168.1.20:3480" };
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return { ok: false, error: "The address starts with http:// or https://" };
+  if (!u.hostname || u.username || u.password || u.search || u.hash || (u.pathname && u.pathname !== "/")) {
+    return { ok: false, error: "Only the address and port, for example http://192.168.1.20:3480" };
+  }
+  if (withScheme !== raw && !u.port) u.port = String(MESSAGES_PORT);
+  return { ok: true, url: `${u.protocol}//${u.host}` };
+}
+
+/** True when an address only works on this computer, so a phone cannot open links to it. */
+export function isLocalOnly(url: string): boolean {
+  try {
+    const h = new URL(url).hostname;
+    return h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h.endsWith(".localhost");
+  } catch {
+    return false;
+  }
 }

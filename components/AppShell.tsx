@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DesktopBridge } from "@/components/desktop";
+import { TrustedBridge } from "@/components/TrustedBridge";
 import { clearDemo, hasDemo, useData } from "@/lib/storage";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
       <DesktopBridge />
+      <TrustedBridge />
       <main id="main" className="page">
         {children}
       </main>

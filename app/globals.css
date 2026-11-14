@@ -1199,3 +1199,33 @@ textarea.typing-box { min-height: 72px; }
   .quiet-hours { flex-wrap: wrap; row-gap: var(--space-2); padding-top: var(--space-3); padding-bottom: var(--space-3); }
   .quiet-hours .switch-text { flex: 1 1 100%; }
 }
+
+/* Someone you trust: a greeting on home or in the ladder, the invite and the reply box */
+.greeting-line { margin: 0; font-size: var(--font-size-lg); line-height: 1.4; }
+.greeting-line.calm-line { max-width: 32ch; font-size: var(--font-size-xl); }
+.greeting-from { font-weight: var(--font-weight-bold); }
+.greeting-line.small-line { font-size: var(--font-size-md); }
+.field-note { margin: var(--space-2) 0 0; }
+.problem-text { margin: 0; color: var(--color-help); }
+.link-code { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
+.qr {
+  width: 168px;
+  height: 168px;
+  border-radius: var(--radius-md);
+  background: #fff;
+  overflow: hidden;
+  flex: none;
+}
+.qr img { display: block; width: 100%; height: 100%; }
+.qr-wait { display: block; width: 100%; height: 100%; background: var(--color-surface-muted); }
+.link-row { display: flex; gap: var(--space-2); width: 100%; }
+.link-row .btn { flex: none; width: auto; }
+.link-text { min-width: 0; font-size: var(--font-size-sm); color: var(--color-ink-soft); cursor: text; }
+.source-dot.waiting { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 45%, transparent); }
+.request-status { font-weight: var(--font-weight-medium); }
+.request-status[data-status="waiting for connection"],
+.request-status[data-status="not sent"] { color: var(--color-ink-soft); }
+@media (max-width: 479px) {
+  .greeting-line.calm-line { font-size: var(--font-size-lg); }
+  .qr { width: 148px; height: 148px; }
+}

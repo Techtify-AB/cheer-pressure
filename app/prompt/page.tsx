@@ -9,6 +9,10 @@
 //   Two days later, if the measures have not come back: step 2, someone you trust.
 //   Seven days later: step 3, a short summary for the clinic.
 //   "I'd like someone to check in on me" goes straight to step 2.
+//   Step 2 sends a real request through lib/contact.ts when a pair exists (Settings, Someone
+//   you trust), shows "Sent" or "Waiting for connection", then the trusted person's reply with
+//   Yes, No or a few words back. Without a pair it sends nothing; in demo mode it shows a reply
+//   clearly marked as simulated.
 //
 // Each step is one screen with one primary action and a decline. No percentages, no
 // score, no diagnosis words.
@@ -20,7 +24,9 @@ import { Disclosure, Says, Screen, StepCount } from "@/components/Screen";
 import { useCompanionStatus, useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import type { CompanionState } from "@/components/companion/Companion";
 import { SUGGESTIONS } from "@/lib/brain";
-import { createLocalContact, type Contact, type ContactReply } from "@/lib/contact";
+import { GreetingScreen, who } from "@/components/Greeting";
+import { chooseContact, CONTACT_REQUEST_TEXT, type Contact, type ContactState } from "@/lib/contact";
+import type { Answer } from "@/lib/events";
 import { newId } from "@/lib/dates";
 import {
   answerClinic,
@@ -36,6 +42,7 @@ import {
 import { evaluatePassive } from "@/lib/passive";
 import { forRule, pickSmallThing, routinesOf } from "@/lib/settings";
 import { hasDemo, readData, saveCheckIn, saveLadder, useData } from "@/lib/storage";
+import { messagesClient } from "@/lib/trusted";
 import type { AppData, CheckInAnswer } from "@/lib/types";
 
 const QUESTION = "How are you doing?";
@@ -87,9 +94,12 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
   const simulated = evaluation.simulated || demo;
   const ladder = data.ladder;
 
-  const contact = useRef<Contact | null>(null);
-  const [reply, setReply] = useState<ContactReply | null>(null);
-  const [replyAnswer, setReplyAnswer] = useState<"yes" | "no" | null>(null);
+  // The contact this conversation asked through (state, so the screen updates with it).
+  const [contact, setContact] = useState<Contact | null>(null);
+  const stopContact = useRef<(() => void) | null>(null);
+  const [contactState, setContactState] = useState<ContactState | null>(null);
+  const [replyAnswer, setReplyAnswer] = useState<{ answer: Answer | null; text?: string } | null>(null);
+  useEffect(() => () => stopContact.current?.(), []);
 
   const record = (value: CheckInAnswer) =>
     saveCheckIn({
@@ -274,12 +284,16 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
               onClick={async () => {
                 const l = readData().ladder;
                 if (l) saveLadder(answerSomeone(l, "yes", today));
-                const c = createLocalContact({ demo });
-                contact.current = c;
-                c.onReply((r) => {
-                  setReply(r);
-                  setMood("joy");
-                });
+                // The real request when a pair exists; the stand-in (simulated in demo mode) otherwise.
+                const c = chooseContact({ client: messagesClient(), demo });
+                setContact(c);
+                stopContact.current?.();
+                const stopChange = c.onChange(setContactState);
+                const stopReply = c.onReply(() => setMood("joy"));
+                stopContact.current = () => {
+                  stopChange();
+                  stopReply();
+                };
                 await c.requestContact();
                 setView("someone-asked");
               }}
@@ -306,62 +320,126 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
   }
 
   if (view === "someone-asked") {
-    const answerTheReply = (a: "yes" | "no") => {
+    const c = contact;
+    const st = contactState ?? c?.state() ?? null;
+    const reply = st?.reply ?? null;
+    const simulatedReply = !!c?.simulated;
+    const answerTheReply = (a: Answer | null, text?: string) => {
+      c?.answer(a, text);
       const l = readData().ladder;
-      if (l) saveLadder(answerReply(l, a));
-      setReplyAnswer(a);
-      setMood(a === "yes" ? "joy" : "idle");
+      if (l && a) saveLadder(answerReply(l, a));
+      setReplyAnswer({ answer: a, text });
+      setMood(a === "no" ? "idle" : "joy");
     };
+    const simTag = simulatedReply && demo && (
+      <span className="placeholder-tag sim-tag" role="note">
+        Simulated reply, not connected yet
+      </span>
+    );
+
+    if (reply && !replyAnswer && !st?.answered) {
+      return <GreetingScreen key={reply.id ?? "simulated"} reply={reply} onAnswer={answerTheReply} note={simTag} />;
+    }
+
+    if (reply) {
+      const given = replyAnswer ?? st?.answered;
+      const name = who(reply);
+      const delivery = !simulatedReply ? st?.answered?.status : undefined;
+      return (
+        <Screen
+          lead={
+            <>
+              {simTag}
+              <Says state={mood ?? "joy"} size={88}>
+                <p>
+                  {given?.answer === "yes"
+                    ? "Lovely. Enjoy it."
+                    : given?.answer === "no"
+                      ? "That's fine. You can talk to them whenever you like."
+                      : `Thanks. Your words are on their way to ${name}.`}
+                </p>
+              </Says>
+            </>
+          }
+          actions={home()}
+        >
+          {delivery && delivery !== "sent" && (
+            <p className="small muted" role="status">
+              {delivery === "waiting for connection"
+                ? "Waiting for connection. Your answer goes as soon as I can reach the service."
+                : delivery === "not sent"
+                  ? "Your answer could not be sent."
+                  : "Sending"}
+            </p>
+          )}
+        </Screen>
+      );
+    }
+
+    // Nobody is connected and this is not the demo: nothing was sent, and it says so.
+    if (!c || (simulatedReply && !demo)) {
+      return (
+        <Screen
+          lead={
+            <Says state="idle" size={88}>
+              <p>
+                You haven&apos;t connected anyone yet, so nothing was sent. You can invite someone in Settings, or call or
+                message someone you trust yourself.
+              </p>
+            </Says>
+          }
+          actions={
+            <>
+              {home()}
+              <div className="links">
+                <Link href="/settings/#trust" className="btn btn-quiet">
+                  Invite someone
+                </Link>
+              </div>
+            </>
+          }
+        />
+      );
+    }
+
+    const status = st?.status ?? "sending";
+    const name = st?.trustedName;
+    const statusLabel =
+      status === "sent" ? "Sent" : status === "waiting for connection" ? "Waiting for connection" : status === "not sent" ? "Not sent" : "Sending";
     return (
       <Screen
         lead={
           <>
-            {demo && (
-              <span className="placeholder-tag sim-tag" role="note">
-                Simulated reply, not connected yet
-              </span>
-            )}
+            {simTag}
             <Says state={mood ?? "idle"} size={88}>
-              {replyAnswer ? (
-                <p>{replyAnswer === "yes" ? "Lovely. Enjoy it." : "That's fine. You can answer them whenever you like."}</p>
-              ) : (
-                <p>
-                  This isn&apos;t connected to anyone yet, so nothing was sent.
-                  {demo ? " For the demo, here is what a reply could look like." : " You can call or message someone you trust yourself."}
-                </p>
-              )}
+              <p>
+                {simulatedReply
+                  ? "For the demo, here is what a reply could look like. Nothing was sent."
+                  : status === "waiting for connection"
+                    ? "I can't reach the messages service right now. Your request goes by itself as soon as I can."
+                    : status === "not sent"
+                      ? "Your request could not be sent. You can call or message them yourself."
+                      : name
+                        ? `I've asked ${name} to get in touch. Their answer shows up here and on home.`
+                        : "I've asked them to get in touch. They'll see it when they open your invite."}
+              </p>
             </Says>
           </>
         }
-        actions={
-          reply && !replyAnswer ? (
-            <>
-              <button type="button" className="btn btn-primary" onClick={() => answerTheReply("yes")}>
-                Yes
-              </button>
-              <div className="links">
-                <button type="button" className="btn btn-quiet" onClick={() => answerTheReply("no")}>
-                  No
-                </button>
-              </div>
-            </>
-          ) : (
-            home()
-          )
-        }
+        actions={home()}
       >
-        {demo && (
-          <section className="card reply-card" aria-live="polite" aria-label="Reply">
-            {reply ? (
-              <>
-                <p className="small muted">Someone you trust (simulated)</p>
-                <p className="reply-text">{reply.text}</p>
-              </>
-            ) : (
-              <p className="muted">Waiting for a reply</p>
-            )}
-          </section>
-        )}
+        <section className="card reply-card" aria-live="polite" aria-label="Your request">
+          {simulatedReply ? (
+            <p className="muted">Waiting for a simulated reply</p>
+          ) : (
+            <>
+              <p className="small muted">{CONTACT_REQUEST_TEXT}</p>
+              <p className="request-status" data-status={status} role="status">
+                {statusLabel}
+              </p>
+            </>
+          )}
+        </section>
       </Screen>
     );
   }

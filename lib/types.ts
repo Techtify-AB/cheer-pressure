@@ -1,4 +1,5 @@
-// The data model. Everything here lives only in this browser (see lib/storage.ts).
+// The data model. Everything here lives only on this device (see lib/storage.ts). The short
+// messages with someone the person trusts are kept apart, by lib/messages.ts, under their own key.
 
 /** A calendar day in the person's local time, "YYYY-MM-DD". */
 export type DayKey = string;
@@ -142,6 +143,11 @@ export interface Settings {
   routines?: Partial<Record<RoutineId, boolean>>;
   /** Quiet hours, "HH:MM": the companion never speaks up in between. Default 22:00 to 08:00. */
   quietHours?: { from: string; to: string };
+  /**
+   * Where the messages service lives, for example "http://192.168.1.20:3480" on a phone hotspot.
+   * Missing: NEXT_PUBLIC_MESSAGES_URL from the build, else http://localhost:3480. Set under For the demo.
+   */
+  messagesUrl?: string;
 }
 
 /**
@@ -157,7 +163,7 @@ export interface LadderState {
   smallThing?: { routine: RoutineId | null; offeredOn: DayKey; answer?: "try" | "not-now" };
   /** "I'd like someone to check in on me": step 2 is offered right away. */
   someoneRequestedOn?: DayKey;
-  /** Step 2: someone you trust. `reply` is the answer to a (so far simulated) reply. */
+  /** Step 2: someone you trust. `reply` is the person's yes or no to the trusted person's reply. */
   someone?: { offeredOn: DayKey; answer?: "yes" | "not-now"; reply?: "yes" | "no" };
   /** Step 3: a short summary for the clinic. */
   clinic?: { offeredOn: DayKey; answer?: "approve" | "not-now" };

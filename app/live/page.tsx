@@ -13,7 +13,7 @@ import {
   setTypingPaused,
   type DayActivity,
 } from "@/lib/platform";
-import { getRobot, robotSupport, type Robot } from "@/lib/robot";
+import { connectRobot, connectedRobot, robotSupport } from "@/lib/robot";
 import { sourcesOf } from "@/lib/settings";
 import { saveTypingSessions, useData } from "@/lib/storage";
 import { LIVE_WINDOW_MS, TypingCollector, type TypingSessionEnd, type TypingStats } from "@/lib/typing";
@@ -329,10 +329,10 @@ function LiveView({ sessionsSaved, blocked }: { sessionsSaved: number; blocked: 
 
 function RobotConnect() {
   const [support] = useState(() => (typeof window === "undefined" ? null : robotSupport()));
-  const robot = useRef<Robot | null>(null);
-  const [state, setState] = useState<"idle" | "connecting" | "connected" | "failed">("idle");
-
-  useEffect(() => () => void robot.current?.disconnect(), []);
+  // The robot stays connected while the app is open, so a greeting can light it up on any screen.
+  const [state, setState] = useState<"idle" | "connecting" | "connected" | "failed">(() =>
+    typeof window !== "undefined" && connectedRobot() ? "connected" : "idle",
+  );
 
   if (!support) return null;
   return (
@@ -348,8 +348,7 @@ function RobotConnect() {
           onClick={async () => {
             setState("connecting");
             try {
-              robot.current = getRobot();
-              await robot.current.connect();
+              await connectRobot();
               setState("connected");
             } catch {
               setState("failed");
