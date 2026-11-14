@@ -1,0 +1,31 @@
+/* "Voice, live". Shares the camera screen's panels; reads only the tokens in styles/tokens.css. */
+
+.levelCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+}
+.levelHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.level {
+  height: 16px;
+}
+.voiceTag {
+  font-size: var(--font-size-sm);
+  color: var(--color-ink-soft);
+}
+.voiceTag[data-on] {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+@media (max-width: 479px) {
+  .levelCard {
+    padding: var(--space-3);
+  }
+}

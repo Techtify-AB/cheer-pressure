@@ -1,6 +1,7 @@
-// Headless check of "Camera, live" (/demo/camera/): movement, face and posture. Never uses a real camera: Chromium runs
-// with --use-fake-device-for-media-stream, so the only camera it can open is its own generated
-// test pattern.
+// Headless check of "Camera, live" (/demo/camera/: movement, face and posture) and "Voice, live"
+// (/demo/voice/). Never uses a real camera or microphone: Chromium runs with
+// --use-fake-device-for-media-stream, so the only camera it can open is its own generated test
+// pattern, and the only microphone is a silent sound file this script writes to a temporary folder.
 //
 //   node scripts/check-camera.mjs [static-dir | base-url] [screenshot-dir]
 //
@@ -15,15 +16,46 @@
 //      origin, it starts, analyses frames, says no one and no face is in view, and stop
 //      releases the camera
 //   5. with the camera refused: a calm message and nothing else offered
+//   6. Voice, live: nothing asks for the microphone before "Start listening"; it fits at the
+//      three sizes; the example moves pace, pitch and loudness as its script says; with the
+//      silent fake microphone it listens, says "No voice right now." and stop releases it;
+//      refused, it says so and offers nothing else
 //   and: no request to any other origin, in any of it.
+//
+// CHECK_ONLY=camera or CHECK_ONLY=voice runs one half.
 //
 // Needs playwright-core and a Chromium (same lookup as scripts/check-fit.mjs).
 
 import { createRequire } from "node:module";
 import { execSync } from "node:child_process";
-import { createReadStream, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
+
+const ONLY = process.env.CHECK_ONLY ?? "";
+
+/** Ten seconds of silence as a 48 kHz mono WAV, for Chromium's fake microphone. */
+function silentWav(dir) {
+  const rate = 48000;
+  const n = rate * 10;
+  const b = Buffer.alloc(44 + n * 2);
+  b.write("RIFF", 0);
+  b.writeUInt32LE(36 + n * 2, 4);
+  b.write("WAVEfmt ", 8);
+  b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(rate, 24);
+  b.writeUInt32LE(rate * 2, 28);
+  b.writeUInt16LE(2, 32);
+  b.writeUInt16LE(16, 34);
+  b.write("data", 36);
+  b.writeUInt32LE(n * 2, 40);
+  const file = path.join(dir, "silence.wav");
+  writeFileSync(file, b);
+  return file;
+}
 
 const ARG = process.argv[2] ?? "out";
 const SHOTS = process.argv[3] ?? null;
@@ -177,16 +209,37 @@ async function main() {
   if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
   const { chromium } = loadPlaywright();
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "check-camera-"));
   const browser = await chromium.launch({
     headless: true,
     executablePath: executablePath(),
-    // The fake device replaces every real camera and microphone; no real device is opened.
-    args: ["--use-fake-device-for-media-stream", "--enable-unsafe-swiftshader"],
+    // The fake devices replace every real camera and microphone; no real device is opened.
+    // The fake microphone plays a silent file, so "no voice" is what it should hear.
+    args: [
+      "--use-fake-device-for-media-stream",
+      `--use-file-for-fake-audio-capture=${silentWav(tmp)}`,
+      "--enable-unsafe-swiftshader",
+    ],
   });
 
   const foreign = [];
   const consoleErrors = [];
   const watch = (page, label) => {
+    // Counts calls for the camera or microphone, and keeps the streams so the check can see
+    // that stopping ends them. Only this test page is instrumented, never the app.
+    void page.addInitScript(() => {
+      window.__gum = 0;
+      window.__streams = [];
+      const md = navigator.mediaDevices;
+      if (!md?.getUserMedia) return;
+      const real = md.getUserMedia.bind(md);
+      md.getUserMedia = async (c) => {
+        window.__gum += 1;
+        const st = await real(c);
+        window.__streams.push(st);
+        return st;
+      };
+    });
     page.on("request", (r) => {
       const u = r.url();
       if (u.startsWith("data:") || u.startsWith("blob:")) return;
@@ -204,6 +257,26 @@ async function main() {
   };
 
   try {
+    if (ONLY !== "voice") await cameraChecks();
+    if (ONLY !== "camera") await voiceChecks();
+  } finally {
+    await browser.close();
+    if (server) await new Promise((r) => server.close(r));
+    rmSync(tmp, { recursive: true, force: true });
+  }
+
+  check("no request to any other origin", foreign.length === 0, foreign.slice(0, 5).join(", ") || "none");
+  // A refused camera is reported by the browser as an error only if the page logs it; the page does not.
+  // The browser asks for /favicon.ico by itself (the app has an icon.svg instead); that 404 is
+  // reported in the console but is not this screen's. Only when served by this script can it tell.
+  const onlyFavicon = server && notFound.length > 0 && notFound.every((p) => p === "/favicon.ico");
+  const errors = consoleErrors.filter((e) => !(onlyFavicon && /Failed to load resource: .*404/.test(e)));
+  if (onlyFavicon) console.log("      (left out: the browser's own request for /favicon.ico, 404)");
+  check("no console errors", errors.length === 0, errors.slice(0, 5).join(" | ") || "none");
+  console.log(failed ? `\n${failed} failed` : "\nall passed");
+  process.exit(failed ? 1 : 0);
+
+  async function cameraChecks() {
     // 1 and 2: load and fit, at three sizes, before and during the example.
     for (const size of SIZES) {
       const ctx = await browser.newContext({ viewport: size });
@@ -358,21 +431,139 @@ async function main() {
       if (SHOTS) await page.screenshot({ path: path.join(SHOTS, "camera-refused-390x844.png") });
       await ctx.close();
     }
-  } finally {
-    await browser.close();
-    if (server) await new Promise((r) => server.close(r));
   }
 
-  check("no request to any other origin", foreign.length === 0, foreign.slice(0, 5).join(", ") || "none");
-  // A refused camera is reported by the browser as an error only if the page logs it; the page does not.
-  // The browser asks for /favicon.ico by itself (the app has an icon.svg instead); that 404 is
-  // reported in the console but is not this screen's. Only when served by this script can it tell.
-  const onlyFavicon = server && notFound.length > 0 && notFound.every((p) => p === "/favicon.ico");
-  const errors = consoleErrors.filter((e) => !(onlyFavicon && /Failed to load resource: .*404/.test(e)));
-  if (onlyFavicon) console.log("      (left out: the browser's own request for /favicon.ico, 404)");
-  check("no console errors", errors.length === 0, errors.slice(0, 5).join(" | ") || "none");
-  console.log(failed ? `\n${failed} failed` : "\nall passed");
-  process.exit(failed ? 1 : 0);
+  async function voiceChecks() {
+    const URL_VOICE = `${base}/demo/voice/`;
+    const readVoice = (page) =>
+      page.evaluate(() => {
+        const n = (sel, attr) => {
+          const v = document.querySelector(sel)?.getAttribute(attr);
+          return v == null ? null : Number(v);
+        };
+        return {
+          phase: document.querySelector("p[data-phase]")?.getAttribute("data-phase"),
+          line: document.querySelector("p[data-phase]")?.textContent ?? "",
+          level: n('[data-meter="level"]', "data-value"),
+          voiceNow: document.querySelector("[data-voice-now]")?.getAttribute("data-voice-now") ?? null,
+          frames: n("[data-frames]", "data-frames") ?? 0,
+          pace: n("[data-pace]", "data-pace"),
+          pitch: n("[data-pitch]", "data-pitch"),
+          loudness: n("[data-loudness]", "data-loudness"),
+          micOn: !!document.querySelector("[data-mic-on]"),
+          gum: window.__gum ?? 0,
+        };
+      });
+
+    // 6a: load and fit at three sizes; nothing asks for the microphone before it is started.
+    for (const size of SIZES) {
+      const ctx = await browser.newContext({ viewport: size });
+      const page = await ctx.newPage();
+      const label = `voice ${size.width}x${size.height}`;
+      watch(page, label);
+      await page.goto(URL_VOICE, { waitUntil: "networkidle" });
+      await page.getByRole("button", { name: "Start listening" }).waitFor();
+      await page.waitForTimeout(500);
+      const v = await readVoice(page);
+      check(`${label}: the microphone is not asked for before Start listening`, v.gum === 0 && !v.micOn, `${v.gum} calls`);
+      check(`${label}: the privacy line is under the button`, await page.getByText("The sound is worked out on this computer.", { exact: false }).isVisible());
+      await fits(page, `${label} off`);
+      if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `voice-off-${size.width}x${size.height}.png`) });
+      await page.getByRole("button", { name: "Play a recorded example" }).click();
+      await page.waitForTimeout(11000);
+      await fits(page, `${label} example`);
+      if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `voice-example-${size.width}x${size.height}.png`) });
+      await ctx.close();
+    }
+
+    // 6b: the whole example.
+    {
+      const ctx = await browser.newContext({ viewport: SIZES[0] });
+      const page = await ctx.newPage();
+      watch(page, "voice example");
+      await page.goto(URL_VOICE, { waitUntil: "networkidle" });
+      await page.getByRole("button", { name: "Play a recorded example" }).click();
+      const t0 = Date.now();
+      const samples = [];
+      while (Date.now() - t0 < 32000) {
+        samples.push({ t: (Date.now() - t0) / 1000, ...(await readVoice(page)) });
+        await page.waitForTimeout(250);
+      }
+      const at = (t) => samples.find((x) => x.t >= t) ?? samples[samples.length - 1];
+      const between = (a, b) => samples.filter((x) => x.t >= a && x.t < b);
+      const a = at(11.5);
+      const b = at(26.5);
+      const end = samples[samples.length - 1];
+      check("voice example: no microphone used", end.gum === 0, `${end.gum} calls`);
+      check("voice example: quiet at the start", between(0.3, 1.8).every((x) => x.voiceNow === "no" && x.pace === null), "");
+      check("voice example: a voice is heard while talking", between(3, 11).some((x) => x.voiceNow === "yes"), "");
+      check("voice example: no voice in the pause", between(12.6, 14.6).every((x) => x.voiceNow === "no"), "");
+      check("voice example: lively part, the pitch moves a lot", (a.pitch ?? 0) > 1.5, `${a.pitch} semitones at 11.5 s`);
+      check("voice example: flatter part, the pitch moves little", (b.pitch ?? 9) < 1, `${b.pitch} semitones at 26.5 s`);
+      check("voice example: quieter in the second part", (a.loudness ?? 0) - (b.loudness ?? 0) >= 4, `${a.loudness} then ${b.loudness} dB`);
+      check("voice example: a pace while talking, lower later", (a.pace ?? 0) > 150 && (b.pace ?? 999) < (a.pace ?? 0), `${a.pace} then ${b.pace} a minute`);
+      check("voice example: says it has finished", /whole example/.test(end.line), end.line);
+      await ctx.close();
+    }
+
+    // 6c: the silent fake microphone, allowed.
+    {
+      const ctx = await browser.newContext({ viewport: SIZES[1] });
+      await ctx.grantPermissions(["microphone"], { origin });
+      const page = await ctx.newPage();
+      watch(page, "voice mic");
+      await page.goto(URL_VOICE, { waitUntil: "networkidle" });
+      await page.getByRole("button", { name: "Start listening" }).click();
+      let v = await readVoice(page);
+      const t0 = Date.now();
+      while (Date.now() - t0 < 20000 && v.phase === "starting") {
+        await page.waitForTimeout(200);
+        v = await readVoice(page);
+      }
+      check("voice mic: listening started", v.phase === "on" && v.micOn, `${v.phase}: ${v.line}`);
+      const label = await page.evaluate(() => window.__streams?.[0]?.getAudioTracks()[0]?.label ?? "");
+      check("voice mic: it is Chromium's fake microphone", /fake/i.test(label), label || "(no label)");
+      await page.waitForTimeout(4000);
+      v = await readVoice(page);
+      check("voice mic: silence says no voice, plainly", v.line === "No voice right now." && v.voiceNow === "no" && v.level === 0, `"${v.line}", level ${v.level}`);
+      check("voice mic: frames are analysed", v.frames >= 50, `${v.frames} frames in about 4 s`);
+      check("voice mic: no numbers without a voice", v.pace === null && v.pitch === null && v.loudness === null, "");
+      await fits(page, "voice 390x844 listening");
+      if (SHOTS) await page.screenshot({ path: path.join(SHOTS, "voice-on-390x844.png") });
+      await page.getByRole("button", { name: "Stop listening" }).click();
+      await page.waitForTimeout(300);
+      const tracks = await page.evaluate(() => (window.__streams ?? []).flatMap((st) => st.getTracks().map((t) => `${t.kind} ${t.readyState}`)));
+      v = await readVoice(page);
+      check(
+        "voice mic: stop releases the microphone",
+        v.phase === "off" && !v.micOn && tracks.length > 0 && tracks.every((t) => t === "audio ended"),
+        `phase ${v.phase}, tracks ${JSON.stringify(tracks)}`,
+      );
+      await ctx.close();
+    }
+
+    // 6d: the microphone refused.
+    {
+      const ctx = await browser.newContext({ viewport: SIZES[1] });
+      const page = await ctx.newPage();
+      watch(page, "voice refused");
+      await page.goto(URL_VOICE, { waitUntil: "networkidle" });
+      await page.getByRole("button", { name: "Start listening" }).click();
+      let v = await readVoice(page);
+      const t0 = Date.now();
+      while (Date.now() - t0 < 20000 && v.phase === "starting") {
+        await page.waitForTimeout(200);
+        v = await readVoice(page);
+      }
+      const offered = await page.evaluate(() =>
+        [...document.querySelectorAll("button")].filter((b) => b.getBoundingClientRect().width > 0).map((b) => b.textContent.trim()),
+      );
+      check("voice refused: says so calmly", v.phase === "denied" && /not allowed/.test(v.line), `${v.phase}: ${v.line}`);
+      check("voice refused: offers nothing else", offered.length === 0, offered.join(", ") || "no buttons");
+      await fits(page, "voice 390x844 refused");
+      await ctx.close();
+    }
+  }
 }
 
 main().catch((e) => {

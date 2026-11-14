@@ -1,5 +1,6 @@
-// Unit tests for the movement calculation (lib/camera/movement.ts), on made-up landmark
-// sequences only. No camera, no browser.
+// Unit tests for the camera measures (lib/camera: movement, expression, posture) and the tone
+// of voice (lib/voice/tone.ts), on made-up landmark, blendshape and sound sequences only.
+// No camera, no microphone, no browser.
 //
 //   npx tsx scripts/test-camera.mts
 
@@ -45,6 +46,8 @@ import {
 } from "../lib/camera/synthetic.ts";
 import { createExpressionTracker, type ExpressionLive, type FaceFrame } from "../lib/camera/expression.ts";
 import { CALIBRATION_MS, createPostureTracker, type PostureLive } from "../lib/camera/posture.ts";
+import { createToneTracker, detectPitch, LEVEL_FLOOR_DB, toLevel, type AudioFrame, type ToneLive } from "../lib/voice/tone.ts";
+import { bursts, signalFrames, voiceExampleFrames } from "../lib/voice/synthetic.ts";
 
 let failed = 0;
 let passed = 0;
@@ -530,6 +533,148 @@ const states = (r: ReturnType<typeof runPosture>, a: number, b: number) =>
   const r = runPosture(exampleFrames(), EXAMPLE_CALIBRATION_MS);
   check("example posture: more slumped while leaning in", states(r, 24000, 28000) === "slumped", states(r, 24000, 28000));
   check("example posture: about the usual at the end", r.last.state === "usual", `${r.last.state}, ${r.last.relative}`);
+}
+
+// ---------------------------------------------------------------------------------------
+// Tone of voice (lib/voice/tone.ts), on made-up signals. Kept in this file because the file
+// boundary for this work allows no new test script; it needs no camera or microphone either.
+// ---------------------------------------------------------------------------------------
+
+function runTone(frames: AudioFrame[]) {
+  const tr = createToneTracker({ source: "demo", startedAt: Date.parse("2026-11-14T10:00:00") });
+  let voiced = 0;
+  const live: ToneLive[] = [];
+  for (const f of frames) {
+    if (tr.push(f).voiced) voiced++;
+    live.push(tr.live());
+  }
+  return { voicedShare: voiced / frames.length, last: tr.live(), live, session: tr.end() };
+}
+
+// V1. A steady tone: voiced, a flat pitch, one stretch.
+{
+  const r = runTone(signalFrames(() => ({ f0: 200, db: -20 }), 40000));
+  check("steady tone: heard as voice", r.voicedShare > 0.95, `${(r.voicedShare * 100).toFixed(0)}% of frames`);
+  check("steady tone: the pitch hardly moves", (r.last.pitchVariability ?? 9) < 0.1, `${r.last.pitchVariability?.toFixed(3)} semitones`);
+  const p = detectPitch(signalFrames(() => ({ f0: 200, db: -20 }), 200)[1].samples, 16000);
+  check("steady tone: pitch found at 200 Hz", p !== null && Math.abs(p - 200) < 2, `${p?.toFixed(1)} Hz`);
+  check("steady tone: one voiced stretch", !!r.session && r.session.segmentsPerMinute <= 2.5, JSON.stringify(r.session));
+}
+
+// V2. A varying tone: the pitch moves 3 semitones up and down.
+{
+  const r = runTone(signalFrames((ms) => ({ f0: 200 * 2 ** ((3 * Math.sin((2 * Math.PI * ms) / 2000)) / 12), db: -20 }), 40000));
+  check("varying tone: the pitch moves", (r.last.pitchVariability ?? 0) > 1.5 && (r.session?.pitchVariability ?? 0) > 1.5, `${r.last.pitchVariability?.toFixed(2)} semitones now, ${r.session?.pitchVariability} in the session`);
+}
+
+// V3. Silence: nothing heard, nothing summarised, no crash.
+{
+  const r = runTone(signalFrames(() => ({ f0: null, db: -120 }), 20000));
+  check("silence: no voice", r.voicedShare === 0 && r.last.pitchVariability === null && r.last.loudnessDb === null && r.last.level === 0, `${r.voicedShare}, level ${r.last.level}`);
+  check("silence: no session", r.session === null, "null");
+  const zero = runTone([{ t: 0, samples: new Float32Array(1024), sampleRate: 16000 }]);
+  check("all-zero frame: no crash, no voice", zero.voicedShare === 0, "");
+}
+
+// V4. Noise is not a voice.
+{
+  const r = runTone(signalFrames(() => ({ f0: null, db: -120, noiseDb: -20 }), 20000));
+  check("white noise: not heard as voice", r.voicedShare < 0.05, `${(r.voicedShare * 100).toFixed(1)}% of frames`);
+  const hum = runTone(signalFrames(() => ({ f0: 200, db: -24, noiseDb: -40 }), 20000));
+  check("a tone in some noise: still heard", hum.voicedShare > 0.9, `${(hum.voicedShare * 100).toFixed(0)}%`);
+}
+
+// V5. Too high or too quiet for a voice.
+{
+  const high = runTone(signalFrames(() => ({ f0: 1000, db: -20 }), 10000));
+  check("a 1 kHz beep: not a voice", high.voicedShare < 0.05, `${(high.voicedShare * 100).toFixed(0)}%`);
+  const low = runTone(signalFrames(() => ({ f0: 50, db: -20 }), 10000));
+  check("a 50 Hz hum: not a voice", low.voicedShare < 0.05, `${(low.voicedShare * 100).toFixed(0)}%`);
+  const quiet = runTone(signalFrames(() => ({ f0: 200, db: -60 }), 10000));
+  check("a very quiet tone: not a voice", quiet.voicedShare === 0, `${(quiet.voicedShare * 100).toFixed(0)}%`);
+}
+
+// V6. Pace: syllable-like bursts.
+{
+  const fast = runTone(signalFrames(bursts(() => 200, 200, 150), 60000));
+  const slow = runTone(signalFrames(bursts(() => 200, 300, 300), 60000));
+  const f = fast.session?.segmentsPerMinute ?? 0;
+  const sl = slow.session?.segmentsPerMinute ?? 0;
+  check("bursts 200 on 150 off: about 171 a minute", Math.abs(f - 171) < 171 * 0.15, `${f} a minute of talking`);
+  check("bursts 300 on 300 off: about 100 a minute", Math.abs(sl - 100) < 15, `${sl} a minute of talking`);
+  check("pauses inside talking count as talking time", Math.abs((fast.session?.speakingMinutes ?? 0) - 1) < 0.05, `${fast.session?.speakingMinutes} min of 1`);
+  // Long silences between bursts do not dilute pace: 10 s talk, 20 s silence, twice.
+  const gappy = runTone(signalFrames((ms) => (ms % 30000 < 10000 ? bursts(() => 200, 200, 150)(ms) : { f0: null, db: -120 }), 60000));
+  const g = gappy.last.segmentsPerMinute ?? 0;
+  check("long silences do not lower the pace", Math.abs(g - f) < f * 0.15, `${g} with silences, ${f} without`);
+  // Bursts with a 25 ms gap stay one stretch; with a 100 ms gap they are separate.
+  const joined = runTone(signalFrames(bursts(() => 200, 400, 25), 30000, { frameSize: 512 }));
+  const apart = runTone(signalFrames(bursts(() => 200, 400, 100), 30000, { frameSize: 512 }));
+  check(
+    "a gap shorter than MIN_GAP_MS does not split, a longer one does",
+    (joined.last.segmentsPerMinute ?? 99) < 10 && Math.abs((apart.last.segmentsPerMinute ?? 0) - 120) < 15,
+    `${joined.last.segmentsPerMinute?.toFixed(0)} and ${apart.last.segmentsPerMinute?.toFixed(0)} a minute`,
+  );
+  // Very short blips are not stretches.
+  const blips = runTone(signalFrames(bursts(() => 200, 30, 300), 60000, { frameSize: 512 }));
+  const blipCount = blips.last.segmentsPerMinute === null ? 0 : (blips.last.segmentsPerMinute * blips.last.speakingMinutes);
+  check("blips shorter than MIN_SEGMENT_MS are not counted", blipCount < 10, `${blipCount.toFixed(0)} counted of 181 blips`);
+}
+
+// V7. Loudness follows the signal.
+{
+  const a = runTone(signalFrames(() => ({ f0: 200, db: -20 }), 20000));
+  const b = runTone(signalFrames(() => ({ f0: 200, db: -32 }), 20000));
+  const diff = (a.last.loudnessDb ?? 0) - (b.last.loudnessDb ?? 0);
+  check("12 dB quieter reads about 12 dB quieter", Math.abs(diff - 12) < 1, `${diff.toFixed(1)} dB`);
+  check("level bar follows", a.last.level > b.last.level && toLevel(-30) === 50 && toLevel(LEVEL_FLOOR_DB) === 0, `${a.last.level} vs ${b.last.level}`);
+}
+
+// V7b. Pitch movement is shown only after enough voice.
+{
+  const brief = runTone(signalFrames(() => ({ f0: 200, db: -20 }), 640));
+  const longer = runTone(signalFrames(() => ({ f0: 200, db: -20 }), 2500));
+  check(
+    "pitch movement waits for MIN_VOICED_FRAMES",
+    brief.last.pitchVariability === null && longer.last.pitchVariability !== null,
+    `${brief.live.length} frames: ${brief.last.pitchVariability}, ${longer.live.length} frames: ${longer.last.pitchVariability}`,
+  );
+}
+
+// V8. Session summary and its minimum.
+{
+  const short = runTone(signalFrames(() => ({ f0: 200, db: -20 }), 20000));
+  check("20 s of talking: not summarised", short.session === null, "null");
+  const r = runTone(signalFrames(() => ({ f0: 200, db: -20 }), 40000));
+  check(
+    "40 s of talking: summarised in the agreed shape",
+    !!r.session && r.session.date === "2026-11-14" && r.session.source === "demo" && Math.abs(r.session.minutes - 40 / 60) < 0.05,
+    JSON.stringify(r.session),
+  );
+}
+
+// V9. The example: lively then flatter and slower.
+{
+  const frames = voiceExampleFrames();
+  const tr = createToneTracker({ source: "demo", startedAt: Date.now() });
+  let at11: ToneLive | null = null;
+  let at26: ToneLive | null = null;
+  for (const f of frames) {
+    tr.push(f);
+    if (!at11 && f.t >= 11500) at11 = tr.live();
+    if (!at26 && f.t >= 26500) at26 = tr.live();
+  }
+  check(
+    "example voice: the pitch moves more in the first part",
+    (at11?.pitchVariability ?? 0) > 1.5 && (at26?.pitchVariability ?? 9) < 0.6,
+    `${at11?.pitchVariability?.toFixed(2)} then ${at26?.pitchVariability?.toFixed(2)} semitones`,
+  );
+  check("example voice: quieter in the second part", (at11?.loudnessDb ?? 0) - (at26?.loudnessDb ?? 0) > 4, `${at11?.loudnessDb?.toFixed(1)} then ${at26?.loudnessDb?.toFixed(1)} dB`);
+  check(
+    "example voice: slower in the second part",
+    Math.abs((at11?.segmentsPerMinute ?? 0) - 200) < 25 && (at26?.segmentsPerMinute ?? 999) < (at11?.segmentsPerMinute ?? 0) - 20,
+    `${at11?.segmentsPerMinute?.toFixed(0)} a minute at 11.5 s, ${at26?.segmentsPerMinute?.toFixed(0)} by 26.5 s (the whole session so far)`,
+  );
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
