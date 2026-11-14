@@ -142,3 +142,114 @@ export const EXAMPLE_ASPECT = 4 / 3;
 export function exampleFrames(): PoseFrame[] {
   return synthesise(EXAMPLE_KEYS, EXAMPLE_MS, { aspect: EXAMPLE_ASPECT, seed: 2026 });
 }
+
+// ---------------------------------------------------------------------------------------
+// Made-up faces: blendshape scores from a few key moments. Each key says how raised the
+// mouth corners are (smile), how lowered the brows are (brow), and how much the mouth moves
+// as if talking (talk, 0 to 1). null means no face in view from then on.
+// ---------------------------------------------------------------------------------------
+
+export interface Face {
+  smile: number;
+  brow: number;
+  talk: number;
+}
+
+export interface FaceKey {
+  t: number;
+  face: Face | null;
+}
+
+export const NEUTRAL: Face = { smile: 0.05, brow: 0.05, talk: 0 };
+
+/** The blendshapes a made-up face fills in; the rest of MediaPipe's 52 stay near zero. */
+const FACE_BASE: Record<string, number> = {
+  browInnerUp: 0.05,
+  cheekSquintLeft: 0.03,
+  cheekSquintRight: 0.03,
+  eyeBlinkLeft: 0.1,
+  eyeBlinkRight: 0.1,
+  jawOpen: 0.04,
+  mouthClose: 0.02,
+  mouthPressLeft: 0.05,
+  mouthPressRight: 0.05,
+  mouthShrugLower: 0.08,
+  mouthRollLower: 0.04,
+};
+
+function faceAt(keys: FaceKey[], t: number): Face | null {
+  if (t <= keys[0].t) return keys[0].face;
+  for (let i = 0; i < keys.length - 1; i++) {
+    const a = keys[i];
+    const b = keys[i + 1];
+    if (t >= b.t) continue;
+    if (!a.face || !b.face) return a.face;
+    const k = ease((t - a.t) / (b.t - a.t));
+    const mix = (p: number, q: number) => p + (q - p) * k;
+    return { smile: mix(a.face.smile, b.face.smile), brow: mix(a.face.brow, b.face.brow), talk: mix(a.face.talk, b.face.talk) };
+  }
+  return keys[keys.length - 1].face;
+}
+
+export function synthesiseFace(
+  keys: FaceKey[],
+  endMs: number,
+  opts: { fps?: number; jitter?: number; seed?: number } = {},
+): { t: number; shapes: Record<string, number> | null }[] {
+  const fps = opts.fps ?? 12;
+  const jitter = opts.jitter ?? 0.015;
+  const rand = mulberry32(opts.seed ?? 11);
+  const clamp = (v: number) => Math.min(1, Math.max(0, v));
+  const out: { t: number; shapes: Record<string, number> | null }[] = [];
+  for (let t = keys[0].t; t <= endMs; t += 1000 / fps) {
+    const f = faceAt(keys, t);
+    if (!f) {
+      out.push({ t: Math.round(t), shapes: null });
+      continue;
+    }
+    const j = () => jitter * gauss(rand);
+    const s: Record<string, number> = {};
+    for (const [k, v] of Object.entries(FACE_BASE)) s[k] = clamp(v + j());
+    // Talking: the jaw and lower lip move at about 4 syllables a second.
+    const syl = f.talk * (0.5 + 0.5 * Math.sin((2 * Math.PI * 4 * t) / 1000));
+    s.jawOpen = clamp(0.04 + 0.45 * syl + j());
+    s.mouthLowerDownLeft = clamp(0.03 + 0.3 * syl + j());
+    s.mouthLowerDownRight = clamp(0.03 + 0.3 * syl + j());
+    s.mouthFunnel = clamp(0.02 + 0.15 * f.talk * (0.5 + 0.5 * Math.cos((2 * Math.PI * 2.5 * t) / 1000)) + j());
+    s.mouthSmileLeft = clamp(f.smile + j());
+    s.mouthSmileRight = clamp(f.smile + j());
+    s.cheekSquintLeft = clamp(0.03 + 0.4 * f.smile + j());
+    s.cheekSquintRight = clamp(0.03 + 0.4 * f.smile + j());
+    s.browDownLeft = clamp(f.brow + j());
+    s.browDownRight = clamp(f.brow + j());
+    out.push({ t: Math.round(t), shapes: s });
+  }
+  return out;
+}
+
+// The example's face, on the same clock as its body: neutral, a smile from about 3 to 6 s,
+// talking from about 11 to 15 s, neutral, a second short smile at 33 to 35 s.
+export const EXAMPLE_FACE_KEYS: FaceKey[] = [
+  { t: 0, face: NEUTRAL },
+  { t: 2600, face: NEUTRAL },
+  { t: 3000, face: { ...NEUTRAL, smile: 0.75 } },
+  { t: 5800, face: { ...NEUTRAL, smile: 0.75 } },
+  { t: 6300, face: NEUTRAL },
+  { t: 10500, face: NEUTRAL },
+  { t: 11000, face: { ...NEUTRAL, talk: 1 } },
+  { t: 15000, face: { ...NEUTRAL, talk: 1 } },
+  { t: 15500, face: NEUTRAL },
+  { t: 32600, face: NEUTRAL },
+  { t: 33000, face: { ...NEUTRAL, smile: 0.7 } },
+  { t: 35000, face: { ...NEUTRAL, smile: 0.7 } },
+  { t: 35400, face: NEUTRAL },
+  { t: 40000, face: NEUTRAL },
+];
+/** What the example's face should give: two smiles. */
+export const EXAMPLE_SMILES = 2;
+/** The example learns the usual posture from its first 8 seconds, so it fits in 40 seconds. */
+export const EXAMPLE_CALIBRATION_MS = 8000;
+
+export function exampleFaceFrames() {
+  return synthesiseFace(EXAMPLE_FACE_KEYS, EXAMPLE_MS, { seed: 2027 });
+}

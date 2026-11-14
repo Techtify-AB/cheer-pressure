@@ -1,18 +1,20 @@
-// The camera and MediaPipe Pose Landmarker, entirely on this device.
+// The camera with MediaPipe Pose Landmarker and Face Landmarker, entirely on this device.
 //
 // - The library, its WebAssembly and the model are vendored under public/ and load from the
 //   app's own origin (see public/vendor/mediapipe/README.md). The library is imported only
 //   when start() is called, never when a page loads.
-// - Only landmark coordinates exist in memory: no frame is stored, copied to a canvas,
+// - Only three pose points and the face's blendshape scores exist in memory: no frame is stored, copied to a canvas,
 //   uploaded or sent anywhere. The video element shows the picture and MediaPipe reads it.
 // - stop() ends the loop, closes the landmarker and stops every camera track, so the
 //   camera light goes off.
 
+import type { FaceFrame } from "./expression";
 import type { PoseFrame } from "./movement";
 
 const BUNDLE_URL = "/vendor/mediapipe/vision_bundle.mjs";
 const WASM_BASE = "/vendor/mediapipe/wasm";
 const MODEL_URL = "/models/pose_landmarker_lite.task";
+const FACE_MODEL_URL = "/models/face_landmarker.task";
 
 /** About 12 analysed frames per second. */
 export const POSE_FPS = 12;
@@ -37,6 +39,13 @@ interface PoseLandmarker {
   detectForVideo(video: HTMLVideoElement, timestampMs: number): PoseLandmarkerResult;
   close(): void;
 }
+interface FaceLandmarkerResult {
+  faceBlendshapes?: { categories: { categoryName: string; score: number }[] }[];
+}
+interface FaceLandmarker {
+  detectForVideo(video: HTMLVideoElement, timestampMs: number): FaceLandmarkerResult;
+  close(): void;
+}
 interface WasmFileset {
   wasmLoaderPath: string;
   wasmBinaryPath: string;
@@ -45,6 +54,9 @@ interface VisionModule {
   FilesetResolver: { forVisionTasks(basePath?: string): Promise<WasmFileset> };
   PoseLandmarker: {
     createFromOptions(fileset: WasmFileset, options: Record<string, unknown>): Promise<PoseLandmarker>;
+  };
+  FaceLandmarker: {
+    createFromOptions(fileset: WasmFileset, options: Record<string, unknown>): Promise<FaceLandmarker>;
   };
 }
 
@@ -64,6 +76,8 @@ export class CameraStartError extends Error {
 
 export interface PoseHandle {
   delegate: Delegate;
+  /** The face model loaded; without it only movement and posture are measured. */
+  face: boolean;
   stop(): void;
 }
 
@@ -80,11 +94,12 @@ function loadVision(): Promise<VisionModule> {
   return visionModule;
 }
 
-async function createLandmarker(): Promise<{ landmarker: PoseLandmarker; delegate: Delegate }> {
+async function createLandmarkers(): Promise<{ pose: PoseLandmarker; face: FaceLandmarker | null; delegate: Delegate }> {
   const vision = await loadVision();
   const fileset = await vision.FilesetResolver.forVisionTasks(new URL(WASM_BASE, window.location.origin).href);
-  const options = (delegate: Delegate) => ({
-    baseOptions: { modelAssetPath: new URL(MODEL_URL, window.location.origin).href, delegate },
+  const abs = (u: string) => new URL(u, window.location.origin).href;
+  const poseOptions = (delegate: Delegate) => ({
+    baseOptions: { modelAssetPath: abs(MODEL_URL), delegate },
     runningMode: "VIDEO",
     numPoses: 1,
     minPoseDetectionConfidence: 0.5,
@@ -92,11 +107,33 @@ async function createLandmarker(): Promise<{ landmarker: PoseLandmarker; delegat
     minTrackingConfidence: 0.5,
     outputSegmentationMasks: false,
   });
+  const faceOptions = (delegate: Delegate) => ({
+    baseOptions: { modelAssetPath: abs(FACE_MODEL_URL), delegate },
+    runningMode: "VIDEO",
+    numFaces: 1,
+    outputFaceBlendshapes: true,
+    outputFacialTransformationMatrixes: false,
+  });
+  let delegate: Delegate = "GPU";
+  let pose: PoseLandmarker;
   try {
-    return { landmarker: await vision.PoseLandmarker.createFromOptions(fileset, options("GPU")), delegate: "GPU" };
+    pose = await vision.PoseLandmarker.createFromOptions(fileset, poseOptions("GPU"));
   } catch {
-    return { landmarker: await vision.PoseLandmarker.createFromOptions(fileset, options("CPU")), delegate: "CPU" };
+    delegate = "CPU";
+    pose = await vision.PoseLandmarker.createFromOptions(fileset, poseOptions("CPU"));
   }
+  // The face is a second model; if it cannot load, movement and posture still work.
+  let face: FaceLandmarker | null = null;
+  try {
+    face = await vision.FaceLandmarker.createFromOptions(fileset, faceOptions(delegate));
+  } catch {
+    try {
+      face = await vision.FaceLandmarker.createFromOptions(fileset, faceOptions("CPU"));
+    } catch {
+      face = null;
+    }
+  }
+  return { pose, face, delegate };
 }
 
 function failureOf(e: unknown): CameraStartError {
@@ -135,7 +172,7 @@ export async function startPose(
     onEnded,
     isCancelled = () => false,
   }: {
-    onFrame: (frame: PoseFrame) => void;
+    onFrame: (frame: PoseFrame, face: FaceFrame | null) => void;
     /** The camera went away by itself (unplugged, or taken by the system). */
     onEnded?: () => void;
     isCancelled?: () => boolean;
@@ -143,15 +180,17 @@ export async function startPose(
 ): Promise<PoseHandle> {
   // The camera and the library load at the same time; if either fails, the other is released.
   const cam = openCamera();
-  const lm = createLandmarker();
+  const lm = createLandmarkers();
   let stream: MediaStream | null = null;
   let landmarker: PoseLandmarker | null = null;
+  let faceLandmarker: FaceLandmarker | null = null;
   let delegate: Delegate = "CPU";
   try {
     const [s, l] = await Promise.allSettled([cam, lm]);
     if (s.status === "fulfilled") stream = s.value;
     if (l.status === "fulfilled") {
-      landmarker = l.value.landmarker;
+      landmarker = l.value.pose;
+      faceLandmarker = l.value.face;
       delegate = l.value.delegate;
     }
     if (s.status === "rejected") throw s.reason instanceof CameraStartError ? s.reason : failureOf(s.reason);
@@ -165,6 +204,7 @@ export async function startPose(
   } catch (e) {
     stopStream(stream);
     landmarker?.close();
+    faceLandmarker?.close();
     video.srcObject = null;
     throw e instanceof CameraStartError ? e : failureOf(e);
   }
@@ -175,6 +215,7 @@ export async function startPose(
   let lastVideoTime = -1;
   const interval = 1000 / POSE_FPS;
   const lmk = landmarker!;
+  const fmk = faceLandmarker;
 
   const tick = () => {
     if (!running) return;
@@ -196,8 +237,22 @@ export async function startPose(
     } catch {
       points = null;
     }
+    let face: FaceFrame | null = null;
+    if (fmk) {
+      let shapes: Record<string, number> | null = null;
+      try {
+        const cats = fmk.detectForVideo(video, now).faceBlendshapes?.[0]?.categories;
+        if (cats?.length) {
+          shapes = {};
+          for (const c of cats) shapes[c.categoryName] = c.score;
+        }
+      } catch {
+        shapes = null;
+      }
+      face = { t: now, shapes };
+    }
     const aspect = video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 4 / 3;
-    onFrame({ t: now, aspect, points });
+    onFrame({ t: now, aspect, points }, face);
   };
   raf = requestAnimationFrame(tick);
 
@@ -210,6 +265,7 @@ export async function startPose(
 
   const handle: PoseHandle = {
     delegate,
+    face: !!fmk,
     stop() {
       if (!running) return;
       running = false;
@@ -218,6 +274,7 @@ export async function startPose(
       stopStream(stream);
       try {
         lmk.close();
+        fmk?.close();
       } catch {
         // already closed
       }

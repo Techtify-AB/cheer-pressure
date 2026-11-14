@@ -1,4 +1,4 @@
-# Vendored: MediaPipe Tasks Vision and the lite pose model
+# Vendored: MediaPipe Tasks Vision, the lite pose model and the face model
 
 Copied in by hand (no npm dependency), so the camera feature loads everything from the
 app's own origin. Nothing here is fetched from a CDN at runtime. Fetched 2026-11-14.
@@ -11,6 +11,7 @@ app's own origin. Nothing here is fetched from a CDN at runtime. Fetched 2026-11
 | `wasm/vision_wasm_internal.js` | 322,044 | `e7fd9858e8e8f221d9b96eddc11f8e077f263e0b7bbd79d3cbe882b134274f8c` |
 | `wasm/vision_wasm_internal.wasm` | 11,153,617 | `6a5c64584c2ab61c763b6e204afbdbc7ce1caf7f5216187322bca8df94f646bc` |
 | `../../models/pose_landmarker_lite.task` | 5,777,746 | `59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a` |
+| `../../models/face_landmarker.task` | 3,758,596 | `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff` |
 | `LICENSE` | 11,358 | Apache License 2.0, text from https://www.apache.org/licenses/LICENSE-2.0.txt |
 
 The files are byte-for-byte as published; nothing was edited.
@@ -28,6 +29,17 @@ The files are byte-for-byte as published; nothing was edited.
   (same file as `.../float16/latest/...` on 2026-11-14: ETag `04a75ddf7c811ac7a1a4523266dd7d88`,
   last modified 2023-04-27). Licence: Apache License 2.0, as stated in Google's model card
   "BlazePose GHUM 3D" (`https://storage.googleapis.com/mediapipe-assets/Model%20Card%20BlazePose%20GHUM%203D.pdf`).
+
+- **Face model:** `face_landmarker.task`, float16, version 1 (face detector, face mesh and
+  blendshapes in one bundle),
+  `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`
+  (same file as `.../float16/latest/...` on 2026-11-14: ETag `b0e7274907a1644404fef66b28dd6d85`,
+  last modified 2023-05-03). Fetched 2026-11-14. Licence: Apache License 2.0, as stated in all
+  three of Google's model cards: "MediaPipe BlazeFace (Short Range)", "MediaPipe Face Mesh V2"
+  and "Blendshape V2" (`https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Blendshape%20V2.pdf`).
+  Note from the Blendshape V2 card: intended for AR and avatars, "not intended for human
+  life-critical decisions". This app uses only its blendshape numbers as behaviour (how much
+  the face moves, raised mouth corners) compared with the person's own usual, never as a verdict.
 
 ## Why 0.10.35 and not the newest (1.2.3)
 
@@ -53,5 +65,6 @@ than loading the model and a graph file). Do not upgrade past 0.10.x without che
 `lib/camera/pose.ts` imports `/vendor/mediapipe/vision_bundle.mjs` with a dynamic `import()`
 only when the person presses "Start the camera" (the bundler is told to leave it alone).
 The library then adds `/vendor/mediapipe/wasm/vision_wasm_internal.js` as a script and
-compiles the `.wasm`, and the model is fetched from `/models/pose_landmarker_lite.task`.
+compiles the `.wasm`, and the models are fetched from `/models/pose_landmarker_lite.task` and
+`/models/face_landmarker.task`. The same wasm serves both.
 A content security policy needs `'wasm-unsafe-eval'` in `script-src` for the compile.

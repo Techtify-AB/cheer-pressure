@@ -1,14 +1,15 @@
 "use client";
 
-// "Movement, live": the camera view. The camera never starts by itself. When it runs, the
-// picture is shown mirrored with three points on top, a movement meter and a count of
-// position changes. Only movement is measured: never the face, expression or mood.
+// "Camera, live": the camera view. The camera never starts by itself. When it runs, the
+// picture is shown mirrored with three points on top, and three panels: movement, how the face
+// moves, and posture against the person's own first minutes. Behaviour only: the screen never
+// names a feeling or gives a verdict about the person.
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { Screen } from "@/components/Screen";
 import { playExample, resetCamera, startCamera, stopCamera, stopExample, type CameraView } from "@/lib/camera";
-import { MovementReadout } from "./MovementReadout";
+import { CameraPanels } from "./CameraPanels";
 import { PoseOverlay } from "./PoseOverlay";
 import { useCamera } from "./useCamera";
 import s from "./camera.module.css";
@@ -27,11 +28,11 @@ function leadLine(v: CameraView): string {
       return "Starting the camera.";
     case "on":
       return v.live.present
-        ? "I can see you. I only follow three points: your nose and your shoulders."
+        ? "I can see you. I follow your nose, your shoulders and how your face moves."
         : "No one in frame right now.";
     case "example":
       return v.exampleDone
-        ? "That was the whole example: a quick lean that did not count, then two new positions that did."
+        ? "That was the whole example: two smiles, some talking, a quick lean that did not count and two new positions that did."
         : "A made-up person at a computer, about 40 seconds. Nothing here comes from a camera.";
     case "denied":
       return "The camera was not allowed, so nothing is measured here.";
@@ -45,7 +46,7 @@ function leadLine(v: CameraView): string {
     default:
       if (v.lastStopMinutes !== null && v.lastStopMinutes > 0)
         return `The camera is off. You were in frame for ${minutesWords(v.lastStopMinutes)}.`;
-      return "I can notice how much you move in front of the computer. Only movement, never your face or how you feel.";
+      return "I can notice how you move, how your face moves and how you sit, compared with your own usual. Never what you feel.";
   }
 }
 
@@ -68,7 +69,7 @@ export function MovementLive() {
       lead={
         <>
           <div className={s.leadRow}>
-            <h1 className={s.title}>Movement, live</h1>
+            <h1 className={s.title}>Camera, live</h1>
             {running && (
               <span className={s.onPill} role="status" data-camera-on="">
                 <span className={s.onDot} aria-hidden="true" />
@@ -125,7 +126,7 @@ export function MovementLive() {
         <>
           <div className={`card ${s.stage}`} data-phase={v.phase} data-delegate={v.delegate ?? undefined} data-frames={v.frames}>
             {/* Always in the page so the camera can be attached to it; shown only while it runs. */}
-            <video ref={videoRef} className={s.video} hidden={v.phase !== "on"} muted playsInline aria-label="Your camera, mirrored" />
+            <video ref={videoRef} data-camera-video="" className={s.video} hidden={v.phase !== "on"} muted playsInline aria-label="Your camera, mirrored" />
             {(v.phase === "on" || example) && (
               <PoseOverlay points={v.points} aspect={v.aspect} present={v.live.present} figure={example} />
             )}
@@ -133,7 +134,14 @@ export function MovementLive() {
             {v.phase === "starting" && <span className={s.stageNote}>Getting ready</span>}
             {v.phase === "off" && <span className={s.stageNote}>The camera is off</span>}
           </div>
-          <MovementReadout display={v.live.display} shifts={v.live.shifts} active={v.phase === "on" || example} />
+          <CameraPanels
+            movement={v.live}
+            expression={v.expression}
+            posture={v.posture}
+            active={v.phase === "on" || example}
+            faceAvailable={v.faceAvailable}
+            usualWords={example ? "how this made-up person sat in the first 8 seconds" : "how you sat in your first two minutes"}
+          />
         </>
       )}
     </Screen>

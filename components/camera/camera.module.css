@@ -51,7 +51,7 @@
   position: relative;
   padding: 0;
   overflow: hidden;
-  height: clamp(150px, 34dvh, 300px);
+  height: clamp(140px, 28dvh, 260px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -117,39 +117,49 @@
   position: absolute;
 }
 
-/* The two numbers */
-.readout {
+/* The three panels */
+.panels {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
 }
-.tile {
+.panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  gap: var(--space-1);
+  padding: var(--space-3);
   min-width: 0;
 }
-.readout:not([data-active]) .tile {
+.panels:not([data-active]) .panel {
   color: var(--color-ink-soft);
 }
-.tileHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-.tileLabel {
+.panelLabel {
+  margin: 0;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
+  letter-spacing: 0;
 }
-.tileState {
+.panelValue {
+  margin: 0;
   font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+.panelSub {
+  display: block;
+  font-weight: var(--font-weight-regular);
   color: var(--color-ink-soft);
+}
+.panelNumber {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
 .meter {
   position: relative;
-  height: 12px;
+  height: 10px;
   border-radius: var(--radius-pill);
   background: var(--color-surface-muted);
   overflow: hidden;
@@ -162,16 +172,10 @@
   background: var(--color-primary);
   transition: width 0.35s var(--ease);
 }
-.count {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
 .meaning {
-  margin: 0;
-  font-size: var(--font-size-sm);
+  margin: auto 0 0;
+  padding-top: var(--space-1);
+  font-size: var(--font-size-xs);
   color: var(--color-ink-soft);
   line-height: 1.35;
 }
@@ -188,11 +192,11 @@
 }
 
 @media (max-width: 479px) {
-  .tile {
-    padding: var(--space-3);
+  .panel {
+    padding: var(--space-2);
   }
   .stage {
-    height: clamp(150px, 32dvh, 280px);
+    height: clamp(140px, 26dvh, 260px);
   }
 }
 

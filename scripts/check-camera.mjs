@@ -1,4 +1,4 @@
-// Headless check of "Movement, live" (/demo/camera/). Never uses a real camera: Chromium runs
+// Headless check of "Camera, live" (/demo/camera/): movement, face and posture. Never uses a real camera: Chromium runs
 // with --use-fake-device-for-media-stream, so the only camera it can open is its own generated
 // test pattern.
 //
@@ -9,9 +9,11 @@
 //   1. the screen loads with no console errors, and loads nothing of MediaPipe until asked
 //   2. it fits one view without scrolling at 1366x768, 390x844 and 520x820 (also with the
 //      example running), with one primary action, at most four groups, pointer on clickables
-//   3. "Play a recorded example" moves the meter and counts the changes the sequence dictates
-//   4. with the fake camera allowed: the library, wasm and model load from the same origin,
-//      it starts, analyses frames, says no one is in frame, and stop releases the camera
+//   3. "Play a recorded example" moves all three panels as the sequence dictates: the movement
+//      bar and position changes, the face bar and smiling share, posture learning then readings
+//   4. with the fake camera allowed: the library, wasm and both models load from the same
+//      origin, it starts, analyses frames, says no one and no face is in view, and stop
+//      releases the camera
 //   5. with the camera refused: a calm message and nothing else offered
 //   and: no request to any other origin, in any of it.
 //
@@ -147,7 +149,12 @@ async function fits(page, label) {
 
 const read = (page) =>
   page.evaluate(() => ({
-    meter: Number(document.querySelector('[role="meter"]')?.getAttribute("data-value") ?? -1),
+    meter: Number(document.querySelector('[data-meter="movement"]')?.getAttribute("data-value") ?? -1),
+    face: Number(document.querySelector('[data-meter="face"]')?.getAttribute("data-value") ?? -1),
+    faceLine: document.querySelector("[data-face]")?.getAttribute("data-face") ?? "",
+    smiling: Number(document.querySelector("[data-smiling-share]")?.getAttribute("data-smiling-share") ?? -1),
+    posture: document.querySelector("[data-posture]")?.getAttribute("data-posture") ?? "",
+    relative: Number(document.querySelector("[data-relative]")?.getAttribute("data-relative") ?? NaN),
     shifts: Number(document.querySelector("[data-shifts]")?.getAttribute("data-shifts") ?? -1),
     phase: document.querySelector("[data-phase]")?.getAttribute("data-phase"),
     line: document.querySelector("p[data-phase]")?.textContent ?? "",
@@ -248,6 +255,16 @@ async function main() {
       check("example: second change once the new place is held", shiftAt(2) !== null && shiftAt(2) > 28 && shiftAt(2) < 34, `at ${shiftAt(2)?.toFixed(1)} s`);
       check("example: two changes in the end, as the sequence says", end.shifts === 2, `${end.shifts}`);
       check("example: says it has finished", /whole example/.test(end.line), end.line);
+      const maxFace = (a, b) => Math.max(0, ...between(a, b).map((s) => s.face));
+      check("example: the face bar settles once the face is still", maxFace(20, 30) <= 10, `at most ${maxFace(20, 30)} from 20 to 30 s`);
+      check("example: the face bar moves while talking", maxFace(11.5, 16) >= 40, `up to ${maxFace(11.5, 16)}`);
+      const smileAt7 = between(6.5, 7.5)[0]?.smiling ?? -1;
+      check("example: smiling share after the first smile", smileAt7 >= 35 && smileAt7 <= 60, `${smileAt7}% at 7 s`);
+      check("example: smiling share at the end", end.smiling >= 8 && end.smiling <= 16, `${end.smiling}%`);
+      check("example: posture learns first", between(1, 7.5).every((s) => s.posture === "learning"), [...new Set(between(1, 7.5).map((s) => s.posture))].join(","));
+      const slumped = between(25, 28);
+      check("example: posture reads more slumped while leaning in", slumped.length > 0 && slumped.every((s) => s.posture === "slumped" && s.relative < 94), `${[...new Set(slumped.map((s) => `${s.posture} ${s.relative}`))].join(", ")}`);
+      check("example: posture about the usual at the end", end.posture === "usual", `${end.posture} ${end.relative}`);
       await ctx.close();
     }
 
@@ -274,13 +291,14 @@ async function main() {
       }
       const startedIn = (Date.now() - t0) / 1000;
       check("camera: started", s.phase === "on", `phase ${s.phase} after ${startedIn.toFixed(1)} s: ${s.line}`);
-      const label = await page.evaluate(() => document.querySelector("video")?.srcObject?.getVideoTracks()[0]?.label ?? "");
+      const label = await page.evaluate(() => document.querySelector("video[data-camera-video]")?.srcObject?.getVideoTracks()[0]?.label ?? "");
       check("camera: it is Chromium's fake camera, not a real one", /^fake_device/.test(label), label || "no track");
       const want = [
         "/vendor/mediapipe/vision_bundle.mjs",
         "/vendor/mediapipe/wasm/vision_wasm_internal.js",
         "/vendor/mediapipe/wasm/vision_wasm_internal.wasm",
         "/models/pose_landmarker_lite.task",
+        "/models/face_landmarker.task",
       ];
       for (const p of want) {
         const a = assets.get(p);
@@ -290,19 +308,21 @@ async function main() {
       s = await read(page);
       check("camera: frames are analysed", s.frames >= 30, `${s.frames} frames in about 6 s, delegate ${s.delegate}`);
       check("camera: the test pattern is no one in frame", s.line === "No one in frame right now." && s.meter === 0 && s.shifts === 0, `"${s.line}", meter ${s.meter}, changes ${s.shifts}`);
+      check("camera: the face panel says no face in view", s.faceLine === "No face in view" && s.face === 0, `"${s.faceLine}", bar ${s.face}`);
+      check("camera: the posture panel says no one in frame", s.posture === "absent", s.posture);
       check("camera: Camera on is shown", s.cameraOn);
       await fits(page, "390x844 camera on");
       if (SHOTS) await page.screenshot({ path: path.join(SHOTS, "camera-on-390x844.png") });
       // The tracks must end on stop: look at them from the page's side.
       await page.evaluate(() => {
-        const v = document.querySelector("video");
+        const v = document.querySelector("video[data-camera-video]");
         window.__tracks = v?.srcObject ? v.srcObject.getTracks() : [];
       });
       await page.getByRole("button", { name: "Stop the camera" }).click();
       await page.waitForTimeout(300);
       const after = await page.evaluate(() => ({
         tracks: (window.__tracks ?? []).map((t) => t.readyState),
-        src: document.querySelector("video")?.srcObject ?? null,
+        src: document.querySelector("video[data-camera-video]")?.srcObject ?? null,
       }));
       s = await read(page);
       check(

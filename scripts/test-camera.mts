@@ -30,13 +30,21 @@ function positionOfFrame(f: PoseFrame) {
   });
 }
 import {
+  EXAMPLE_CALIBRATION_MS,
   EXAMPLE_SHIFTS,
+  EXAMPLE_SMILES,
+  exampleFaceFrames,
   exampleFrames,
   moved,
+  NEUTRAL,
   SITTING,
   synthesise,
+  synthesiseFace,
+  type FaceKey,
   type Key,
 } from "../lib/camera/synthetic.ts";
+import { createExpressionTracker, type ExpressionLive, type FaceFrame } from "../lib/camera/expression.ts";
+import { CALIBRATION_MS, createPostureTracker, type PostureLive } from "../lib/camera/posture.ts";
 
 let failed = 0;
 let passed = 0;
@@ -278,8 +286,250 @@ const maxDisplay = (r: Run, from = 0, to = Infinity) =>
 // 10. Odd input does not count as someone.
 {
   check("low visibility is not someone", !isSeen({ t: 0, aspect: 1, points: { nose: { x: 0.5, y: 0.3, visibility: 0.2 }, leftShoulder: { x: 0.6, y: 0.6 }, rightShoulder: { x: 0.4, y: 0.6 } } }), "");
-  check("shoulders on top of each other is not someone", !isSeen({ t: 0, aspect: 1, points: { nose: { x: 0.5, y: 0.3 }, leftShoulder: { x: 0.5, y: 0.6 }, rightShoulder: { x: 0.505, y: 0.6 } } }), "");
+  check("shoulders 0.02 of the picture apart is not someone", !isSeen({ t: 0, aspect: 1, points: { nose: { x: 0.5, y: 0.5 }, leftShoulder: { x: 0.51, y: 0.6 }, rightShoulder: { x: 0.49, y: 0.6 } } }), "");
+  check("someone small and far away (shoulders 0.08 apart) is someone", isSeen({ t: 0, aspect: 1, points: { nose: { x: 0.5, y: 0.5 }, leftShoulder: { x: 0.54, y: 0.56 }, rightShoulder: { x: 0.46, y: 0.56 } } }), "");
   check("meter mapping", toDisplay(0) === 0 && toDisplay(DISPLAY_SCALE) === 63 && toDisplay(10) === 100, `${toDisplay(0)}, ${toDisplay(DISPLAY_SCALE)}, ${toDisplay(10)}`);
+}
+
+// ---------------------------------------------------------------------------------------
+// Expression (lib/camera/expression.ts), on made-up blendshape sequences.
+// ---------------------------------------------------------------------------------------
+
+function runFace(frames: FaceFrame[]) {
+  const tr = createExpressionTracker();
+  const live: { t: number; l: ExpressionLive }[] = [];
+  for (const f of frames) {
+    tr.push(f);
+    live.push({ t: f.t, l: tr.live() });
+  }
+  return { last: tr.live(), live, session: tr.end() };
+}
+const maxAnim = (r: ReturnType<typeof runFace>, a = 0, b = Infinity) =>
+  Math.max(0, ...r.live.filter((x) => x.t >= a && x.t < b).map((x) => x.l.animationDisplay));
+
+// E1. Neutral for a minute: no smiling, no lowered brows, little animation.
+{
+  const r = runFace(synthesiseFace([{ t: 0, face: NEUTRAL }], 60000, { seed: 21 }));
+  check("face neutral: no smiling", r.last.smiles === 0 && r.last.smilingShare === 0, `${r.last.smiles} smiles, share ${r.last.smilingShare}`);
+  check("face neutral: little animation", maxAnim(r) <= 10, `bar at most ${maxAnim(r)}`);
+  check("face neutral: brows not lowered", r.last.browLoweredShare === 0, `share ${r.last.browLoweredShare}`);
+}
+
+// E2. One smile of 2 s in a minute.
+{
+  const keys: FaceKey[] = [
+    { t: 0, face: NEUTRAL },
+    { t: 20000, face: NEUTRAL },
+    { t: 20300, face: { ...NEUTRAL, smile: 0.75 } },
+    { t: 22000, face: { ...NEUTRAL, smile: 0.75 } },
+    { t: 22300, face: NEUTRAL },
+    { t: 60000, face: NEUTRAL },
+  ];
+  const r = runFace(synthesiseFace(keys, 60000, { seed: 22 }));
+  check("one smile: counted once", r.last.smiles === 1, `${r.last.smiles} smiles`);
+  check("one smile: about 2 s of a minute", Math.abs(r.last.smilingShare - 2 / 60) < 0.012, `share ${r.last.smilingShare.toFixed(3)}, expected about ${(2 / 60).toFixed(3)}`);
+}
+
+// E2b. A flicker of the mouth corners shorter than SMILE_MIN_MS is not a smile.
+{
+  const keys: FaceKey[] = [
+    { t: 0, face: NEUTRAL },
+    { t: 20000, face: NEUTRAL },
+    { t: 20100, face: { ...NEUTRAL, smile: 0.75 } },
+    { t: 20250, face: { ...NEUTRAL, smile: 0.75 } },
+    { t: 20350, face: NEUTRAL },
+    { t: 30000, face: NEUTRAL },
+  ];
+  const r = runFace(synthesiseFace(keys, 30000, { seed: 28, jitter: 0.005 }));
+  check("a 0.25 s flicker: not a smile", r.last.smiles === 0, `${r.last.smiles} smiles`);
+}
+
+// E3. A sustained smile, 20 s of 60.
+{
+  const keys: FaceKey[] = [
+    { t: 0, face: NEUTRAL },
+    { t: 20000, face: NEUTRAL },
+    { t: 20300, face: { ...NEUTRAL, smile: 0.7 } },
+    { t: 40000, face: { ...NEUTRAL, smile: 0.7 } },
+    { t: 40300, face: NEUTRAL },
+    { t: 60000, face: NEUTRAL },
+  ];
+  const r = runFace(synthesiseFace(keys, 60000, { seed: 23 }));
+  check("sustained smile: one smile, a third of the time", r.last.smiles === 1 && Math.abs(r.last.smilingShare - 1 / 3) < 0.02, `${r.last.smiles} smiles, share ${r.last.smilingShare.toFixed(3)}`);
+  check("sustained smile: holding it still is not animation", maxAnim(r, 25000, 39000) <= 10, `bar at most ${maxAnim(r, 25000, 39000)} while holding`);
+}
+
+// E3b. A weak smile (corners at 0.4, below SMILE_ON): not counted.
+{
+  const r = runFace(synthesiseFace([{ t: 0, face: { ...NEUTRAL, smile: 0.4 } }], 60000, { seed: 29, jitter: 0.01 }));
+  check("weak smile below the threshold: not counted", r.last.smiles === 0, `${r.last.smiles} smiles`);
+}
+
+// E4. Heavy jitter on a neutral face.
+{
+  const r = runFace(synthesiseFace([{ t: 0, face: NEUTRAL }], 60000, { seed: 24, jitter: 0.04 }));
+  check("face jitter: no smiles, brows steady", r.last.smiles === 0 && r.last.browLoweredShare === 0, `${r.last.smiles} smiles, brow share ${r.last.browLoweredShare}`);
+  check("face jitter: animation stays low", maxAnim(r) <= 20, `bar at most ${maxAnim(r)}`);
+}
+
+// E5. Talking moves the face.
+{
+  const keys: FaceKey[] = [
+    { t: 0, face: NEUTRAL },
+    { t: 10000, face: NEUTRAL },
+    { t: 10500, face: { ...NEUTRAL, talk: 1 } },
+    { t: 30000, face: { ...NEUTRAL, talk: 1 } },
+  ];
+  const r = runFace(synthesiseFace(keys, 30000, { seed: 25 }));
+  check("talking: animation is high", maxAnim(r, 12000, 30000) >= 40 && maxAnim(r, 0, 10000) <= 10, `bar ${maxAnim(r, 0, 10000)} before, up to ${maxAnim(r, 12000, 30000)} while talking`);
+}
+
+// E6. The face leaves the view and comes back.
+{
+  const keys: FaceKey[] = [
+    { t: 0, face: NEUTRAL },
+    { t: 20000, face: { ...NEUTRAL, smile: 0.75 } },
+    { t: 20001, face: null },
+    { t: 40000, face: NEUTRAL },
+    { t: 60000, face: NEUTRAL },
+  ];
+  const r = runFace(synthesiseFace(keys, 60000, { seed: 26 }));
+  const at = (t: number) => r.live.find((x) => x.t >= t)!.l;
+  check("face leaves: still in view within the grace", at(20500).present === true, "");
+  check("face leaves: out of view after it", at(21500).present === false && at(39000).present === false, "");
+  check("face leaves: not smiling while away", at(30000).smiling === false, "");
+  check("face leaves: minutes count only time with a face", Math.abs(r.last.minutesWithFace - 40 / 60) < 0.04, `${r.last.minutesWithFace.toFixed(2)} min`);
+  check("face returns: coming back is not animation", maxAnim(r, 40000, 43000) <= 10, `bar at most ${maxAnim(r, 40000, 43000)}`);
+}
+
+// E7. Lowered brows for 10 s of 60, and a session summary.
+{
+  const keys: FaceKey[] = [
+    { t: 0, face: NEUTRAL },
+    { t: 30000, face: NEUTRAL },
+    { t: 30300, face: { ...NEUTRAL, brow: 0.6 } },
+    { t: 40000, face: { ...NEUTRAL, brow: 0.6 } },
+    { t: 40300, face: NEUTRAL },
+    { t: 90000, face: NEUTRAL },
+  ];
+  const r = runFace(synthesiseFace(keys, 90000, { seed: 27 }));
+  const s = r.session;
+  check("brows lowered 10 s of 90: share about 0.11", !!s && Math.abs(s.browLoweredShare - 10 / 90) < 0.015, JSON.stringify(s));
+  const short = runFace(synthesiseFace([{ t: 0, face: NEUTRAL }], 40000, { seed: 30 }));
+  check("40 s with a face: not summarised", short.session === null, "null");
+}
+
+// E8. The example's face.
+{
+  const r = runFace(exampleFaceFrames());
+  check("example face: two smiles", r.last.smiles === EXAMPLE_SMILES, `${r.last.smiles}`);
+  check("example face: talking shows as animation", maxAnim(r, 12000, 15500) >= 40, `up to ${maxAnim(r, 12000, 15500)}`);
+}
+
+// ---------------------------------------------------------------------------------------
+// Posture (lib/camera/posture.ts).
+// ---------------------------------------------------------------------------------------
+
+function runPosture(frames: PoseFrame[], calibrationMs?: number) {
+  const tr = createPostureTracker({ calibrationMs });
+  const live: { t: number; l: PostureLive }[] = [];
+  for (const f of frames) {
+    tr.push(f);
+    live.push({ t: f.t, l: tr.live() });
+  }
+  return { last: tr.live(), live, session: tr.end() };
+}
+const states = (r: ReturnType<typeof runPosture>, a: number, b: number) =>
+  [...new Set(r.live.filter((x) => x.t >= a && x.t < b).map((x) => x.l.state))].join(",");
+
+// P1. Upright and steady for 4 minutes.
+{
+  const r = runPosture(synthesise([{ t: 0, pose: SITTING }], 240000, { seed: 31, fps: 6 }));
+  check("posture: learning during the first two minutes", states(r, 1000, CALIBRATION_MS - 1000) === "learning", states(r, 1000, CALIBRATION_MS - 1000));
+  check("posture steady: about the usual afterwards", states(r, CALIBRATION_MS + 1000, 240000) === "usual" && Math.abs((r.last.relative ?? 0) - 100) <= 2, `${states(r, CALIBRATION_MS + 1000, 240000)}, ${r.last.relative}`);
+  check("posture: head height is about 0.75 shoulder widths", Math.abs((r.last.upright ?? 0) - 0.75) < 0.02, `${r.last.upright?.toFixed(3)}`);
+}
+
+// P2. Slumping gradually after the first two minutes.
+{
+  const slumped = moved(SITTING, { dhy: 0.2, dy: 0.02 });
+  const keys: Key[] = [
+    { t: 0, pose: SITTING },
+    { t: 150000, pose: SITTING },
+    { t: 210000, pose: slumped },
+    { t: 270000, pose: slumped },
+  ];
+  const r = runPosture(synthesise(keys, 270000, { seed: 32, fps: 6 }));
+  const firstSlumped = r.live.find((x) => x.l.state === "slumped")?.t ?? null;
+  check("gradual slump: reads as more slumped", r.last.state === "slumped" && (r.last.relative ?? 100) <= 80, `${r.last.state}, ${r.last.relative}`);
+  check("gradual slump: only once it has gone on a while", firstSlumped !== null && firstSlumped > 160000, `from ${((firstSlumped ?? 0) / 1000).toFixed(0)} s`);
+  check("gradual slump: summarised", !!r.session && r.session.slumpedShare > 0.3 && r.session.uprightShare === 0, JSON.stringify(r.session));
+}
+
+// P2b. Sitting more upright.
+{
+  const keys: Key[] = [
+    { t: 0, pose: SITTING },
+    { t: 150000, pose: SITTING },
+    { t: 155000, pose: moved(SITTING, { dhy: -0.15 }) },
+    { t: 200000, pose: moved(SITTING, { dhy: -0.15 }) },
+  ];
+  const r = runPosture(synthesise(keys, 200000, { seed: 33, fps: 6 }));
+  check("more upright: reads as more upright", r.last.state === "upright" && (r.last.relative ?? 0) >= 115, `${r.last.state}, ${r.last.relative}`);
+}
+
+// P3. Leaning in briefly does not change the reading.
+{
+  const lean = moved(SITTING, { dy: 0.04, closer: 1.3, dhy: 0.2 });
+  const keys: Key[] = [
+    { t: 0, pose: SITTING },
+    { t: 150000, pose: SITTING },
+    { t: 150500, pose: lean },
+    { t: 152000, pose: lean },
+    { t: 152500, pose: SITTING },
+    { t: 200000, pose: SITTING },
+  ];
+  const r = runPosture(synthesise(keys, 200000, { seed: 34, fps: 6 }));
+  check("brief lean: stays about the usual", states(r, CALIBRATION_MS + 1000, 200000) === "usual", states(r, CALIBRATION_MS + 1000, 200000));
+}
+
+// P4. Different distances to the camera give the same reading.
+{
+  const near = runPosture(synthesise([{ t: 0, pose: { ...SITTING, w: 0.44 } }], 180000, { seed: 35, fps: 6 }));
+  const far = runPosture(synthesise([{ t: 0, pose: { ...SITTING, w: 0.18, y: 0.6 } }], 180000, { seed: 35, fps: 6 }));
+  check(
+    "posture near and far: same head height",
+    Math.abs((near.last.upright ?? 0) - (far.last.upright ?? 9)) < 0.03 && near.last.state === "usual" && far.last.state === "usual",
+    `near ${near.last.upright?.toFixed(3)}, far ${far.last.upright?.toFixed(3)}`,
+  );
+  // Sitting further away than in the first minutes is not a change of posture.
+  const keys: Key[] = [
+    { t: 0, pose: SITTING },
+    { t: 150000, pose: SITTING },
+    { t: 160000, pose: { ...SITTING, w: 0.22, y: 0.62 } },
+    { t: 200000, pose: { ...SITTING, w: 0.22, y: 0.62 } },
+  ];
+  const r = runPosture(synthesise(keys, 200000, { seed: 36, fps: 6 }));
+  check("moving back from the camera: still about the usual", r.last.state === "usual", `${r.last.state}, ${r.last.relative}`);
+}
+
+// P5. No one in frame.
+{
+  const keys: Key[] = [
+    { t: 0, pose: SITTING },
+    { t: 30000, pose: null },
+    { t: 60000, pose: null },
+  ];
+  const r = runPosture(synthesise(keys, 60000, { seed: 37, fps: 6 }));
+  check("posture with no one in frame: absent", r.last.state === "absent" && r.last.relative === null, `${r.last.state}`);
+  check("posture: 30 s is not summarised", r.session === null, "null");
+}
+
+// P6. The example: learns from its first 8 s, reads more slumped while leaning in, then usual again.
+{
+  const r = runPosture(exampleFrames(), EXAMPLE_CALIBRATION_MS);
+  check("example posture: more slumped while leaning in", states(r, 24000, 28000) === "slumped", states(r, 24000, 28000));
+  check("example posture: about the usual at the end", r.last.state === "usual", `${r.last.state}, ${r.last.relative}`);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
