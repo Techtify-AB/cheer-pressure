@@ -11,9 +11,7 @@
 
 .shadow { fill: rgba(36, 48, 44, 0.1); }
 .skin { fill: var(--companion-body); }
-.leaf { fill: var(--companion-wave); opacity: 0.85; }
-.cheek { fill: var(--companion-cheek); opacity: 0.55; }
-.eyes ellipse { fill: var(--companion-ink); }
+.eyes circle { fill: var(--companion-ink); }
 .mouthIdle {
   fill: none;
   stroke: var(--companion-ink);

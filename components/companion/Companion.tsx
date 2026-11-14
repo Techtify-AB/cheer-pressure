@@ -35,25 +35,20 @@ export function Companion({ state, size = 160 }: CompanionProps) {
         </g>
 
         <g className={styles.body}>
-          <path
-            d="M80 24 C112 24 128 48 128 80 C128 110 108 126 80 126 C52 126 32 110 32 80 C32 48 48 24 80 24 Z"
-            className={styles.skin}
-          />
-          <path d="M80 24 C96 24 104 18 102 10 C98 16 90 20 80 24 Z" className={styles.leaf} />
-          <ellipse cx="56" cy="92" rx="8" ry="5" className={styles.cheek} />
-          <ellipse cx="104" cy="92" rx="8" ry="5" className={styles.cheek} />
+          {/* A plain rounded block with two dots and a line: a stand-in, not a character design. */}
+          <rect x="36" y="34" width="88" height="92" rx="26" className={styles.skin} />
 
           <g className={styles.eyes}>
-            <ellipse cx="63" cy="76" rx="5" ry="7" />
-            <ellipse cx="97" cy="76" rx="5" ry="7" />
+            <circle cx="64" cy="72" r="4" />
+            <circle cx="96" cy="72" r="4" />
           </g>
 
           {state === "speaking" ? (
-            <ellipse cx="80" cy="99" rx="8" ry="6" className={styles.mouthTalk} />
+            <ellipse cx="80" cy="96" rx="7" ry="5" className={styles.mouthTalk} />
           ) : state === "listening" ? (
-            <circle cx="80" cy="99" r="3.5" className={styles.mouthListen} />
+            <circle cx="80" cy="96" r="3" className={styles.mouthListen} />
           ) : (
-            <path d="M71 96 q9 8 18 0" className={styles.mouthIdle} />
+            <path d="M72 96 h16" className={styles.mouthIdle} />
           )}
         </g>
 
