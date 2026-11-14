@@ -1,0 +1,38 @@
+{
+  "about": "Leftover wording from when Cheer Pressure was a typing product or a flat list of measures. scripts/check-wording.mts greps the source for `everywhere`; scripts/check-categories.mts checks `everywhere` and `rendered` in the text of every screen. Matching ignores case. `allow` lists the only places a phrase may stay, and why.",
+  "everywhere": [
+    "day and night rhythm",
+    "day rhythm",
+    "six passive measures",
+    "six measures",
+    "six weeks in 20 seconds",
+    "your own level",
+    "daily check-in",
+    "reaction test",
+    "robot",
+    "bedside light",
+    "typing rhythm and day",
+    "each source",
+    "sources stand out",
+    "sources stood out",
+    "three in a row",
+    "typing alone never",
+    "sleep in two ways",
+    "this stretch of typing",
+    "typing numbers as you type",
+    "the companion at the bedside",
+    "two kinds of measure"
+  ],
+  "rendered": [
+    "the companion",
+    "typing sessions",
+    "sources"
+  ],
+  "allow": [
+    { "file": "lib/robot.ts", "phrase": "robot", "why": "The seam for a robot that was dropped for this weekend; not imported anywhere (README, Not built)." },
+    { "file": "lib/summary.ts", "phrase": "daily check-in", "why": "The old clinic text, not imported anywhere (README, What is where)." },
+    { "file": "README.md", "phrase": "robot", "line": "dropped|Next step|nothing in the app", "why": "Says the robot is not built." },
+    { "file": "docs/PROJECT.md", "phrase": "robot", "line": "Dropped|robot or a light|bedside robot", "why": "Says the robot is dropped." },
+    { "file": "server/app/layout.tsx", "phrase": "robot", "line": "robots:", "why": "The search-engine setting, not a robot." }
+  ]
+}

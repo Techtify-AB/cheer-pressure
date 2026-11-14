@@ -4,7 +4,7 @@
 // passive measures, it decides what the companion says and which one small thing it
 // suggests: the reflection on their own entries, and for the passive measures the
 // explanation of what changed, the calm line on home, the one-sentence insight on
-// "Your own level" and the suggestion after "Not my best".
+// My values and the suggestion after "Not my best".
 //
 // What the brain does NOT decide: whether the companion asks. That rule stays in
 // lib/passive.ts (evaluatePassive) so it stays explainable and testable; the brain
@@ -47,7 +47,7 @@ export interface Suggestion {
 /** One passive measure, as plain data. */
 export interface PassiveMeasureInput {
   key: PassiveKey;
-  /** The source it belongs to (SOURCES in lib/passive.ts): "typing" or "sleep" (day and night rhythm). */
+  /** The category it belongs to (SOURCES in lib/passive.ts): "sleep", "energy", "social" or "mood". */
   source: SourceId;
   label: string;
   /** One value per day for every measure. */
@@ -129,7 +129,7 @@ export interface PassiveWords {
   explanation: string;
   /** The one calm sentence on home. */
   calmLine: string;
-  /** The one sentence on "Your own level". */
+  /** The one sentence on My values. */
   insight: string;
   /** The one small thing to try after "Not my best". */
   suggestion: Suggestion;
@@ -231,7 +231,7 @@ function reflectOnEntries({ levels }: BrainInput): Omit<BrainOutput, "passive"> 
 
   if (!levels.hasBaseline) {
     return {
-      say: "After about a week of check-ins I can start comparing with your own usual level.",
+      say: "After about a week I can start comparing with your own usual.",
       suggestion: null,
       noticedChange: false,
     };

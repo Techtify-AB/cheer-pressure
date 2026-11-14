@@ -1,7 +1,7 @@
 // "What a clinic could see", for the demo only: made-up patients who each chose to share their
 // values, put in an order of who to look at first. Every patient's days come from the replay's
 // generator (lib/replay.ts) with a drift that began a different number of days ago (or never),
-// run through the real rule. The order uses only how many sources stand out and for how long;
+// run through the real rule. The order uses only how many categories stand out and for how long;
 // it is not a score, it shows no percentages, and it decides nothing.
 
 import { addDays, daysBetween } from "./dates";
@@ -11,7 +11,7 @@ import type { AppData, DayKey } from "./types";
 
 export interface DemoPatient {
   name: string;
-  /** Sources standing out today, in plain words. */
+  /** Categories standing out today, in plain words. */
   reason: string;
   /** How many days in a row the values have stood out the way Cheri asks about. */
   daysStandingOut: number;

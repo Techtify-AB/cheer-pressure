@@ -13,11 +13,13 @@
     "desktop:build": "tauri build --debug",
     "test:typing": "tsx scripts/test-typing.mts",
     "test:passive": "tsx scripts/test-passive.mts",
-    "test": "tsx scripts/test-typing.mts && tsx scripts/test-passive.mts && tsx scripts/test-contact.mts && tsx scripts/test-report.mts && tsx scripts/test-daily.mts && tsx scripts/test-camera.mts && cargo test --manifest-path src-tauri/Cargo.toml",
+    "test": "tsx scripts/check-wording.mts && tsx scripts/test-typing.mts && tsx scripts/test-passive.mts && tsx scripts/test-contact.mts && tsx scripts/test-report.mts && tsx scripts/test-daily.mts && tsx scripts/test-camera.mts && cargo test --manifest-path src-tauri/Cargo.toml",
     "test:contact": "tsx scripts/test-contact.mts",
     "test:e2e": "node scripts/e2e-trusted.mjs",
     "test:report": "tsx scripts/test-report.mts",
-    "test:daily": "tsx scripts/test-daily.mts"
+    "test:daily": "tsx scripts/test-daily.mts",
+    "test:wording": "tsx scripts/check-wording.mts",
+    "check:categories": "tsx scripts/check-categories.mts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

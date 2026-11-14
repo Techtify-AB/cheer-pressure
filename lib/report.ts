@@ -19,6 +19,7 @@ import {
   PASSIVE_DEFS,
   SOURCES,
   enoughToAsk,
+  movementPoints,
   onlyQuietSources,
   type Evaluation,
   type PassiveMetric,
@@ -152,38 +153,62 @@ export function answerWeeks(data: AppData, today: DayKey): { label: string; text
   return out;
 }
 
+/** Each input in the report's first person. */
+const REPORT_INPUT: Record<string, string> = {
+  "computer-use": "estimate from this computer",
+  "phone-app": "phone app",
+  watch: "watch or band",
+  bedside: "a bedside device",
+  movement: "body movement (camera)",
+  "voice-pace": "pace of the voice (microphone)",
+  typing: "typing rhythm",
+  "trusted-contact": "contact with the person I trust",
+  talking: "talking with someone",
+  "home-or-out": "at home or out",
+  "daily-answer": "my daily answer",
+  expression: "face movement (camera)",
+  posture: "posture (camera)",
+  "voice-tone": "tone of voice (microphone)",
+};
+
 /** The clinic report, in the first person: the person shares it about themselves. */
 export function clinicReport(data: AppData, today: DayKey, evaluation?: Evaluation): Report {
   const e = evaluation ?? evaluatePassive(data, today);
   const from = addDays(today, -(REPORT_DAYS - 1));
   const inPeriod = (d: DayKey) => d >= from && d <= today;
 
-  // All four categories; a measure with nothing in this period is left out, and a category
-  // with nothing at all says so.
+  // All four categories, each with every one of its inputs: the measures with values in this
+  // period, then one line naming the inputs that gave nothing (off, or not connected yet).
   const sources = sourcesOfEvaluation(e).map((s) => {
     const measured = s.metrics.filter((m) => m.points.some((p) => p.date >= from));
+    const cat = SOURCES.find((c) => c.id === s.id)!;
+    const without = cat.inputs.filter((i) => !measured.some((m) => i.measures.includes(m.key)));
     const lines = [
       ...measured.map((m) => ({ label: m.label, text: measureLine(m, today, "my") })),
       ...(s.id === "mood" && (data.dailyAnswers ?? []).some((a) => a.answer && a.date >= from) ? answerWeeks(data, today) : []),
+      ...(without.length
+        ? [{ label: "Not measured", text: `${without.map((i) => `${REPORT_INPUT[i.id] ?? i.label.toLowerCase()} (${i.setting ? "no values" : "not connected yet"})`).join(", ")}.` }]
+        : []),
     ];
-    return {
-      id: s.id,
-      label: s.reportLabel,
-      standsOut: s.standsOut,
-      lines: lines.length ? lines : [{ label: "Nothing measured", text: "No values in this period." }],
-    };
+    return { id: s.id, label: s.reportLabel, standsOut: s.standsOut, lines };
   });
 
-  // Data quality: how many days each source rests on.
+  // Data quality: how many days each category rests on, in category order.
   const typingRows = (data.typingDays ?? []).filter((t) => inPeriod(t.date) && t.kind === "all");
   const typingDates = new Map<DayKey, number>();
   for (const t of typingRows) typingDates.set(t.date, Math.max(typingDates.get(t.date) ?? 0, t.presses));
   const enoughTyping = [...typingDates.values()].filter((p) => p >= MIN_DAY_PRESSES).length;
   const littleTyping = [...typingDates.values()].filter((p) => p < MIN_DAY_PRESSES).length;
   const activity = new Set(data.activityDays.filter((a) => inPeriod(a.date)).map((a) => a.date)).size;
+  const movementDays = movementPoints(data, "movementLevel", today).filter((p) => inPeriod(p.date)).length;
+  const contactDays = new Set((data.contactDays ?? []).filter((c) => inPeriod(c.date)).map((c) => c.date)).size;
+  const answeredDays = new Set((data.dailyAnswers ?? []).filter((a) => a.answer && inPeriod(a.date)).map((a) => a.date)).size;
   const quality = [
-    `Typing: ${enoughTyping} of ${REPORT_DAYS} days counted, ${littleTyping} with too little writing (under ${MIN_DAY_PRESSES} key presses), ${REPORT_DAYS - enoughTyping - littleTyping} without typing.`,
-    `Day and night rhythm: ${activity} of ${REPORT_DAYS} days measured.`,
+    `Sleep, estimated from this computer: ${activity} of ${REPORT_DAYS} days measured.`,
+    `Energy, movement (camera): ${movementDays} of ${REPORT_DAYS} days with enough time in frame.`,
+    `Energy, typing: ${enoughTyping} of ${REPORT_DAYS} days counted, ${littleTyping} with too little writing (under ${MIN_DAY_PRESSES} key presses), ${REPORT_DAYS - enoughTyping - littleTyping} without typing.`,
+    `Social, contact with the person I trust: ${contactDays} of ${REPORT_DAYS} days counted.`,
+    `Mood, my own answers: ${answeredDays} of ${REPORT_DAYS} days answered.`,
   ];
 
   const answers = data.checkIns
@@ -220,12 +245,12 @@ export function clinicReport(data: AppData, today: DayKey, evaluation?: Evaluati
     weekly,
     ladder,
     legend: [
-      ...PASSIVE_DEFS.map((d) => ({ label: d.label, is: d.is, isNot: d.isNot })),
       {
         label: "Sleep",
         is: "An estimate from my first and last key press each day",
         isNot: "Not measured sleep; a watch or phone would give real sleep (not connected yet)",
       },
+      ...PASSIVE_DEFS.map((d) => ({ label: d.label, is: d.is, isNot: d.isNot })),
       // The face model's own card: made for AR and avatars, "not intended for human life-critical decisions".
       { label: "Face and posture", is: "Experimental measures", isNot: "Never used on their own" },
     ],

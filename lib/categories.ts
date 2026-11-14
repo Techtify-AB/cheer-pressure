@@ -5,7 +5,7 @@
 
 import { formatDay } from "./dates";
 import { dailyQuestionOf } from "./daily";
-import { joinPhrases, SOURCES, type CategoryId, type Evaluation, type Input, type PassiveMetric } from "./passive";
+import { joinPhrases, LEARNING_DAYS, SOURCES, type CategoryId, type Evaluation, type Input, type PassiveMetric } from "./passive";
 import { changedSince } from "./report";
 import { sourcesOf } from "./settings";
 import type { AppData, DayKey, PassiveKey } from "./types";
@@ -37,28 +37,31 @@ export function inputState(input: Input, data: AppData, paired: boolean): InputS
 /** Short words for an input in a category's line. */
 const SHORT: Record<string, string> = {
   "computer-use": "an estimate from your first and last key press each day",
-  typing: "typing rhythm",
   movement: "movement from the camera",
   "voice-pace": "pace of the voice",
+  typing: "typing rhythm",
   expression: "face movement",
   posture: "posture",
   "voice-tone": "tone of voice",
-  "trusted-contact": "messages with someone you trust",
+  "trusted-contact": "contact with the person you trust",
   "daily-answer": "your daily answer",
 };
 
-/** One short line per category: what it rests on now, or since when it stands out. */
+/**
+ * One short line per category: since when it stands out, or what it rests on now (inputs with
+ * values or measuring, in the category's order: in Energy movement first and typing last).
+ */
 export function categoryLine(id: CategoryId, data: AppData, e: Evaluation, today: DayKey, paired: boolean): string {
-  const cat = SOURCES.find((c) => c.id === id)!;
   const changed = e.metrics.filter((m) => m.source === id && m.status === "changed");
   if (changed.length && !e.learning) {
     const since = changed.map((m) => changedSince(m, today)).filter((d): d is string => !!d).sort()[0];
     return `Stands out${since ? ` since ${formatDay(since)}` : ""}`;
   }
-  const on = cat.inputs.filter((i) => inputState(i, data, paired) === "measuring").map((i) => SHORT[i.id] ?? i.label.toLowerCase());
+  const views = inputViews(id, data, e, paired);
+  const on = views.filter((v) => v.kind === "values" || v.kind === "learning").map((v) => SHORT[v.input.id] ?? v.input.label.toLowerCase());
   if (!on.length) {
-    const any = cat.inputs.some((i) => i.setting && inputState(i, data, paired) === "off");
-    return any ? "Off" : "Not connected yet";
+    if (views.some((v) => v.kind === "off" && v.href === "/settings/#trust")) return "Needs someone you trust";
+    return views.some((v) => v.kind === "off") ? "Off" : "Not connected yet";
   }
   const text = on.length > 1 ? `${on.slice(0, -1).join(", ")} and ${on[on.length - 1]}` : on[0];
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -111,4 +114,79 @@ export function againstUsual(m: PassiveMetric | undefined): string {
   if (m.status === "no-recent") return "Too few days this week to compare";
   if (m.status === "changed" && m.phrase) return `${m.phrase.charAt(0).toUpperCase()}${m.phrase.slice(1)} than your usual`;
   return "Within your usual";
+}
+
+/**
+ * Every input of a category, in the category's order, each with one honest state: its values
+ * (when there are days with a value to compare), "on, still learning", "off" with where to turn
+ * it on, or "not connected yet". Nothing is left out because it has no data.
+ */
+export type InputView =
+  | { kind: "values"; input: Input; metrics: PassiveMetric[] }
+  | { kind: "learning"; input: Input; days: number }
+  | { kind: "off"; input: Input; action: string; rest: string; href: string }
+  | { kind: "not-connected"; input: Input };
+
+/** How an input that is off is turned on: the words of the link, the rest of the line, and where it goes. */
+const TURN_ON: Record<string, { action: string; rest: string; href: string }> = {
+  "computer-use": { action: "Turn on the estimate from this computer", rest: " to see your nights. Only the time of the first and last key press.", href: "/settings/#measure-sleep" },
+  movement: { action: "Turn on the camera", rest: " to measure movement. The picture is worked out on this computer.", href: "/settings/#measure-energy" },
+  "voice-pace": { action: "Turn on the microphone", rest: " to measure the pace of your voice. No words are recognised.", href: "/settings/#measure-energy" },
+  typing: { action: "Turn on typing rhythm", rest: " to measure it. Only the timing of key presses, never which keys.", href: "/settings/#measure-energy" },
+  "trusted-contact": { action: "Turn on messages with someone you trust", rest: " to count them, never what they say.", href: "/settings/#measure-social" },
+  "daily-answer": { action: "Turn on the daily question", rest: " to add your own answers.", href: "/settings/#daily" },
+  expression: { action: "Turn on the camera", rest: " to observe face movement. The picture is worked out on this computer.", href: "/settings/#measure-energy" },
+  posture: { action: "Turn on the camera", rest: " to observe posture. The picture is worked out on this computer.", href: "/settings/#measure-energy" },
+  "voice-tone": { action: "Turn on the microphone", rest: " to observe tone of voice. No words are recognised.", href: "/settings/#measure-energy" },
+};
+
+/** An input in running text: "Only typing is being measured." */
+export const INPUT_WORDS: Record<string, string> = {
+  "computer-use": "the estimate from this computer",
+  movement: "movement",
+  "voice-pace": "the pace of your voice",
+  typing: "typing",
+  "trusted-contact": "contact with the person you trust",
+  "daily-answer": "your own answers",
+  expression: "face movement",
+  posture: "posture",
+  "voice-tone": "tone of voice",
+};
+
+export function inputViews(id: CategoryId, data: AppData, e: Evaluation, paired: boolean): InputView[] {
+  const cat = SOURCES.find((c) => c.id === id)!;
+  return cat.inputs.map((input): InputView => {
+    if (!input.setting) return { kind: "not-connected", input };
+    const metrics = e.metrics.filter((m) => input.measures.includes(m.key));
+    const withData = metrics.filter((m) => m.points.length > 0);
+    const state = inputState(input, data, paired);
+    if (withData.some((m) => m.status !== "learning")) return { kind: "values", input, metrics: withData };
+    const days = Math.min(LEARNING_DAYS, Math.max(0, ...metrics.map((m) => m.points.length)));
+    if (state === "measuring" || withData.length) return { kind: "learning", input, days };
+    if (input.setting === "contact" && sourcesOf(data.settings).contact && !data.settings.pausedAll) {
+      return { kind: "off", input, action: "Invite someone you trust", rest: " to count your messages with them, never what they say.", href: "/settings/#trust" };
+    }
+    return { kind: "off", input, ...TURN_ON[input.id] };
+  });
+}
+
+/**
+ * The category's opening sentence. Never the category described by its one available input: with
+ * only typing, Energy says "Only typing is being measured. Turn on the camera to add movement."
+ */
+export function categoryOpening(id: CategoryId, views: InputView[], e: Evaluation): string {
+  const phrases = e.metrics.filter((m) => m.source === id && m.status === "changed" && m.phrase).map((m) => m.phrase!);
+  if (phrases.length && !e.learning) {
+    const t = joinPhrases(phrases);
+    return `Over the last week ${t} than your usual.`;
+  }
+  const active = views.filter((v) => v.kind === "values" || v.kind === "learning");
+  const off = views.filter((v): v is Extract<InputView, { kind: "off" }> => v.kind === "off");
+  const add = off[0] ? ` ${off[0].action} to add ${INPUT_WORDS[off[0].input.id]}.` : "";
+  if (!active.length) return `Nothing is measured here yet.${add}`;
+  if (active.length === 1 && off.length) return `Only ${INPUT_WORDS[active[0].input.id]} is being measured.${add}`;
+  const names = joinPhrases(active.map((v) => INPUT_WORDS[v.input.id]));
+  const capital = names.charAt(0).toUpperCase() + names.slice(1);
+  if (active.every((v) => v.kind === "learning")) return `${capital}: still learning your usual.`;
+  return `${capital}: within your usual over the last week.`;
 }

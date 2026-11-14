@@ -3,7 +3,7 @@
 // and nothing that makes it can reach the network. Run: pnpm test:report (part of pnpm test).
 import { readFileSync } from "node:fs";
 import { addDays, daysBetween, formatDay } from "../lib/dates.ts";
-import { evaluatePassive, MIN_DAY_PRESSES } from "../lib/passive.ts";
+import { evaluatePassive, MIN_DAY_PRESSES, SOURCES } from "../lib/passive.ts";
 import { firstAsk, replayEndingOn, replayFrames, upTo } from "../lib/replay.ts";
 import { DISCLAIMER, REPORT_DAYS, changedSince, clinicReport, measureNumbers, reportText } from "../lib/report.ts";
 import { answerSmallThing, answerSomeone, closeLadder, startAfterNotBest } from "../lib/ladder.ts";
@@ -35,9 +35,23 @@ const empty = (): AppData => ({
   const r = clinicReport(empty(), TODAY);
   const text = reportText(r);
   check("empty: says there are not enough days yet", !r.enoughData && /Not enough days yet/.test(r.summary), r.summary);
-  check("empty: every category says nothing was measured", r.sources.length === 4 && r.sources.every((s) => s.lines.length === 1 && s.lines[0].text === "No values in this period."));
+  check(
+    "empty: every category names every input it has, as not measured",
+    r.sources.length === 4 &&
+      r.sources.every((s) => s.lines.length === 1 && s.lines[0].label === "Not measured" && s.lines[0].text.split(", ").length === SOURCES.find((c) => c.id === s.id)!.inputs.length),
+    r.sources.map((s) => s.lines.map((l) => l.text).join(" ")).join(" | "),
+  );
   check("empty: no answers and no steps", text.includes("None in this period.") && r.answers.length === 0 && r.ladder.length === 0);
-  check("empty: data quality counts zero days", r.quality[0].startsWith(`Typing: 0 of ${REPORT_DAYS} days`) && r.quality[1].startsWith(`Day and night rhythm: 0 of ${REPORT_DAYS}`));
+  check(
+    "empty: data quality counts zero days, by category in order",
+    r.quality.length === 5 &&
+      r.quality[0].startsWith(`Sleep, estimated from this computer: 0 of ${REPORT_DAYS} days`) &&
+      r.quality[1].startsWith(`Energy, movement (camera): 0 of`) &&
+      r.quality[2].startsWith(`Energy, typing: 0 of ${REPORT_DAYS} days`) &&
+      r.quality[3].startsWith("Social") &&
+      r.quality[4].startsWith("Mood"),
+    r.quality.join(" | "),
+  );
   check("the period is the last eight weeks, today included", r.period.from === addDays(TODAY, -55) && r.period.to === TODAY && r.period.text.startsWith(formatDay(addDays(TODAY, -55))));
 }
 
@@ -69,7 +83,11 @@ check("the day the replay stops is today", stop.date === TODAY && e.askNow);
   const enough = kinds.filter((t) => t.presses >= MIN_DAY_PRESSES).length;
   const little = kinds.length - enough;
   const activity = data.activityDays.filter((a) => daysBetween(a.date, TODAY) < REPORT_DAYS).length;
-  [enough, little, REPORT_DAYS - enough - little, activity, REPORT_DAYS, MIN_DAY_PRESSES, 10, 4, 3, 6, 0, 2].forEach(add);
+  const inReport = (d: string) => daysBetween(d, TODAY) >= 0 && daysBetween(d, TODAY) < REPORT_DAYS;
+  const movementDays = new Set((data.movementSessions ?? []).filter((m) => inReport(m.date) && m.minutes >= 20).map((m) => m.date)).size;
+  const contactDays = new Set((data.contactDays ?? []).filter((c) => inReport(c.date)).map((c) => c.date)).size;
+  const answeredDays = new Set((data.dailyAnswers ?? []).filter((a) => a.answer && inReport(a.date)).map((a) => a.date)).size;
+  [enough, little, REPORT_DAYS - enough - little, activity, movementDays, contactDays, answeredDays, REPORT_DAYS, MIN_DAY_PRESSES, 10, 4, 3, 6, 0, 2].forEach(add);
   // Counts of answers per week (the person gave them), counted here on their own.
   for (let w = 0; w < 4; w++) {
     const week = (data.dailyAnswers ?? []).filter((a) => daysBetween(a.date, TODAY) >= 7 * w && daysBetween(a.date, TODAY) < 7 * w + 7);
@@ -123,7 +141,7 @@ check("the day the replay stops is today", stop.date === TODAY && e.askNow);
     weeks[3]?.text,
   );
   const none = clinicReport({ ...data, dailyAnswers: [] }, TODAY);
-  check("own answers: Mood says nothing was measured when the person never answered", none.sources.find((s) => s.id === "mood")!.lines[0].text === "No values in this period.");
+  check("own answers: Mood says the daily answer was not measured when the person never answered", none.sources.find((s) => s.id === "mood")!.lines.some((l) => l.label === "Not measured" && l.text.includes("my daily answer (no values)")));
   check("the report has the four categories, in order", r.sources.map((s) => s.label).join() === "Sleep,Energy,Social,Mood");
 }
 

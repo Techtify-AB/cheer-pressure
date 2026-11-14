@@ -1,9 +1,9 @@
 "use client";
 
-// The conversation with the companion. It opens on what is due (lib/ladder.ts):
+// The conversation with Cheri. It opens on what is due (lib/ladder.ts):
 //
-// - When the measures stand out the way lib/passive.ts asks about (two different sources,
-//   or two parts of the day and night rhythm; typing alone never): first a plain explanation
+// - When the measures stand out the way lib/passive.ts asks about (at least two different
+//   categories; no category alone): first a plain explanation
 //   of what changed, then "How are you doing?" with three answers.
 // - Opened by the person's own choice with nothing standing out: the question only.
 // - After "Not my best": step 1, one small thing from the routines the person has on.
@@ -39,7 +39,7 @@ import {
   startAfterNotBest,
   type Due,
 } from "@/lib/ladder";
-import { evaluatePassive } from "@/lib/passive";
+import { evaluatePassive, SOURCES } from "@/lib/passive";
 import { forRule, pickSmallThing, routinesOf } from "@/lib/settings";
 import { hasDemo, readData, saveCheckIn, saveLadder, useData } from "@/lib/storage";
 import { messagesClient } from "@/lib/trusted";
@@ -533,12 +533,16 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
         <Disclosure title="How this is worked out">
           <p>
             A measure counts as changed when the middle of your last week is clearly outside your usual range from the
-            four weeks before. Weekdays are compared with weekdays and weekends with weekends. I only ask how you are doing when two different kinds of measure have changed (typing and your day and night rhythm), or at least two parts of your day and night rhythm. Typing alone never makes me ask.
+            four weeks before. Weekdays are compared with weekdays and weekends with weekends. I only ask how you are doing
+            when at least two different categories have changed (Sleep, Energy, Social, Mood). No category asks alone.
           </p>
           <ul className="worked-out">
-            {evaluation.changed.map((m) => (
+            {SOURCES.flatMap((c) => evaluation.changed.filter((m) => m.source === c.id)).map((m) => (
               <li key={m.key}>
-                <strong>{m.label}</strong>: the middle of your last week was {m.recent ? m.format(m.recent.median) : "not known"},
+                <strong>
+                  {SOURCES.find((c) => c.id === m.source)!.label}, {m.label.toLowerCase()}
+                </strong>
+                : the middle of your last week was {m.recent ? m.format(m.recent.median) : "not known"},
                 over {m.recent?.n ?? 0} days. Your usual range is{" "}
                 {m.usual ? `${m.format(m.usual.low)} to ${m.format(m.usual.high)}` : "not known yet"}, from {m.usual?.n ?? 0}{" "}
                 days in the four weeks before.

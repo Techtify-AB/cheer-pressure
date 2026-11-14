@@ -81,7 +81,7 @@ Files worth knowing:
 | `lib/camera/` | Movement, face movement and posture from the camera, on the device |
 | `lib/voice/` | Tone of voice (being built) |
 | `lib/messages.ts`, `lib/contact.ts` | Talking to the messages service, local first |
-| `lib/replay.ts` | "Six weeks in 20 seconds": made-up days run through the real rule |
+| `lib/replay.ts` | "Eight weeks in 20 seconds": made-up days run through the real rule, one strip per category |
 | `components/companion/` | Cheri (`dot.js` is Eric's three.js model: nine moods, three furs) |
 | `styles/tokens.css` | Colours, type, spacing: change the look here |
 | `scripts/measure-rule.mts` | Measures how often the rule asks by chance on made-up data |
@@ -129,8 +129,8 @@ only in bursts of real writing, one value per day; the daily question; camera mo
 face movement and posture as stand-alone demo screens.
 
 **Being built right now (not all committed):** the four categories in the rule and the
-interface; "My values" and the printable clinic report; the two-category rule and removal
-of the robot; wiring the camera into the categories; tone of voice.
+interface; "My values" and the printable clinic report; the two-category rule and dropping
+the bedside robot; wiring the camera into the categories; tone of voice.
 
 **Not started:** sleep from a phone or watch; counting conversations; home or out; the voice
 conversation with Cheri; sigh detection; choosing Cheri's look in Settings; video, deck and

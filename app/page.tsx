@@ -137,7 +137,7 @@ export default function HomePage() {
   let note: string | null = null;
   if (pausedAll || menuPaused) note = "Paused: nothing new is measured.";
   else if (desktop && status?.listener === "permission-needed") note = "Typing rhythm waits for your permission on this computer.";
-  else if (!desktop && sources.typing) note = "Typing rhythm and sleep are measured in the desktop app.";
+  else if (!desktop && (sources.dayRhythm || sources.typing)) note = "The estimate of sleep, and typing, are measured in the desktop app.";
 
   return (
     <Screen

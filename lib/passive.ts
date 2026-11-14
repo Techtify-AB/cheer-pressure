@@ -149,7 +149,7 @@ export const SOURCES: {
       { id: "computer-use", label: "Estimated from when this computer is used", measures: ["firstActivity", "lastActivity", "quietNight"], setting: "dayRhythm" },
       { id: "phone-app", label: "Phone app", measures: [], setting: null },
       { id: "watch", label: "Watch or band (Fitbit, Apple Health, Health Connect)", measures: [], setting: null },
-      { id: "bedside", label: "The companion at the bedside", measures: [], setting: null },
+      { id: "bedside", label: "A bedside device", measures: [], setting: null },
     ],
   },
   {

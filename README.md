@@ -3,9 +3,12 @@
 A hackathon MVP for Junction 2026, Aalto University challenge "Beyond the Clinic".
 
 Cheer Pressure is a small digital companion for people who have finished treatment and want to stay well at
-home. It is passive first: it measures by itself (typing rhythm, first and last activity of
-the day) and asks "How are you doing?" only when the person's measures stand out from
-their own usual range. Measurements, answers and summaries never leave this device. The one
+home. It is passive first: it measures by itself in four categories, **Sleep** (an estimate
+from when the computer is first and last used), **Energy** (movement in front of the camera,
+the pace of the voice, typing rhythm), **Social** (contact with one person they trust) and
+**Mood** (the person's own daily answer, with face movement, posture and tone of voice as
+observations), and asks "How are you doing?" only when at least two different categories stand
+out from the person's own usual range. Measurements, answers and summaries never leave this device. The one
 exception is short messages between the person and one person they trust (a sister, a friend):
 those pass through a small messages service (`server/`), which deletes them after 48 hours and
 never receives anything about health.
@@ -57,7 +60,7 @@ person wants to; when the measures stand out, the companion looks attentive and 
 "Have a look" instead. **Settings** is a short list: what is measured (by category, one switch per input,
 Pause everything), which small things it may suggest and quiet hours (22:00 to 08:00 by
 default, when it never speaks up), voice, someone you trust, My values, your data,
-need help now, and **For the demo**, the one marked place for the live view, demo data, the
+need help now, and **For the demo**, the one marked place for Live, demo data, the
 replay, the messages service address and "What a clinic could see".
 
 ## My values and the clinic report
@@ -67,7 +70,7 @@ categories stand out, then one category per view, with its inputs that are off o
 connected yet in one quiet line: each measure as a strip of daily dots over the last eight weeks
 against the person's own usual band, the last week's middle and the usual range with a plain
 meaning next to them, and "Stands out since <date>" where the rule says so. It replaced the
-older "Your own level" screen.
+older screen that listed every measure in one flat list.
 
 **Share with my clinic** (`/share/`, from My values and from the ladder's third step) shows the
 exact report first, one part at a time, then "Save as PDF or print" (the browser's print dialog,
@@ -85,7 +88,7 @@ shows, a count of days or a date, that the dates are right, and the empty states
 
 **What a clinic could see** (`/demo/clinic/`, demo only, marked simulated): eight made-up
 people who chose to share, from the replay's generator with drifts that began on different
-days, in an order of who to look at first (how many days in a row and how many sources stand
+days, in an order of who to look at first (how many days in a row and how many categories stand
 out). No scores, no percentages; one line says the order decides nothing.
 
 After "Not my best" the ladder (`lib/ladder.ts`, one pure function, tested in
@@ -126,15 +129,46 @@ opened it on their phone and typed a first name, then "Connected with Sara". A q
   from the build, else `http://localhost:3480`. For a table demo on a phone hotspot see
   `server/README.md`.
 
-**Eight weeks in 20 seconds** (`/demo/replay/`) replays made-up days (`lib/replay.ts`): six
-steady weeks, then a drift in which sleep slips first (the day starts and ends later, quickly)
-and typing follows gradually (evenness, hold time). Eight weeks, because a 14-day learning
-period, a 28-day usual and a clear week of change do not fit in six with any margin. It is
-placed so that the day it asks is today; depending on the weekday it stops on day 46 to 48 of
-56 (about 17 seconds in), for example on typing evenness and last activity. Each day it runs the real rule on the data up to that day and shows four measures
-against their usual band. It stops when the rule would ask, with the same explanation the
-conversation shows, and "See what it asks" opens the conversation on those days. A test checks
-that the rule does not ask during the steady weeks.
+**Eight weeks in 20 seconds** (`/demo/replay/`, the title says so) replays 56 made-up days
+(`lib/replay.ts`, seed 238) at about 0.36 seconds a day. Six steady weeks, then one category
+after the other: **sleep slips first** (from day 43 the evenings run much later while the
+mornings do not, so the estimated nights get shorter), **then movement drops** in front of the
+camera (from day 45), and **the daily answers lean towards "Not so good"** in the last days
+(from day 47). Typing drifts only a little and never carries the story; messages stay as usual.
+Eight weeks, because a 14-day learning period, a 28-day usual and a clear week of change do not
+fit in fewer with any margin.
+
+Each day it runs the real rule on the data up to that day and shows **one strip per category**,
+labelled with the category and, in small text, the measure: Sleep (the estimated night, or the
+day's start or end when that is what moved), Energy (movement from the camera; typing is never a
+strip), Social (contact with the person they trust) and Mood (the person's own answers, drawn on
+three rows: Good, Okay, Not so good), each against the person's own usual band with the last week
+larger. A category that changes alone is said in its own words ("Sleep: your nights have been
+shorter than your usual. One category alone never makes me ask."). It is placed so that the day
+it asks is today, and on every weekday it stops on **day 49 of 56, about 17.5 seconds in**, on
+**Sleep and Energy**, with the explanation the conversation then shows ("Sleep and Energy have
+changed compared with your usual: over the last week your nights have been shorter, ... and
+you've moved less in front of the computer than in the four weeks before. ..."). "See what it
+asks" opens the conversation on those days. Tests (`scripts/test-ladder.mts`) check, for all seven
+end days, that the rule never asks in the steady weeks, that it asks on Sleep and Energy with
+Energy through movement and not typing, that sleep changes before movement, and that the answers
+lean in the last week. In the steady weeks a single category can now and then step outside its
+band for a day or two; the replay then says so, and that one category alone never makes Cheri ask.
+
+**Live** (`/live/`, under For the demo) shows what Cheri notices right now in four panels, one
+per category, side by side on a wide window, two by two in between, and one at a time with "2 of
+4" below 720 px: **Sleep** (estimated from when this computer is used: today's first activity,
+last night's estimate, against the usual, and that a watch or phone would give real sleep),
+**Energy** (the movement meter and position changes from the camera, then one line for typing,
+for example "Typing: counting, steady" or "Typing: not counted: held keys"), **Social**
+(connected or not with the person they trust, messages this week) and **Mood** (today's own
+answer first, then face movement, posture and tone of voice as observations against the usual).
+"Start camera" and "Start microphone" start them only on a press, the header shows "Camera on"
+and "Microphone on" while they run, and "Pause everything" stops both and all measuring. The
+typing numbers, the box to type in (in a browser) and how typing counts are behind "Typing in
+detail". "Camera, live" and "Voice, live" are deeper views linked from the Energy and Mood panels.
+The demo area lists Live, My values (demo data), What a clinic could see and the replay, plus the
+controls for the ladder and the messages service.
 
 `node scripts/check-fit.mjs [url]` walks every screen headless at 1366x768, 390x844 and
 520x820 and checks that nothing scrolls, there is at most one primary action and at most four
@@ -144,7 +178,7 @@ browser). `pnpm test:e2e` plays the whole story with the real service: the deskt
 the phone shows "They said yes"; then the service is stopped, the desktop's request shows
 "Waiting for connection", and it is delivered when the service is back.
 
-## When the companion asks
+## When Cheri asks
 
 `lib/passive.ts` holds the one rule (unit tests in `scripts/test-passive.mts`).
 
@@ -154,9 +188,9 @@ measuring, off, or "not connected yet" (`lib/categories.ts`).
 
 | Category | Inputs today | Not connected yet |
 | --- | --- | --- |
-| Sleep | an estimate from the first and last key press each day (first activity, last activity, estimated rest); a watch or phone would give real sleep | phone app, watch or band (Fitbit, Apple Health, Health Connect), the companion at the bedside |
-| Energy | typing rhythm (evenness, hold time), the camera (movement, position changes), the microphone (pace of the voice) | |
-| Social | messages with the person you trust, per day (how many, never what they say) | talking with someone, at home or out |
+| Sleep | an estimate from the first and last key press each day (estimated rest, first activity, last activity); a watch or phone would give real sleep | phone app, watch or band (Fitbit, Apple Health, Health Connect), a bedside device |
+| Energy | the camera (movement, position changes), the microphone (pace of the voice), typing rhythm (evenness, hold time) | |
+| Social | contact with the person you trust: messages per day (how many, never what they say) | talking with someone, at home or out |
 | Mood | the person's own daily answer (Good, Okay, Not so good), its anchor; with the camera, face movement and raised mouth corners, posture; with the microphone, how much the pitch moves | |
 
 **One value per measure per day.** Typing is pooled over the day's counted bursts of real
@@ -232,22 +266,23 @@ separate generated prose, game input and shortcut tapping.
   app's bundle identifier (NSWorkspace, no permission) and keeps only one word: writing, code,
   browser, game or other (`src-tauri/src/frontmost.rs`). Unlisted apps that declare themselves
   games in their Info.plist count as games. Bursts in games are never counted.
-- The **live view** under the demo says, while someone types, whether the current stretch
-  counts ("Counting: writing") or not ("Not counted: looks like held keys", "too short").
+- **Live** under the demo says in one line under Energy, while someone types, whether the
+  current stretch counts ("Typing: counting, steady") or not ("Typing: not counted: held keys");
+  "Typing in detail" there has the numbers and the box.
 
-The weekly questions are offered only inside the conversation, after "Not my best". The
-manual daily check-in, the reaction test and the share page are gone; their stored entries
+The weekly questions are offered only inside the conversation, after "Not my best". Screens
+from earlier versions (a daily form, timing taps, a share page) are gone; their stored entries
 still load.
 
 ## What is where
 
 | Path | What it is |
 | --- | --- |
-| `app/` | Screens: `setup`, home (`page.tsx`), `prompt` (the conversation and the ladder), `settings`, `help`, `weekly` (only from the conversation), `values` (My values), `share` (Share with my clinic), `demo` (with `demo/replay`, `demo/clinic` and `live` reached from it), and `mascot` (the desktop mascot window) |
+| `app/` | Screens: `setup`, home (`page.tsx`), `prompt` (the conversation and the ladder), `settings`, `help`, `weekly` (only from the conversation), `values` (My values), `share` (Share with my clinic), `demo` (with `demo/replay`, `demo/clinic` and `live` reached from it; `demo/camera` and `demo/voice` from Live), and `mascot` (the desktop mascot window) |
 | `lib/ladder.ts` | Which step is due after "Not my best" |
 | `lib/report.ts` | My values and the clinic report, from the same evaluation; `lib/clinicDemo.ts` makes the demo's made-up patients |
 | `components/Strip.tsx` | One measure as daily dots over the usual band (My values and the replay) |
-| `lib/settings.ts` | Sources, routines and quiet hours, with their defaults |
+| `lib/settings.ts` | The switch for each input, routines and quiet hours, with their defaults |
 | `lib/contact.ts` | Reaching someone you trust: the real contact on top of `lib/messages.ts`, the stand-in for demo mode without a pair, and which message home shows |
 | `lib/trusted.ts` | The app's one messages client, followed once while a pair exists, and the hook screens read it through |
 | `lib/messages.ts`, `lib/events.ts` | The local-first messages client and the event types (byte-for-byte copies in `server/lib/`) |
@@ -278,7 +313,7 @@ The person's own data is in `localStorage` under `companion.v1`, as one JSON obj
 `lib/types.ts`). It never leaves the device:
 
 - `profile`: when setup was done, and up to three personal early signs.
-- `daily[]`: one per day, from an earlier version's daily check-in (no longer shown). Bedtime and wake time (`"HH:MM"`), form 1 to 5, reading pace in
+- `daily[]`: one per day, from an earlier version's daily form (no longer shown). Bedtime and wake time (`"HH:MM"`), form 1 to 5, reading pace in
   words per second (or `null` if skipped), an optional typed note.
 - `weekly[]`: one per date. The two PHQ-2 items (`down`, `interest`), `sleep` and `tense`,
   all on the standard 0 to 3 scale, plus one 0 to 3 answer per early sign.
@@ -333,8 +368,8 @@ interface Brain {
 ```
 
 `BrainInput` holds the recent daily and weekly entries, the profile, `levels` (the person's
-own baseline and the change in the last week, from `lib/levels.ts`) and `passive`: the six
-passive measures as plain data (key, source, label, status, direction, the last week's values,
+own baseline and the change in the last week, from `lib/levels.ts`) and `passive`: every
+passive measure in category order as plain data (key, category, label, status, direction, the last week's values,
 the usual range, whether weekdays and weekends were compared apart, how many days exist) plus
 `askNow`, `reason`, `learning`, `daysOfData` and `basedOn` (how many days this week and in the
 four weeks before a change is based on).
@@ -348,8 +383,8 @@ four weeks before a change is based on).
   thing to try after "Not my best" (`suggestion`).
 
 **Whether to ask is not the brain's decision.** That rule stays in `lib/passive.ts`
-(`evaluatePassive`, unit tested): three in a row outside the usual range, at least two
-measures, the learning period and the 3-day wait. The brain receives the outcome as
+(`evaluatePassive`, unit tested): the middle of the last week outside the widened usual band,
+at least two different categories, the learning period and the 3-day wait. The brain receives the outcome as
 `passive.askNow` and only words it.
 
 `ruleBrain` is the default. It needs no API key and no network, and it produces exactly what
@@ -415,8 +450,8 @@ the brain is asked anything.
   out on this computer (MediaPipe and Web Audio, vendored or built in) and never stored or sent;
   no words are recognised. Only numbers per stretch are kept: movement, face movement, raised
   mouth corners and posture from the camera (lowered brows are kept but never shown or used),
-  pace and pitch movement from the microphone. "Camera, live" and "Voice, live" are under the
-  demo.
+  pace and pitch movement from the microphone. Live, under the demo, starts them only on a press;
+  "Camera, live" and "Voice, live" are deeper views from it.
 - Face and posture are experimental and never used on their own: the face model's own card says
   it is made for AR and avatars and not intended for human life-critical decisions. Under Mood
   they may only support another category, and never outweigh the person's own answer.
@@ -476,8 +511,9 @@ or up anywhere on the computer. It cannot change or block input.
 - **Sent anywhere:** nothing. The listener makes no network calls.
 
 macOS asks for **Input Monitoring** (System Settings, Privacy & Security, Input
-Monitoring). Without it the app does not crash: Live view says "Permission needed", has a
-button that opens that pane, and measures only in its own text box instead. After allowing
+Monitoring). Without it the app does not crash: Live says "Typing: waits for your permission"
+under Energy, "Typing in detail" has a button that opens that pane, and it measures only in its
+own text box instead. After allowing
 it, the app picks it up within a few seconds, or after a restart. When running with
 `pnpm desktop:dev`, macOS may attribute the permission to the terminal app that started it
 rather than to Cheer Pressure.

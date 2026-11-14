@@ -13,7 +13,7 @@ export interface Profile {
   earlySigns: string[];
 }
 
-/** From the manual daily check-in, which is no longer in the app. Kept so older data still loads and shows. */
+/** From an earlier version's daily form, which is no longer in the app. Kept so older data still loads. */
 export interface DailyEntry {
   id: string;
   date: DayKey;
@@ -51,7 +51,7 @@ export interface WeeklyEntry {
   savedAt: string;
 }
 
-/** From the reaction test, which is no longer in the app. Kept so older data still loads. */
+/** From an earlier version's timing taps, which are no longer in the app. Kept so older data still loads. */
 export interface ReactionResult {
   id: string;
   date: DayKey;
@@ -237,11 +237,11 @@ export interface PromptedCheckIn {
 /** The small things the companion may suggest after "Not my best". */
 export type RoutineId = "walk" | "morning-light" | "regular-bedtime" | "music" | "call-someone";
 
-/** The sources the person can switch on or off. Camera, microphone and the bedside sensor are not connected yet. */
+/** The inputs the person can switch on or off, by category. A phone, a watch and a bedside device are not connected yet. */
 export interface Sources {
-  /** Typing rhythm: key timing only. */
+  /** Energy, typing rhythm: key timing only. */
   typing: boolean;
-  /** Day rhythm: first and last activity of the day. */
+  /** Sleep, estimated from first and last activity of the day. */
   dayRhythm: boolean;
   /** The camera: movement (Energy), face and posture (Mood). Off unless the person turns it on. */
   camera: boolean;

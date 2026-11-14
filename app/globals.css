@@ -723,7 +723,7 @@ pre.summary {
   }
 }
 
-/* Reaction test pad */
+/* Timing pad from an earlier version */
 .reaction-pad {
   width: 100%;
   min-height: 220px;
@@ -1246,7 +1246,7 @@ textarea.typing-box { min-height: 72px; }
   .qr { width: 148px; height: 148px; }
 }
 
-/* Live view: whether this stretch of typing counts */
+/* Live: whether the current stretch of writing counts (Typing in detail) */
 .burst-state { margin: 0; font-weight: var(--font-weight-medium); color: var(--color-ink-soft); }
 .burst-state.counting { color: var(--color-done); }
 
@@ -1466,3 +1466,9 @@ textarea.typing-box { min-height: 72px; }
   .live-panel { padding: var(--space-3); }
   .live-controls .btn { white-space: nowrap; padding: 0 var(--space-2); font-size: var(--font-size-sm); }
 }
+/* My values: an input without values takes one quiet line */
+.value-opening { margin: 0; font-size: var(--font-size-sm); color: var(--color-ink-soft); line-height: 1.35; }
+.value-input { margin: 0; font-size: var(--font-size-xs); color: var(--color-ink-soft); line-height: 1.35; }
+.value-input-name { font-weight: var(--font-weight-medium); color: var(--color-ink); }
+.value-input-name::after { content: ":"; }
+.value-input-link { color: inherit; cursor: pointer; }

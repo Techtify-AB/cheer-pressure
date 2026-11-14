@@ -2,8 +2,8 @@
 // them day by day.
 //
 // The usual is the 28 days before the last week, and recent is the last week (lib/passive.ts),
-// so six weeks could not hold a learning period, a full usual and a clear week of change with
-// any margin. The replay is eight weeks: six steady, then the drift.
+// so a shorter run could not hold a learning period, a full usual and a clear week of change
+// with any margin. The replay is eight weeks: six steady, then the drift.
 //
 // Steady weeks have the ordinary ups and downs of a real person: weekends start and end
 // later and have less typing, some days are spent away from the computer, some days have
@@ -143,7 +143,7 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
       });
     }
 
-    // Day and night rhythm: weekends start and end later. As sleep slips, the evenings run
+    // Sleep, estimated from this computer: weekends start and end later. As sleep slips, the evenings run
     // much later and the mornings start a little earlier, so the estimated night gets shorter.
     const noActivity = rand() < (weekend ? 0.12 : 0.05);
     if (!noActivity) {

@@ -5,8 +5,8 @@
 // What it measures, and nothing more: whether someone is in frame, how much they move
 // (per second), and how often they settle into a new position. It never looks at the face,
 // expression, mood or how someone sits. The product's hypothesis (not a proven marker) is
-// that movement compared with the person's own usual is one more source next to typing
-// rhythm and day rhythm.
+// that movement compared with the person's own usual is one more input to Energy, next to the
+// pace of the voice and typing.
 //
 // Distances are measured in shoulder widths, so sitting closer to or further from the
 // camera changes the numbers as little as possible.

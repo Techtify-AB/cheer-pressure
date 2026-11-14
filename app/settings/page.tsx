@@ -29,7 +29,16 @@ const VIEWS: View[] = ["measure", "routines", "voice", "daily", "look", "trust",
 
 function readHash(): View {
   const h = typeof window === "undefined" ? "" : window.location.hash.slice(1);
+  // "#measure-energy" opens What I measure on that category (My values links to a switch).
+  if (h.startsWith("measure-")) return "measure";
   return (VIEWS as string[]).includes(h) ? (h as View) : "list";
+}
+
+/** The category in "#measure-energy", or null. */
+function hashCategory(): CategoryId | null {
+  const h = typeof window === "undefined" ? "" : window.location.hash.slice(1);
+  const c = h.startsWith("measure-") ? h.slice("measure-".length) : "";
+  return SOURCES.some((x) => x.id === c) ? (c as CategoryId) : null;
 }
 
 /** The view lives in the address, so Back and reload keep it. */
@@ -84,13 +93,22 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
   const src = sourcesOf(s);
   const on = routinesOf(s);
   const q = quietHoursOf(s);
-  const measuring = [src.typing && "Typing rhythm", src.dayRhythm && "day and night rhythm", src.camera && "movement"].filter(Boolean).join(", ");
+  // By category, in order: a category counts when at least one of its inputs is on.
+  const dailyOn = dailyQuestionOf(s).every !== "off";
+  const catOn: Record<CategoryId, boolean> = {
+    sleep: src.dayRhythm,
+    energy: src.camera || src.microphone || src.typing,
+    social: src.contact,
+    mood: dailyOn || src.camera || src.microphone,
+  };
+  const measuring = SOURCES.filter((c) => catOn[c.id]).map((c) => c.label);
+  const measuringText = measuring.length === SOURCES.length ? "All four categories" : measuring.length ? measuring.join(", ") : "";
   const trusted = trustedSummary(snap);
   const rows: { key: string; label: string; value: string; onClick?: () => void; href?: string; demo?: boolean }[] = [
     {
       key: "measure",
       label: "What I measure",
-      value: s.pausedAll ? "Paused" : measuring ? measuring.replace(/^./, (c) => c.toUpperCase()) : "Nothing",
+      value: s.pausedAll ? "Paused" : measuringText || "Nothing",
       onClick: () => go("measure"),
     },
     {
@@ -103,10 +121,10 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
     { key: "daily", label: "Daily question", value: dailySummary(s), onClick: () => go("daily") },
     { key: "look", label: "Cheri's look", value: lookSummary(s), onClick: () => go("look") },
     { key: "trust", label: "Someone you trust", value: trusted, onClick: () => go("trust") },
-    { key: "values", label: "My values", value: "Each source, and a report for your clinic", href: "/values/" },
+    { key: "values", label: "My values", value: "Each category, and a report for your clinic", href: "/values/" },
     { key: "data", label: "Your data", value: "On this device unless you share a report", onClick: () => go("data") },
     { key: "help", label: "Need help now", value: "112 and your clinic", href: "/help/" },
-    { key: "demo", label: "For the demo", value: "Made-up data, replay, live view", href: "/demo/", demo: true },
+    { key: "demo", label: "For the demo", value: "Replay, Live, made-up data", href: "/demo/", demo: true },
   ];
   return (
     <Screen
@@ -176,6 +194,12 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
   const paused = !!data.settings.pausedAll;
   const paired = !!useTrusted()?.pairing;
   const [category, setCategory] = useState<CategoryId | null>(null);
+  useEffect(() => {
+    const c = hashCategory();
+    if (!c) return;
+    const t = window.setTimeout(() => setCategory(c), 0);
+    return () => window.clearTimeout(t);
+  }, []);
   const set = (next: Partial<typeof src>) => saveSettings({ sources: { ...src, ...next } });
   const dailyOn = dailyQuestionOf(data.settings).every !== "off";
 
@@ -211,7 +235,6 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
           )}
           {category === "energy" && (
             <>
-              <SwitchRow label="Typing rhythm" hint="The timing between key presses, never which keys" keepHint on={src.typing} onChange={(v) => set({ typing: v })} />
               <SwitchRow
                 label="Camera"
                 hint="Movement, face and posture, worked out on this computer. Nothing is stored or sent. Only while this window is open."
@@ -228,6 +251,7 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
                 onChange={(v) => set({ microphone: v })}
               />
               {micProblem && <p className="small switch-note problem-text">{micProblem}</p>}
+              <SwitchRow label="Typing rhythm" hint="The timing between key presses, never which keys" keepHint on={src.typing} onChange={(v) => set({ typing: v })} />
             </>
           )}
           {category === "social" && (
@@ -267,9 +291,9 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
     const ids: string[] = [];
     if (c === "sleep" && src.dayRhythm) ids.push("estimated from this computer");
     if (c === "energy") {
+      if (src.camera) ids.push("movement from the camera");
+      if (src.microphone) ids.push("pace of the voice");
       if (src.typing) ids.push("typing");
-      if (src.camera) ids.push("camera");
-      if (src.microphone) ids.push("voice");
     }
     if (c === "social" && src.contact) ids.push(paired ? "messages with someone you trust" : "needs someone you trust");
     if (c === "mood") {
@@ -733,14 +757,22 @@ function Trust({ data, back }: { data: AppData; back: React.ReactNode }) {
 }
 
 function YourData({ data, back, onDelete }: { data: AppData; back: React.ReactNode; onDelete: () => void }) {
-  const counts = `${data.typingSessions.length} typing sessions, ${data.activityDays.length} days of activity times, ${data.checkIns.length} answers to Cheri and ${data.weekly.length} weekly answers`;
+  // By category, in order, as days.
+  const days = (list: { date: string }[] | undefined) => new Set((list ?? []).map((x) => x.date)).size;
+  const counts = [
+    `Sleep, ${days(data.activityDays)} days of first and last activity`,
+    `Energy, ${days(data.movementSessions)} days with the camera, ${days(data.toneSessions)} with the microphone and ${days((data.typingDays ?? []).filter((t) => t.kind === "all"))} with typing`,
+    `Social, ${days(data.contactDays)} days of message counts`,
+    `Mood, ${days((data.dailyAnswers ?? []).filter((a) => a.answer))} daily answers`,
+  ].join("; ");
+  const more = `${data.checkIns.length} answers to Cheri and ${data.weekly.length} weekly answers`;
   return (
     <Screen
       lead={
         <>
           <h1 className="item-title">Your data</h1>
           <p className="muted">
-            On this device, with no account and no login: {counts}. It stays here unless you choose to save or print a report for your clinic.
+            On this device, with no account and no login: {counts}; {more}. It stays here unless you choose to save or print a report for your clinic.
           </p>
         </>
       }
@@ -752,9 +784,11 @@ function YourData({ data, back, onDelete }: { data: AppData; back: React.ReactNo
           <div className="links">
             <Disclosure label="What is stored, in detail" title="What is stored, in detail">
               <p>
-                Typing sessions and first and last activity are timing numbers and times of day only, never which keys
-                or what you typed. Your answers to Cheri keep which answer you picked and which measures had
-                changed. Weekly answers keep the numbers you picked.
+                Sleep keeps the time of your first and last key press each day. Energy keeps numbers only: movement
+                from the camera, pace of the voice from the microphone, and typing timing, never a picture, a sound,
+                which keys or what you typed. Social keeps how many messages a day, never what they say. Mood keeps
+                the answer you picked, and face, posture and tone only as numbers. Your answers to Cheri keep which
+                answer you picked and which measures had changed. Weekly answers keep the numbers you picked.
               </p>
               {data.profile?.earlySigns.length ? <p>Your early signs: {data.profile.earlySigns.join(", ")}.</p> : null}
               <p>
@@ -764,8 +798,8 @@ function YourData({ data, back, onDelete }: { data: AppData; back: React.ReactNo
               </p>
               {data.daily.length || data.reaction.length ? (
                 <p>
-                  From earlier versions of the app: {data.daily.length} daily check-ins and {data.reaction.length}{" "}
-                  reaction tests. They are kept until you delete everything.
+                  From earlier versions of the app: {data.daily.length} older daily entries and {data.reaction.length}{" "}
+                  older timing taps. They are kept until you delete everything.
                 </p>
               ) : null}
             </Disclosure>
