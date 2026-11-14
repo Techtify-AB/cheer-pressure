@@ -63,6 +63,66 @@ default, when it never speaks up), voice, someone you trust, My values, your dat
 need help now, and **For the demo**, the one marked place for Live, demo data, the
 replay, the messages service address and "What a clinic could see".
 
+## The phone flow (docs/MOBILE_SPEC.md)
+
+The same interface runs in a browser, the desktop app and the phone app's WebView, and every
+screen fits 390 x 844 without page scrolling (`scripts/check-fit.mjs`, also 520 x 820 and
+1366 x 768).
+
+- **Onboarding** (`/setup/`), one question per screen, with a progress bar, Back, and every
+  step but the first skippable: hello; What helps you? (`lib/helps.ts`, plus own words);
+  What did you notice first last time?; Who do you trust? (add one now or skip); Your clinic
+  (Always / Only when I say / Never, and "If my values have not come back after 7 days, tell my
+  clinic for me"); What may I look at? (one permission per screen, through `lib/phone.ts` on
+  the phone, the browser or desktop equivalent or "not available here" elsewhere); A daily
+  hello? (when, how often after the first two weeks, an optional 15-second reaction check);
+  Cheri's look. People who set up before get the new questions offered once, quietly, on Home.
+  Every free-text field shows the help card on crisis words.
+- **Step one** suggests ONE thing from the person's own list: I'll try that / Something else /
+  Not now. Every offer is recorded (`suggestions`). The order is one plain count in
+  `lib/helps.ts`: the person's own "Did it help?" answer first (yes 1, a little 0.5, from Home
+  after a suggestion, or from the activity library), the categories coming back within three
+  days second (a quarter weight); untried things before things that did not help. When the count
+  puts something first, Cheri says what it rests on ("You've said morning light helped 3 of 4
+  times, so I'm suggesting it first."). `brain.chooseHelp` gets the whole history, so a model can
+  choose instead. The activity link has one place: `activityLinkFor` in `app/prompt/page.tsx`.
+- **Step two** is social, with several people: the person picks who to ask; each trusted person
+  is their own pair on the messages service (`createPeople` in `lib/messages.ts`, the local-first
+  outbox, idempotent retries and 48-hour deletion per pair). The request is "Could we talk or
+  meet up soon?". With no one to ask, step two offers other ways (`components/OtherWays.tsx`): add
+  someone, the clinic's contact person, or a peer, which is a clearly marked demo.
+- **Step three** follows the clinic choice: with the automatic yes, after 7 days without the
+  categories coming back Cheri says "I've told your clinic, as you asked" and shows exactly what
+  was shared; otherwise she asks first. "Always" adds a weekly entry (and a note when two
+  categories stand out). Everything goes to a local "Shared with my clinic" list marked "Demo
+  recipient. Nothing was actually sent." (Settings, My clinic).
+- **The daily hello** (`/hello/`): Cheri large, "How are you today?", hold to talk or one tap,
+  a camera the person turns on with a small self-view they can hide, "Camera on" and
+  "Microphone on". The person's words show when the phone app can turn speech into text
+  (`listen.start/stop`, `converse`, `speak`, feature-detected in `lib/phoneBridge.ts`); otherwise
+  one tap and a short reply from `brain.helloReply`. Readings (face movement, tone) are stored
+  per day as the person's own values (`lib/hello.ts`); until 14 days have them it says it is
+  still learning. Cheri ends it within 40 seconds and releases everything. Every day for the
+  first two weeks, then as chosen; never in quiet hours, never twice a day. On the phone the
+  reminder is a notification planned by `lib/phone.ts`; on the desktop the bubble. All store to
+  the same `dailyAnswers`. Tests: `scripts/test-hello.mts`, `scripts/test-helps.mts`, the phone
+  flow part of `scripts/test-ladder.mts`.
+
+### Plugging in a trained camera model
+
+`lib/camera/faceModel.ts` is the seam: `init()`, `read(input)` and `dispose()`. `input` has the
+time, the video frame, and MediaPipe's face landmarks and blendshapes when they exist; `read`
+returns named numbers with a confidence from 0 to 1 (never a picture, a feeling or a label).
+The default wraps `lib/camera/expression.ts`. To use a trained model, implement `FaceModel`
+and return it from `createFaceModel()`:
+
+- **ONNX** through onnxruntime-web (WebAssembly or WebGPU), or **TensorFlow.js / TFLite**
+  (the tfjs-tflite runner). Both run in the page, on the device.
+- Model files go in `public/models/` and load from the app's own origin. No network, no Python
+  at runtime: export the model to `.onnx` or `.tflite` first.
+- Give it a new `name`: readings from different models are never mixed in the person's usual.
+- Add the runtime as a dependency only when the model exists; nothing is added now.
+
 ## My values and the clinic report
 
 **My values** (`/values/`, `lib/report.ts`) opens on one sentence and how many of the four
@@ -102,6 +162,9 @@ request through the messages service (see below); without one it sends nothing, 
 demo mode shows a reply marked as simulated.
 
 ## Someone you trust
+
+(Since the phone flow: **People you trust**, several people, each their own pair; the screens
+below describe one person, and the list adds a state per person, Add and Remove.)
 
 **Settings, Someone you trust**, one step per screen: "Invite someone" creates a pair on the
 messages service and shows a QR code (drawn on the device by the bundled `qrcode` package) and a
@@ -555,8 +618,13 @@ the menu bar icon.
 - Sending anything to a clinic. The person saves or prints the report; there is no clinic
   integration. "What a clinic could see" is made up.
 - The clinic's real contact details. The help screen has a marked placeholder.
-- Reminders or notifications. Greetings arrive by polling every 1.5 s while the app runs.
-- More than one trusted person, or a conversation history in the interface.
+- Reminders in a browser. The phone app plans notifications for the daily hello; elsewhere
+  greetings arrive by polling every 1.5 s while the app runs.
+- A conversation history in the interface.
+- Peer contact. "Someone who has been through this too" is a demo only, with made-up replies
+  and nothing sent. A real version needs opt-in on both sides, moderation by the clinic, a way
+  to report and block, and a crisis protocol.
+- A real clinic recipient. "Shared with my clinic" keeps entries on the device only.
 - Offline caching (no service worker).
 - Microphone and bedside sensor. The camera runs only while the Cheer Pressure window is open
   and showing; no background capture.

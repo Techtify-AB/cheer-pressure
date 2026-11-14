@@ -136,6 +136,13 @@ the bedside robot; wiring the camera into the categories; tone of voice.
 conversation with Cheri; sigh detection; choosing Cheri's look in Settings; video, deck and
 submission text.
 
+**Phone flow (Saturday night, web side):** onboarding one question per screen; step one from
+the person's own list, ordered by what they said helped; several trusted people; other ways to
+reach someone when there is no one (peer contact is a demo); the clinic step as chosen with a
+local "Shared with my clinic" list (demo recipient); the daily hello at `/hello/` with the face
+model seam. See "The phone flow" in `README.md`. Checked by the builders' own tests and a
+headless fit check only.
+
 **Not verified by a human:** almost everything since Saturday morning has only passed the
 builders' own automated checks. Nobody has yet clicked through the desktop app, tried the
 chain with a real phone, or sat in front of the real camera and microphone. `BAR.md`
