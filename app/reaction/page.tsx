@@ -119,11 +119,11 @@ export default function ReactionPage() {
         <div className="card stack" aria-live="polite">
           <div>
             <div className="big-number">{result} ms</div>
-            <p className="muted" style={{ margin: 0 }}>
+            <p className="muted" style={{ marginBottom: 0 }}>
               Your median: the middle of your five times. Lower means quicker.
             </p>
           </div>
-          <p className="small muted" style={{ margin: 0 }}>
+          <p className="small muted" style={{ marginBottom: 0 }}>
             Your five times: {times.join(", ")} ms. Saved.
           </p>
           <div className="btn-row">

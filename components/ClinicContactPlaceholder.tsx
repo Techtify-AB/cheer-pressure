@@ -5,10 +5,10 @@ export function ClinicContactPlaceholder() {
   return (
     <div className="placeholder">
       <span className="placeholder-tag">Placeholder</span>
-      <p style={{ margin: 0 }}>
+      <p style={{ marginBottom: 0 }}>
         <strong>Your clinic&apos;s contact goes here</strong>
       </p>
-      <p className="small muted" style={{ margin: 0 }}>
+      <p className="small muted" style={{ marginBottom: 0 }}>
         The clinic adds its phone number and opening hours before this is used.
       </p>
     </div>

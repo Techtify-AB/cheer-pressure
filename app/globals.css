@@ -598,3 +598,11 @@ pre.summary {
 .weekly-table td[data-level="3"] {
   background: color-mix(in srgb, var(--color-change) 22%, var(--color-surface));
 }
+
+.bare-fieldset {
+  border: 0;
+  padding: 0;
+  margin-inline: 0;
+  margin-bottom: 0;
+  min-width: 0;
+}

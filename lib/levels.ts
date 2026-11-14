@@ -96,14 +96,14 @@ const DEFS: Record<MetricKey, MetricDef> = {
     label: "Bedtime",
     meaning: "When you went to bed",
     format: nightMinutesToClock,
-    threshold: () => 45,
+    threshold: () => 30,
   },
   wake: {
     key: "wake",
     label: "Wake time",
     meaning: "When you woke up",
     format: minutesToClock,
-    threshold: () => 45,
+    threshold: () => 30,
   },
   sleep: {
     key: "sleep",

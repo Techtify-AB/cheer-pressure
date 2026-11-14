@@ -149,7 +149,7 @@ function CheckInFlow({ data }: { data: AppData }) {
             <span key={i} className={i <= step ? "on" : ""} />
           ))}
         </div>
-        <p className="small muted" style={{ margin: 0 }}>
+        <p className="small muted" style={{ marginBottom: 0 }}>
           Step {step + 1} of {QUESTIONS.length}
         </p>
       </div>
@@ -159,7 +159,7 @@ function CheckInFlow({ data }: { data: AppData }) {
           <Companion state={voice.state} size={84} />
         </div>
         <div className="bubble" style={{ flex: 1 }} aria-live="polite">
-          <h1 style={{ fontSize: "var(--font-size-lg)", margin: 0 }}>{QUESTIONS[step]}</h1>
+          <h1 style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>{QUESTIONS[step]}</h1>
         </div>
       </div>
 

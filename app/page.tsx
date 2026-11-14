@@ -17,7 +17,9 @@ export default function HomePage() {
 
   const doneToday = data.daily.some((e) => e.date === today);
   const lastWeekly = data.weekly[data.weekly.length - 1];
-  const weeklyDue = !lastWeekly || daysBetween(lastWeekly.date, today) >= 7;
+  // Offered when 7 days have passed since the last weekly answer. Someone new is
+  // offered their first one after their first daily check-in.
+  const weeklyDue = lastWeekly ? daysBetween(lastWeekly.date, today) >= 7 : data.daily.length > 0;
 
   const greeting = doneToday
     ? "Today's check-in is done. Nothing more is needed today."

@@ -73,7 +73,7 @@ export default function SetupPage() {
           </div>
         </div>
         <div className="card stack">
-          <p style={{ margin: 0 }}>
+          <p style={{ marginBottom: 0 }}>
             Your answers stay in this browser. There is no account, and nothing is sent anywhere.
           </p>
         </div>
@@ -116,7 +116,7 @@ export default function SetupPage() {
         <CrisisCard />
       ) : (
         <>
-          <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+          <fieldset className="bare-fieldset">
             <legend className="sr-only">Early signs to pick from</legend>
             <div className="chips">
               {[...COMMON_SIGNS, ...customOnly].map((s) => {

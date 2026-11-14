@@ -21,26 +21,26 @@ export default function SettingsPage() {
       <h1>Your data and settings</h1>
 
       <section className="card stack" aria-labelledby="where-title">
-        <h2 id="where-title" style={{ fontSize: "var(--font-size-lg)", margin: 0 }}>
+        <h2 id="where-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
           Where your answers are
         </h2>
-        <p style={{ margin: 0 }}>
+        <p style={{ marginBottom: 0 }}>
           Only in this browser, on this device. There is no account and no login, and nothing is sent anywhere.
           Right now that is {counts}.
         </p>
         {data.profile?.earlySigns.length ? (
-          <p className="small muted" style={{ margin: 0 }}>
+          <p className="small muted" style={{ marginBottom: 0 }}>
             Your early signs: {data.profile.earlySigns.join(", ")}.
           </p>
         ) : null}
       </section>
 
       <section className="card stack" aria-labelledby="voice-title">
-        <h2 id="voice-title" style={{ fontSize: "var(--font-size-lg)", margin: 0 }}>
+        <h2 id="voice-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
           Voice
         </h2>
         <div>
-          <p style={{ margin: 0 }}>
+          <p style={{ marginBottom: 0 }}>
             <strong>Reading aloud: {muted ? "off" : "on"}.</strong> The companion can read its questions aloud using
             the voices built into your device. Only on-device voices are used, so the text is not sent anywhere.
           </p>
@@ -56,7 +56,7 @@ export default function SettingsPage() {
             {muted ? "Turn reading aloud on" : "Mute reading aloud"}
           </button>
         </div>
-        <p style={{ margin: 0 }}>
+        <p style={{ marginBottom: 0 }}>
           <strong>Answering by voice: off.</strong> This version has no voice answers, so you always tap or type.
           When you read the sentence in the check-in, the microphone is used only to time how fast you read. That
           happens on this device; no sound is recorded, kept or sent.
@@ -64,10 +64,10 @@ export default function SettingsPage() {
       </section>
 
       <section className="card stack" aria-labelledby="delete-title">
-        <h2 id="delete-title" style={{ fontSize: "var(--font-size-lg)", margin: 0 }}>
+        <h2 id="delete-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
           Delete everything
         </h2>
-        <p style={{ margin: 0 }}>Removes all your answers and settings from this browser and starts over.</p>
+        <p style={{ marginBottom: 0 }}>Removes all your answers and settings from this browser and starts over.</p>
         {!confirming ? (
           <div>
             <button type="button" className="btn btn-secondary" onClick={() => setConfirming(true)}>
@@ -76,7 +76,7 @@ export default function SettingsPage() {
           </div>
         ) : (
           <div className="stack" role="alertdialog" aria-labelledby="confirm-text">
-            <p id="confirm-text" style={{ margin: 0 }}>
+            <p id="confirm-text" style={{ marginBottom: 0 }}>
               <strong>Are you sure? This can&apos;t be undone.</strong>
             </p>
             <div className="btn-row">

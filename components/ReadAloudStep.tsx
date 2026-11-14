@@ -114,7 +114,7 @@ export function ReadAloudStep({
         <>
           <div className="card" aria-live="polite">
             <div className="big-number">{result.wordsPerSecond.toFixed(1)} words per second</div>
-            <p className="muted" style={{ margin: 0 }}>
+            <p className="muted" style={{ marginBottom: 0 }}>
               How fast you read the sentence ({WORD_COUNT} words in {result.speakingSeconds.toFixed(1)} seconds).
               Only this number is kept. {comparison}
             </p>

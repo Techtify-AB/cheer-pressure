@@ -41,7 +41,7 @@ export default function SharePage() {
     <div className="stack-lg">
       <div>
         <h1>Share with my clinic</h1>
-        <p className="muted" style={{ margin: 0 }}>
+        <p className="muted" style={{ marginBottom: 0 }}>
           This is exactly what would be shared. Nothing is sent from here: you can copy it or download it, and then
           decide yourself whether to give it to your clinic.
         </p>
@@ -59,7 +59,7 @@ export default function SharePage() {
           Download as a file
         </button>
       </div>
-      <p className="small muted" aria-live="polite" style={{ margin: 0 }}>
+      <p className="small muted" aria-live="polite" style={{ marginBottom: 0 }}>
         {copied === "copied"
           ? "Copied. Nothing has been sent."
           : copied === "failed"

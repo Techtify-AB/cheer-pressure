@@ -137,7 +137,7 @@ function WeeklyFlow({ data }: { data: AppData }) {
             <span key={i} className={i <= index ? "on" : ""} />
           ))}
         </div>
-        <p className="small muted" style={{ margin: 0 }}>
+        <p className="small muted" style={{ marginBottom: 0 }}>
           Weekly questions · {index + 1} of {items.length}
           {last ? ` · last answered ${formatDay(last.date)}` : ""}
         </p>
@@ -151,7 +151,7 @@ function WeeklyFlow({ data }: { data: AppData }) {
           <p className="small muted" style={{ marginBottom: "var(--space-1)" }}>
             {item.stem}
           </p>
-          <h1 style={{ fontSize: "var(--font-size-lg)", margin: 0 }}>{item.text}</h1>
+          <h1 style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>{item.text}</h1>
         </div>
       </div>
 

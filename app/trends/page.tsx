@@ -42,13 +42,13 @@ export default function TrendsPage() {
 
   const demoOn = hasDemo(data);
   const anything = data.daily.length + data.weekly.length + data.reaction.length > 0;
-  const weeklyList = data.weekly.slice(-6);
+  const weeklyList = data.weekly.slice(-6).reverse(); // newest first, so it is visible on a phone
 
   return (
     <div className="stack-lg">
       <div>
         <h1>Your own level</h1>
-        <p className="muted" style={{ margin: 0 }}>
+        <p className="muted" style={{ marginBottom: 0 }}>
           The last 14 days compared with your usual level. Your usual level comes only from your own earlier
           entries, never from other people.
         </p>
@@ -57,10 +57,10 @@ export default function TrendsPage() {
       <section className="demo-box stack" aria-labelledby="demo-title">
         <div>
           <span className="placeholder-tag">Demo</span>
-          <h2 id="demo-title" style={{ fontSize: "var(--font-size-lg)", margin: 0 }}>
+          <h2 id="demo-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
             {demoOn ? "Showing made-up demo data" : "Try it with made-up data"}
           </h2>
-          <p className="small muted" style={{ margin: 0 }}>
+          <p className="small muted" style={{ marginBottom: 0 }}>
             Six weeks of invented entries where the last week changes, so you can see how this works. Your own
             entries are kept and not overwritten.
           </p>
@@ -109,7 +109,7 @@ export default function TrendsPage() {
 
       {!anything && (
         <div className="card">
-          <p style={{ margin: 0 }}>
+          <p style={{ marginBottom: 0 }}>
             Nothing here yet. After your first check-ins you&apos;ll see them here, and your usual level appears after
             about a week.
           </p>
@@ -118,7 +118,7 @@ export default function TrendsPage() {
 
       {anything && (
         <>
-          <p className="small muted" style={{ margin: 0 }}>
+          <p className="small muted" style={{ marginBottom: 0 }}>
             In each chart, a dot is one day. The green band is your usual range and the dashed line your usual
             middle value. The shaded right part is the last 7 days.
           </p>
@@ -129,7 +129,7 @@ export default function TrendsPage() {
                 <h2 id={`m-${m.key}`} style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
                   {m.label} {m.experimental && <span className="badge badge-experiment">Experiment</span>}
                 </h2>
-                <p className="small muted" style={{ margin: 0 }}>
+                <p className="small muted" style={{ marginBottom: 0 }}>
                   {m.meaning}.
                 </p>
               </div>
@@ -147,7 +147,7 @@ export default function TrendsPage() {
                   </dd>
                 </div>
               </dl>
-              <p style={{ margin: 0 }}>
+              <p style={{ marginBottom: 0 }}>
                 <strong>{changeText(m)}</strong>
               </p>
               <Sparkline metric={m} />
@@ -159,12 +159,12 @@ export default function TrendsPage() {
               <h2 id="weekly-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
                 Weekly answers
               </h2>
-              <p className="small muted" style={{ margin: 0 }}>
-                0 means not at all, 1 several days, 2 more than half the days, 3 nearly every day.
+              <p className="small muted" style={{ marginBottom: 0 }}>
+                0 means not at all, 1 several days, 2 more than half the days, 3 nearly every day. Newest answer first.
               </p>
             </div>
             {weeklyList.length === 0 ? (
-              <p className="muted" style={{ margin: 0 }}>
+              <p className="muted" style={{ marginBottom: 0 }}>
                 No weekly answers yet.
               </p>
             ) : (
@@ -200,7 +200,7 @@ export default function TrendsPage() {
                     </tbody>
                   </table>
                 </div>
-                <ul className="small" style={{ margin: 0, paddingLeft: "1.2em" }}>
+                <ul className="small" style={{ marginBottom: 0, paddingLeft: "1.2em" }}>
                   {levels.weekly.items
                     .filter((i) => i.direction === "up" || i.direction === "down")
                     .map((i) => (
