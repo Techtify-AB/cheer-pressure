@@ -1,0 +1,45 @@
+// Development builds only: the made-up weeks, so Sleep and Energy can be tried in the simulator.
+// Two ways in: the developer menu (shake, or Ctrl-Cmd-Z in the simulator) and a link, which a
+// script can open:
+//   xcrun simctl openurl booted "cheerpressure://dev/demo-health?action=add"
+//   xcrun simctl openurl booted "cheerpressure://dev/demo-health?action=remove"
+// The page itself can also ask through the bridge (lib/phone.ts demoHealth). Release builds never
+// register any of this, and the bridge refuses demoHealth there.
+
+import { Alert, Linking } from "react-native";
+import { IS_DEV } from "./config";
+import * as health from "./health";
+
+async function run(action: "add" | "remove", reload: () => void) {
+  try {
+    const r = await health.demoHealth(action);
+    reload();
+    Alert.alert(
+      action === "add" ? "Made-up weeks added" : "Made-up weeks removed",
+      action === "add" ? `${r.nights} nights and ${r.days} days of steps are in Health now.` : `${r.nights} nights and ${r.days} days of steps were taken out of Health.`,
+    );
+  } catch (e) {
+    Alert.alert("That did not work", e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** Registers the menu items and the link. Returns a function that stops listening to the link. */
+export function registerDevTools(reload: () => void): () => void {
+  if (!IS_DEV) return () => {};
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const menu = require("expo-dev-menu") as typeof import("expo-dev-menu");
+  void menu
+    .registerDevMenuItems([
+      { name: "Add eight made-up weeks to Health", callback: () => void run("add", reload), shouldCollapse: true },
+      { name: "Remove them", callback: () => void run("remove", reload), shouldCollapse: true },
+    ])
+    .catch(() => null);
+  const onUrl = (url: string | null) => {
+    if (!url) return;
+    const m = url.match(/^cheerpressure:\/\/dev\/demo-health\?action=(add|remove)/);
+    if (m) void run(m[1] as "add" | "remove", reload);
+  };
+  void Linking.getInitialURL().then(onUrl);
+  const sub = Linking.addEventListener("url", (e) => onUrl(e.url));
+  return () => sub.remove();
+}

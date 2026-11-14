@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# the bundled web interface, copied from the repository's out/ by scripts/copy-web.mjs
+/modules/cheer-native/ios/web/*
+!/modules/cheer-native/ios/web/.keep

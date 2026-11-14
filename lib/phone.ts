@@ -380,6 +380,12 @@ export function startPhone() {
   started = true;
   installReceiver();
   const refresh = async () => {
+    // Health may have been asked from elsewhere (onboarding asks through lib/phoneBridge.ts, which
+    // does not mark it): the phone knows whether its sheet was shown.
+    if (!readData().phoneHealth?.askedAt) {
+      const caps = await getCapabilities().catch(() => null);
+      if (caps?.health.state === "asked" || caps?.health.state === "granted") markPhoneHealthAsked();
+    }
     const before = readData();
     const askedBefore = !before.settings.pausedAll && evaluatePassive(forRule(before), dayKey(new Date())).askNow;
     const read = await syncPhoneHealth().catch(() => false);

@@ -1,17 +1,29 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Cheer Pressure",
+    "slug": "cheer-pressure",
+    "scheme": "cheerpressure",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#f6f2ea",
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "app.cheerpressure.mobile",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Cheer Pressure uses the camera during your daily hello with Cheri. Worked out on this phone; nothing is recorded or sent.",
+        "NSMicrophoneUsageDescription": "Cheer Pressure uses the microphone during your daily hello with Cheri. Worked out on this phone; nothing is recorded or sent.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
+      "package": "app.cheerpressure.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#f6f2ea",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -22,7 +34,21 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-build-properties"
+      "expo-build-properties",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Cheer Pressure reads your sleep and steps to notice changes compared with your own usual. They stay on this phone.",
+          "NSHealthUpdateUsageDescription": "Only the development version of Cheer Pressure writes to Health: made-up sample weeks for testing, which it can remove again. The app you use never writes to Health.",
+          "background": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#f6f2ea"
+        }
+      ]
     ]
   }
 }
