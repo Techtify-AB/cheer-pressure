@@ -73,23 +73,43 @@ export interface FaceUpdate {
   checkin: { reason: "below-own-usual" | "low-no-baseline-yet"; text: string } | null;
 }
 
+/** Something the person said, heard and transcribed on the board, with the face for those seconds. */
+export interface FaceSpeech {
+  t0: number;
+  t1: number;
+  text: string;
+  /** Null when the face was not in view while they spoke. */
+  face: { label: Expression; confidence: number; valence: number; smile_share: number; frames: number } | null;
+  /** The words, the face and the recent trend as one paragraph for the language model. */
+  prompt: string;
+  /** Seconds the board took to transcribe. */
+  stt_s?: number;
+  words_per_s?: number;
+}
+
 export interface FaceSignal {
   connected: boolean;
   live: FaceLive | null;
   /** Minutes received since the page opened, oldest first. */
   minutes: FaceMinute[];
   update: FaceUpdate | null;
+  /** The latest thing the person said. */
+  speech: FaceSpeech | null;
 }
 
-/**
- * Subscribe to the board. `base` is the board's address, e.g. "http://10.0.40.29:8765".
- * `onCheckin` runs when the board says it is time to ask how the person is doing.
- */
-export function useFaceSignal(base: string | null, onCheckin?: (u: FaceUpdate) => void): FaceSignal {
-  const [signal, setSignal] = useState<FaceSignal>({ connected: false, live: null, minutes: [], update: null });
-  const cb = useRef(onCheckin);
+export interface FaceHandlers {
+  /** The board says it is time to ask how the person is doing. */
+  onCheckin?: (u: FaceUpdate) => void;
+  /** The person said something: pass `speech.prompt` to the language model. */
+  onSpeech?: (s: FaceSpeech) => void;
+}
+
+/** Subscribe to the board. `base` is the board's address, e.g. "http://10.0.40.29:8765". */
+export function useFaceSignal(base: string | null, handlers: FaceHandlers = {}): FaceSignal {
+  const [signal, setSignal] = useState<FaceSignal>({ connected: false, live: null, minutes: [], update: null, speech: null });
+  const cb = useRef(handlers);
   useEffect(() => {
-    cb.current = onCheckin;
+    cb.current = handlers;
   });
   useEffect(() => {
     if (!base) return;
@@ -103,7 +123,12 @@ export function useFaceSignal(base: string | null, onCheckin?: (u: FaceUpdate) =
     es.addEventListener("update", (e) => {
       const update: FaceUpdate = JSON.parse((e as MessageEvent).data);
       setSignal((s) => ({ ...s, update }));
-      if (update.checkin) cb.current?.(update);
+      if (update.checkin) cb.current.onCheckin?.(update);
+    });
+    es.addEventListener("speech", (e) => {
+      const speech: FaceSpeech = JSON.parse((e as MessageEvent).data);
+      setSignal((s) => ({ ...s, speech }));
+      cb.current.onSpeech?.(speech);
     });
     return () => es.close();
   }, [base]);
