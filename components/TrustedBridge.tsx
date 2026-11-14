@@ -1,7 +1,7 @@
 "use client";
 
-// Lives in the main window only (components/AppShell.tsx). Follows the pair with the trusted
-// person once, for the whole app, while a pair exists. When a greeting or question arrives:
+// Lives in the main window only (components/AppShell.tsx). Follows every person the user
+// trusts once, for the whole app (each their own pair). When a greeting or question arrives:
 //
 // - home and the mascot show it (they read lib/trusted.ts), and the companion looks glad;
 // - outside quiet hours, and unless the voice is off or everything is paused, the companion
@@ -10,38 +10,44 @@
 import { useEffect } from "react";
 import { inQuietHours, quietHoursOf } from "@/lib/settings";
 import { readData } from "@/lib/storage";
-import { follow, onArrival, unfollow, messagesClient } from "@/lib/trusted";
+import { follow, onArrival, unfollow, watchPeople } from "@/lib/trusted";
 import { dayKey } from "@/lib/dates";
 import { saveContactDays } from "@/lib/storage";
 import { sourcesOf } from "@/lib/settings";
-import type { Snapshot } from "@/lib/messages";
+import type { PersonView } from "@/lib/messages";
 
 import { speak } from "@/lib/voice";
 
 const spoken = new Set<string>();
 
 /**
- * Social, from data the app already has: how many messages passed with the person they trust
- * on each day while a pair existed (both ways). Today is written even when it is 0. Never what
- * the messages say.
+ * Social, from data the app already has: how many messages passed with the people they trust
+ * on each day while a pair existed (both ways, everyone together). Today is written even when it
+ * is 0. Never what the messages say, and never who.
  */
-function recordContact(s: Snapshot) {
-  if (!s.pairing || s.connection === "ended" || !sourcesOf(readData().settings).contact) return;
+let lastCounts = "";
+function recordContact(vs: PersonView[]) {
+  const live = vs.filter((v) => v.snapshot.pairing && v.snapshot.connection !== "ended");
+  if (!live.length || !sourcesOf(readData().settings).contact) return;
   const today = dayKey(new Date());
   const counts = new Map<string, number>([[today, 0]]);
-  for (const e of s.events) {
-    const d = dayKey(new Date(e.ts));
-    counts.set(d, (counts.get(d) ?? 0) + 1);
+  for (const v of live) {
+    for (const e of v.snapshot.events) {
+      const d = dayKey(new Date(e.ts));
+      counts.set(d, (counts.get(d) ?? 0) + 1);
+    }
   }
+  const key = JSON.stringify([...counts]);
+  if (key === lastCounts) return;
+  lastCounts = key;
   saveContactDays([...counts.entries()].map(([date, exchanged]) => ({ date, exchanged, source: "user" as const })));
 }
 
 
 export function TrustedBridge() {
   useEffect(() => {
+    const stopContact = watchPeople(recordContact);
     follow();
-    const client = messagesClient();
-    const stopContact = client.subscribe(recordContact);
     const stop = onArrival((events) => {
       const greetings = events.filter((e) => e.type === "greeting");
       const newest = greetings[greetings.length - 1];

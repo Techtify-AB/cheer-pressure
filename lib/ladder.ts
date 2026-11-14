@@ -135,17 +135,19 @@ export function answerSmallThing(l: LadderState, answer: "try" | "not-now", toda
   };
 }
 
-export function answerSomeone(l: LadderState, answer: "yes" | "not-now", today: DayKey): LadderState {
+/** Step 2's answer. With "yes", `asked` holds the ids of the people the person picked (lib/trusted.ts). */
+export function answerSomeone(l: LadderState, answer: "yes" | "not-now", today: DayKey, asked?: string[]): LadderState {
   return {
     ...l,
-    someone: { offeredOn: today, answer },
+    someone: { offeredOn: today, answer, ...(answer === "yes" && asked?.length ? { asked } : {}) },
     someoneRequestedOn: undefined,
     declinedOn: answer === "not-now" ? today : l.declinedOn,
   };
 }
 
-export function answerReply(l: LadderState, reply: "yes" | "no"): LadderState {
-  return l.someone ? { ...l, someone: { ...l.someone, reply } } : l;
+/** The person's yes or no to a trusted person's reply; `personId` is who replied. */
+export function answerReply(l: LadderState, reply: "yes" | "no", personId?: string): LadderState {
+  return l.someone ? { ...l, someone: { ...l.someone, reply, ...(personId ? { personId } : {}) } } : l;
 }
 
 export function answerClinic(l: LadderState, answer: "approve" | "not-now", today: DayKey): LadderState {

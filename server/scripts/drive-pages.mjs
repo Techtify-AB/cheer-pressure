@@ -87,19 +87,19 @@ try {
   await waitHeading(u, "Nothing new yet");
   check("person: token moved out of the address", !new URL(u.url()).search, u.url());
   await screen(u, "person, nothing yet");
-  await u.getByRole("button", { name: "Ask them to get in touch" }).click();
-  await waitHeading(u, "Ask Anna to get in touch?");
+  await u.getByRole("button", { name: "Ask to talk or meet up" }).click();
+  await waitHeading(u, "Ask Anna to talk or meet up?");
   await screen(u, "person, ask confirm");
   await u.getByRole("button", { name: "Send", exact: true }).click();
   await waitHeading(u, "Nothing new yet");
-  const askLine = u.getByText(/You asked them to get in touch/);
+  const askLine = u.getByText(/You asked to talk or meet up/);
   check("person: the request shows at once with its status", await askLine.isVisible());
-  await u.getByText(/You asked them to get in touch .*Sent/).waitFor({ timeout: 4000 });
+  await u.getByText(/You asked to talk or meet up .*Sent/).waitFor({ timeout: 4000 });
   check("person: the request becomes Sent", true);
   await screen(u, "person, request sent");
 
   // Trusted sees the request, sends a question.
-  await t.getByText("They asked you to get in touch").waitFor({ timeout: 5000 });
+  await t.getByText("They would like to talk or meet up").waitFor({ timeout: 5000 });
   check("trusted: sees the request within a poll or two", true);
   await screen(t, "trusted home, request");
   await t.getByRole("button", { name: "Send a few words" }).click();
@@ -128,7 +128,7 @@ try {
   await screen(t, "trusted, they said yes");
   await t.getByRole("button", { name: "Done" }).click();
   await waitHeading(t, "Hi Anna");
-  check("trusted: the request is no longer open after sending", !(await t.getByText("They asked you to get in touch").isVisible()));
+  check("trusted: the request is no longer open after sending", !(await t.getByText("They would like to talk or meet up").isVisible()));
 
   // Offline: send while the network is down, then come back.
   await trustedCtx.setOffline(true);

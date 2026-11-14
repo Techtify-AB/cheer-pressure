@@ -13,10 +13,11 @@
 //   Two days later, if the measures have not come back: step 2, someone you trust.
 //   Seven days later: step 3, a short summary for the clinic.
 //   "I'd like someone to check in on me" goes straight to step 2.
-//   Step 2 sends a real request through lib/contact.ts when a pair exists (Settings, Someone
-//   you trust), shows "Sent" or "Waiting for connection", then the trusted person's reply with
-//   Yes, No or a few words back. Without a pair it sends nothing; in demo mode it shows a reply
-//   clearly marked as simulated.
+//   Step 2 is social: the person picks who to ask, one or more of the people they trust (each
+//   their own pair, lib/trusted.ts). "Could we talk or meet up soon?" goes to each through
+//   lib/contact.ts, with "Sent" or "Waiting for connection" per person, then the first reply
+//   with Yes, No or a few words back. With nobody added it sends nothing; in demo mode it shows
+//   a reply clearly marked as simulated.
 //
 // Each step is one screen with one primary action and a decline. No percentages, no
 // score, no diagnosis words.
@@ -47,8 +48,20 @@ import {
 import { evaluatePassive, SOURCES } from "@/lib/passive";
 import { forRule } from "@/lib/settings";
 import { hasDemo, readData, saveCheckIn, saveLadder, saveSuggestions, useData } from "@/lib/storage";
-import { messagesClient } from "@/lib/trusted";
+import { clientOf, personName, personState, reachable, usePeople } from "@/lib/trusted";
 import type { AppData, CheckInAnswer, HelpItem } from "@/lib/types";
+
+interface Asked {
+  personId: string;
+  name: string;
+  contact: Contact;
+}
+
+/** "Anna", "Anna and Sami", "Anna, Sami and Lea". */
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "them";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 
 /**
  * Where "I'll try that" goes for one thing on the person's list: a screen that helps them do it,
@@ -117,11 +130,13 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
   const simulated = evaluation.simulated || demo;
   const ladder = data.ladder;
 
-  // The contact this conversation asked through (state, so the screen updates with it).
-  const [contact, setContact] = useState<Contact | null>(null);
+  // The people this conversation asked, one Contact each (state, so the screen updates with them).
+  const everyone = usePeople();
+  const [asked, setAsked] = useState<Asked[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
   const stopContact = useRef<(() => void) | null>(null);
-  const [contactState, setContactState] = useState<ContactState | null>(null);
-  const [replyAnswer, setReplyAnswer] = useState<{ answer: Answer | null; text?: string } | null>(null);
+  const [contactStates, setContactStates] = useState<Record<string, ContactState>>({});
+  const [replyAnswer, setReplyAnswer] = useState<{ personId: string; answer: Answer | null; text?: string } | null>(null);
   const [crisisFor, setCrisisFor] = useState<string | null>(null);
   // The plain line when step one's suggestion comes first because of what followed it before.
   const [reason, setReason] = useState<string | null>(null);
@@ -330,42 +345,54 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
     );
   }
 
-  // Step 2: someone you trust
+  // Step 2: someone you trust. The person picks who.
   if (view === "someone") {
+    const can = reachable(everyone);
+    const ask = async () => {
+      const chosen = can.filter((v) => picked.includes(v.id));
+      const l = readData().ladder;
+      if (l) saveLadder(answerSomeone(l, "yes", today, chosen.map((v) => v.id)));
+      // The real request to each person picked; with nobody added, the stand-in (simulated in demo mode).
+      const list: Asked[] = chosen.length
+        ? chosen.map((v) => ({ personId: v.id, name: personName(v), contact: chooseContact({ client: clientOf(v.id), demo: false }) }))
+        : [{ personId: "stand-in", name: "Someone you trust", contact: chooseContact({ client: null, demo }) }];
+      stopContact.current?.();
+      const stops = list.flatMap((x) => [
+        x.contact.onChange((st) => setContactStates((cur) => ({ ...cur, [x.personId]: st }))),
+        x.contact.onReply(() => setMood("joy")),
+      ]);
+      stopContact.current = () => stops.forEach((f) => f());
+      setAsked(list);
+      await Promise.all(list.map((x) => x.contact.requestContact()));
+      setView("someone-asked");
+    };
+    const toggle = (id: string) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
     return (
       <Screen
         lead={
           <>
             <Says state={voice.state === "speaking" ? "speaking" : "attention"} size={88}>
-              <h1 id="someone-q">Would you like someone you trust to check in on you?</h1>
+              <h1 id="someone-q">Would you like to see or talk to someone?</h1>
+              {can.length > 0 && <p className="small muted">Pick who to ask. They get &quot;{CONTACT_REQUEST_TEXT}&quot;</p>}
             </Says>
             <StepCount index={1} total={3} label="Someone you trust" />
           </>
         }
         actions={
           <>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={async () => {
-                const l = readData().ladder;
-                if (l) saveLadder(answerSomeone(l, "yes", today));
-                // The real request when a pair exists; the stand-in (simulated in demo mode) otherwise.
-                const c = chooseContact({ client: messagesClient(), demo });
-                setContact(c);
-                stopContact.current?.();
-                const stopChange = c.onChange(setContactState);
-                const stopReply = c.onReply(() => setMood("joy"));
-                stopContact.current = () => {
-                  stopChange();
-                  stopReply();
-                };
-                await c.requestContact();
-                setView("someone-asked");
-              }}
-            >
-              Yes
-            </button>
+            {can.length > 0 ? (
+              <button type="button" className="btn btn-primary" disabled={!picked.length} onClick={ask}>
+                {picked.length > 1 ? `Ask these ${picked.length}` : "Ask them"}
+              </button>
+            ) : demo ? (
+              <button type="button" className="btn btn-primary" onClick={ask}>
+                Yes, show me
+              </button>
+            ) : (
+              <Link href="/settings/#trust" className="btn btn-primary">
+                Add someone you trust
+              </Link>
+            )}
             <div className="links">
               <button
                 type="button"
@@ -381,20 +408,40 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
             </div>
           </>
         }
-      />
+      >
+        {can.length > 0 ? (
+          <div className="options people-pick" role="group" aria-labelledby="someone-q">
+            {can.slice(0, 4).map((v) => (
+              <button key={v.id} type="button" className="option" aria-pressed={picked.includes(v.id)} onClick={() => toggle(v.id)}>
+                <span>{personName(v)}</span>
+                <span className="small muted option-hint">{personState(v) === "invited" ? "Hasn't opened the invite yet" : "Connected"}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">
+            {demo
+              ? "Nobody is added on this device, so for the demo I can show what a reply could look like. Nothing is sent."
+              : "You haven't added anyone yet. You can add someone in Settings, or call or message someone yourself."}
+          </p>
+        )}
+      </Screen>
     );
   }
 
   if (view === "someone-asked") {
-    const c = contact;
-    const st = contactState ?? c?.state() ?? null;
+    const stateOf = (x: Asked) => contactStates[x.personId] ?? x.contact.state();
+    // The first reply that came in, from whoever answered.
+    const replied = asked.find((x) => stateOf(x).reply);
+    const st = replied ? stateOf(replied) : null;
     const reply = st?.reply ?? null;
-    const simulatedReply = !!c?.simulated;
+    const c = replied?.contact ?? null;
+    const simulatedReply = !!asked[0]?.contact.simulated;
     const answerTheReply = (a: Answer | null, text?: string) => {
       c?.answer(a, text);
       const l = readData().ladder;
-      if (l && a) saveLadder(answerReply(l, a));
-      setReplyAnswer({ answer: a, text });
+      if (l && a) saveLadder(answerReply(l, a, replied?.personId));
+      setReplyAnswer({ personId: replied?.personId ?? "", answer: a, text });
       setMood(a === "no" ? "idle" : "joy");
     };
     const simTag = simulatedReply && demo && (
@@ -453,14 +500,14 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
     }
 
     // Nobody is connected and this is not the demo: nothing was sent, and it says so.
-    if (!c || (simulatedReply && !demo)) {
+    if (!asked.length || (simulatedReply && !demo)) {
       return (
         <Screen
           lead={
             <Says state="idle" size={88}>
               <p>
-                You haven&apos;t connected anyone yet, so nothing was sent. You can invite someone in Settings, or call or
-                message someone you trust yourself.
+                You haven&apos;t added anyone yet, so nothing was sent. You can add someone in Settings, or call or message
+                someone you trust yourself.
               </p>
             </Says>
           }
@@ -469,7 +516,7 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
               {home()}
               <div className="links">
                 <Link href="/settings/#trust" className="btn btn-quiet">
-                  Invite someone
+                  Add someone
                 </Link>
               </div>
             </>
@@ -478,10 +525,10 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
       );
     }
 
-    const status = st?.status ?? "sending";
-    const name = st?.trustedName;
-    const statusLabel =
+    const label = (status: ContactState["status"]) =>
       status === "sent" ? "Sent" : status === "waiting for connection" ? "Waiting for connection" : status === "not sent" ? "Not sent" : "Sending";
+    const anyWaiting = asked.some((x) => stateOf(x).status === "waiting for connection");
+    const names = asked.map((x) => stateOf(x).trustedName ?? x.name);
     return (
       <Screen
         lead={
@@ -491,13 +538,9 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
               <p>
                 {simulatedReply
                   ? "For the demo, here is what a reply could look like. Nothing was sent."
-                  : status === "waiting for connection"
+                  : anyWaiting
                     ? "I can't reach the messages service right now. Your request goes by itself as soon as I can."
-                    : status === "not sent"
-                      ? "Your request could not be sent. You can call or message them yourself."
-                      : name
-                        ? `I've asked ${name} to get in touch. Their answer shows up here and on home.`
-                        : "I've asked them to get in touch. They'll see it when they open your invite."}
+                    : `I've asked ${joinNames(names)}. Their answer shows up here and on home.`}
               </p>
             </Says>
           </>
@@ -510,9 +553,19 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
           ) : (
             <>
               <p className="small muted">{CONTACT_REQUEST_TEXT}</p>
-              <p className="request-status" data-status={status} role="status">
-                {statusLabel}
-              </p>
+              <ul className="asked-list">
+                {asked.slice(0, 4).map((x) => {
+                  const s2 = stateOf(x);
+                  return (
+                    <li key={x.personId}>
+                      <span>{s2.trustedName ?? x.name}</span>
+                      <span className="request-status" data-status={s2.status} role="status">
+                        {label(s2.status)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             </>
           )}
         </section>

@@ -12,7 +12,9 @@
 //   network. In demo mode it makes up a reply after a few seconds, marked `simulated`, and the
 //   screen says so plainly; outside demo mode nothing ever happens.
 //
-// chooseContact picks: the real one when a pair exists, otherwise the stand-in.
+// chooseContact picks: the real one when a pair exists, otherwise the stand-in. With several
+// people (lib/trusted.ts), each has their own pair and client, so the ladder makes one Contact
+// per person asked, and each request, reply and answer stays with that person.
 //
 // The pure functions at the bottom (pendingMessage, contactState) read a messages snapshot, so
 // home, the mascot and the ladder agree on what is waiting for an answer.
@@ -77,7 +79,8 @@ export interface Contact {
 
 export const SIMULATED_REPLY = "Walk after lunch?";
 export const SIMULATED_REPLY_AFTER_MS = 3500;
-export const CONTACT_REQUEST_TEXT = "Could you get in touch when you have a moment?";
+/** The request at step two (the same text as the messages client's default). */
+export const CONTACT_REQUEST_TEXT = "Could we talk or meet up soon?";
 
 /** The part of the messages client (lib/messages.ts) the real contact uses. Tests pass a fake. */
 export interface MessagesPort {

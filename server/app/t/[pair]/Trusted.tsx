@@ -134,7 +134,7 @@ export default function Trusted({ pair }: { pair: string }) {
         {open ? (
           <div className="card request" role="status">
             <span className="from">{when(lastRequest.ts)}</span>
-            <span className="text">They asked you to get in touch</span>
+            <span className="text">They would like to talk or meet up</span>
             {lastRequest.text ? <span className="hint">&ldquo;{lastRequest.text}&rdquo;</span> : null}
           </div>
         ) : null}

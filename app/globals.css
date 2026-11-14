@@ -1495,3 +1495,6 @@ textarea.typing-box { min-height: 72px; }
 .home-offer { margin: 0; text-align: center; }
 .chip-pair { display: inline-flex; gap: 2px; }
 .chip-pair .chip-remove { padding-inline: var(--space-2); font-size: var(--font-size-sm); color: var(--color-ink-soft); }
+.asked-list { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-1); }
+.asked-list li { display: flex; justify-content: space-between; gap: var(--space-2); align-items: baseline; }
+.people-pick .option { min-height: 52px; }

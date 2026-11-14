@@ -17,6 +17,11 @@
   pair, its token, the cached messages and the outbox. Nothing about health is ever sent: only
   the short texts defined in ./events.
 
+  Several people: each person the user trusts is their own pair on the service, with their own
+  client and storage key. createPeople() keeps the list ("cheerpressure.people.v1": ids, keys and
+  a local label only, never messages). A pair made before the list existed, under the default
+  key, becomes its first person, so nothing is lost.
+
   Safe to import during static export: nothing touches window, document or localStorage until
   a function is called. Nothing Tauri-specific is imported.
 
@@ -35,6 +40,10 @@ import {
 } from "./events";
 
 export const DEFAULT_STORAGE_KEY = "cheerpressure.messages.v1";
+/** The list of people the user trusts on this device (createPeople). */
+export const PEOPLE_KEY = "cheerpressure.people.v1";
+/** The request the person sends at the ladder's step two. */
+export const CONTACT_REQUEST_DEFAULT = "Could we talk or meet up soon?";
 export const POLL_MS = 1500;
 const MAX_POLL_BACKOFF_MS = 60_000;
 const MAX_SEND_BACKOFF_MS = 30_000;
@@ -557,8 +566,8 @@ export function createMessagesClient(options: ClientOptions = {}) {
       return enqueue({ type: "reply", clientId: newClientId(), replyTo, answer, text: t.value });
     },
 
-    /** The person asks the trusted person to get in touch. */
-    sendContactRequest(text = "Could you get in touch when you have a moment?"): Outgoing {
+    /** The person asks the trusted person to talk or meet up. */
+    sendContactRequest(text = CONTACT_REQUEST_DEFAULT): Outgoing {
       const t = checkText(text);
       if (!t.ok) throw new MessagesError("http", 400, t.error);
       return enqueue({ type: "contact_request", clientId: newClientId(), text: t.value });
@@ -655,6 +664,124 @@ export function timeline(s: Snapshot): TimelineItem[] {
   // Stable sort by time: own messages confirmed locally can land in the cache before older ones.
   return items.map((it, i) => ({ it, i })).sort((a, b) => Date.parse(a.it.ts) - Date.parse(b.it.ts) || a.i - b.i).map((x) => x.it);
 }
+
+// --- Several people ------------------------------------------------------------------------
+
+export interface PersonEntry {
+  id: string;
+  /** The storage key of this person's own client. */
+  storageKey: string;
+  addedAt: string;
+  /** A name the user typed for them on this device, until they open the invite and give their own. */
+  label?: string;
+}
+
+export interface PersonView {
+  id: string;
+  label: string | null;
+  addedAt: string;
+  snapshot: Snapshot;
+}
+
+export type PeopleOptions = Omit<ClientOptions, "storageKey">;
+
+/**
+ * The people the user trusts, each their own pair with their own client (and so their own
+ * outbox, idempotent retries and 48-hour deletion on the service). Adding one creates a new
+ * pair; removing one deletes only that pair.
+ */
+export function createPeople(options: PeopleOptions = {}) {
+  let storage: StorageLike | null = options.storage ?? null;
+  const store = () => (storage ??= browserStorage());
+  const clients = new Map<string, MessagesClient>();
+
+  function clientFor(storageKey: string): MessagesClient {
+    let c = clients.get(storageKey);
+    if (!c) {
+      c = createMessagesClient({ ...options, storage: store(), storageKey });
+      clients.set(storageKey, c);
+    }
+    return c;
+  }
+
+  function saved(): PersonEntry[] {
+    try {
+      const v = JSON.parse(store().getItem(PEOPLE_KEY) ?? "[]");
+      return Array.isArray(v) ? v.filter((p) => p && typeof p.id === "string" && typeof p.storageKey === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function write(list: PersonEntry[]) {
+    try {
+      store().setItem(PEOPLE_KEY, JSON.stringify(list));
+    } catch {
+      // Full or blocked storage: the pairs themselves are still under their own keys.
+    }
+  }
+
+  /** Everyone on the list, oldest first. A pair under the default key from before is the first. */
+  function list(): PersonEntry[] {
+    const l = saved();
+    if (!l.some((p) => p.storageKey === DEFAULT_STORAGE_KEY) && clientFor(DEFAULT_STORAGE_KEY).pairing()) {
+      const first = { id: "first", storageKey: DEFAULT_STORAGE_KEY, addedAt: new Date(0).toISOString() };
+      write([first, ...l]);
+      return [first, ...l];
+    }
+    return l;
+  }
+
+  const entry = (id: string) => list().find((p) => p.id === id) ?? null;
+
+  return {
+    list,
+    /** The client under the default key (the first person from before the list, or nobody). */
+    defaultClient: () => clientFor(DEFAULT_STORAGE_KEY),
+    /** One person's client, or null when they are not on the list. */
+    client(id: string): MessagesClient | null {
+      const p = entry(id);
+      return p ? clientFor(p.storageKey) : null;
+    },
+    /** Everyone with their conversation as stored on this device. */
+    views(): PersonView[] {
+      return list().map((p) => ({ id: p.id, label: p.label ?? null, addedAt: p.addedAt, snapshot: clientFor(p.storageKey).snapshot() }));
+    },
+    /** Adds one person: a new pair on the service at `baseUrl`. Returns their id and the links to share. */
+    async add(baseUrl: string, label?: string): Promise<{ id: string; pairing: Pairing }> {
+      const id = newClientId().replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || String(Date.now());
+      const storageKey = `${DEFAULT_STORAGE_KEY}.${id}`;
+      const pairing = await clientFor(storageKey).createPair(baseUrl);
+      const tidy = label?.trim().replace(/\s+/g, " ").slice(0, 40);
+      write([...list(), { id, storageKey, addedAt: new Date().toISOString(), ...(tidy ? { label: tidy } : {}) }]);
+      return { id, pairing };
+    },
+    /**
+     * Removes one person: deletes their pair on the service, then everything about them here.
+     * If the service cannot be reached nothing is removed and the error is thrown, unless
+     * `evenOffline`: then it goes from this device anyway (the service deletes it within 48 hours).
+     */
+    async remove(id: string, { evenOffline = false }: { evenOffline?: boolean } = {}): Promise<void> {
+      const p = entry(id);
+      if (!p) return;
+      const c = clientFor(p.storageKey);
+      try {
+        await c.deletePair();
+      } catch (e) {
+        if (!evenOffline) throw e;
+        c.forget();
+      }
+      write(list().filter((x) => x.id !== id));
+    },
+    /** Removes everyone from this device only (Delete everything). */
+    forgetAll() {
+      for (const p of list()) clientFor(p.storageKey).forget();
+      store().removeItem(PEOPLE_KEY);
+    },
+  };
+}
+
+export type People = ReturnType<typeof createPeople>;
 
 // --- Default client for the desktop app, created on first use --------------------------
 

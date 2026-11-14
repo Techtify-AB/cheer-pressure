@@ -333,7 +333,7 @@ async function main() {
     const sent = await d.locator(".request-status", { hasText: /^Sent$/ }).waitFor({ timeout: 45_000 }).then(() => true, () => false);
     check("desktop: request delivered after the service returned", sent, `${Date.now() - t1} ms after it answered`);
     await p.reload({ waitUntil: "networkidle" });
-    const asked = await p.getByText("They asked you to get in touch").waitFor({ timeout: 8_000 }).then(() => true, () => false);
+    const asked = await p.getByText("They would like to talk or meet up").waitFor({ timeout: 8_000 }).then(() => true, () => false);
     check("phone: sees they asked to get in touch", asked);
     if (SHOTS) await p.screenshot({ path: `${SHOTS}/5-phone-asked.png` });
 

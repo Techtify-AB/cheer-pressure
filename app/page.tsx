@@ -29,7 +29,7 @@ import { quietHoursOf, sourcesOf } from "@/lib/settings";
 import { readData, saveOnboarding, useData } from "@/lib/storage";
 import { answerTo, pendingMessage } from "@/lib/contact";
 import type { Answer } from "@/lib/events";
-import { messagesClient, useTrusted } from "@/lib/trusted";
+import { messagesClient, primaryId, usePeople, useTrusted } from "@/lib/trusted";
 
 /** How long "Sent to Sara." stays on home after an answer has gone. */
 const SENT_LINE_MS = 4000;
@@ -45,8 +45,10 @@ export default function HomePage() {
   const paired = !!messages?.pairing && messages.connection !== "ended";
   const pending = pendingMessage(messages);
   // The message just answered here, so home can say whether the answer has gone.
-  const [answered, setAnswered] = useState<{ id: string; name: string } | null>(null);
-  const answerState = answered && messages ? answerTo(messages, answered.id) : null;
+  const [answered, setAnswered] = useState<{ id: string; name: string; personId: string | null } | null>(null);
+  const everyone = usePeople();
+  const answeredSnap = answered ? (everyone.find((v) => v.id === answered.personId)?.snapshot ?? messages) : null;
+  const answerState = answered && answeredSnap ? answerTo(answeredSnap, answered.id) : null;
   const sent = answerState?.status === "sent";
   useEffect(() => {
     if (!sent) return;
@@ -81,8 +83,9 @@ export default function HomePage() {
   if (pending?.id) {
     const id = pending.id;
     const answer = (a: Answer | null, text?: string) => {
+      const personId = primaryId();
       messagesClient().sendReply(id, a, text);
-      setAnswered({ id, name: pending.fromName ?? "them" });
+      setAnswered({ id, name: pending.fromName ?? "them", personId });
     };
     return <GreetingScreen key={id} reply={pending} onAnswer={answer} onCrisis={() => setCrisisFor(who(pending))} hero />;
   }

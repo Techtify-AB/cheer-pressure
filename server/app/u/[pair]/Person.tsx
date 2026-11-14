@@ -65,8 +65,8 @@ export default function Person({ pair }: { pair: string }) {
     return (
       <Shell>
         <Screen
-          title={`Ask ${name} to get in touch?`}
-          line="They will see a short note asking them to get in touch when they can."
+          title={`Ask ${name} to talk or meet up?`}
+          line="They will see a short note: “Could we talk or meet up soon?”"
           actions={
             <>
               <button
@@ -93,11 +93,11 @@ export default function Person({ pair }: { pair: string }) {
 
   const askAction = askOpen ? (
     <p className="status" data-status={lastAsk.status} role="status">
-      You asked them to get in touch {when(lastAsk.ts)}. {statusLabel(lastAsk.status)}
+      You asked to talk or meet up {when(lastAsk.ts)}. {statusLabel(lastAsk.status)}
     </p>
   ) : (
     <button type="button" className="quiet" onClick={() => setView("ask")}>
-      Ask them to get in touch
+      Ask to talk or meet up
     </button>
   );
 

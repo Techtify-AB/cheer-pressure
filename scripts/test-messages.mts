@@ -24,7 +24,7 @@ import {
   validateEvent,
   type MessageEvent,
 } from "../lib/events";
-import { createMessagesClient, timeline, type Snapshot, type StorageLike } from "../lib/messages";
+import { CONTACT_REQUEST_DEFAULT, createMessagesClient, createPeople, DEFAULT_STORAGE_KEY, PEOPLE_KEY, timeline, type Snapshot, type StorageLike } from "../lib/messages";
 import { MemoryStore } from "../server/lib/store";
 
 const BASE = (process.argv[2] ?? process.env.MESSAGES_URL ?? "http://localhost:3480").replace(/\/+$/, "");
@@ -445,6 +445,73 @@ async function testClient() {
   }
 }
 
+// --- 6b. Several people: each their own pair, own client, own outbox ----------------------
+
+async function testPeople() {
+  const net = flakyFetch();
+  const storage = memStorage();
+
+  // A pair made before the list existed, under the default key, becomes the first person.
+  const legacy = createMessagesClient({ baseUrl: BASE, storage, fetch: net.f });
+  const old = await legacy.createPair();
+  const people = createPeople({ baseUrl: BASE, storage, fetch: net.f });
+  const first = people.list();
+  check("people: an earlier pair under the default key is the first person", first.length === 1 && first[0].storageKey === DEFAULT_STORAGE_KEY && people.client(first[0].id)?.pairing()?.pair === old.pair);
+
+  const a = await people.add(BASE, "Anna");
+  const b = await people.add(BASE, "  Sami  ");
+  const entries = people.list();
+  check("people: adding makes a new pair each, under its own key", entries.length === 3 && new Set(entries.map((p) => p.storageKey)).size === 3 && a.pairing.pair !== b.pairing.pair && a.pairing.pair !== old.pair);
+  check("people: the list keeps ids, keys and a tidy label only", entries[1].label === "Anna" && entries[2].label === "Sami" && !JSON.stringify(JSON.parse(storage.getItem(PEOPLE_KEY)!)).includes("token"));
+
+  const rawOf = (pairing: typeof a.pairing): Made => ({ pair: pairing.pair, userToken: pairing.token, inviteToken: new URL(pairing.inviteUrl!).searchParams.get("i")!, inviteUrl: pairing.inviteUrl!, userUrl: pairing.userUrl!, expiresAt: pairing.expiresAt! });
+  const ra = rawOf(a.pairing);
+  const rb = rawOf(b.pairing);
+  const ta = await join(ra, "Anna");
+  const tb = await join(rb, "Sami");
+
+  // Asking two people: one request each, through each one's own outbox, no cross-talk.
+  const ca = people.client(a.id)!;
+  const cb = people.client(b.id)!;
+  const outA = ca.sendContactRequest();
+  const outB = cb.sendContactRequest();
+  check("people: the request text is \"Could we talk or meet up soon?\"", outA.draft.text === CONTACT_REQUEST_DEFAULT && CONTACT_REQUEST_DEFAULT === "Could we talk or meet up soon?");
+  const stopA = ca.subscribe(() => {});
+  const stopB = cb.subscribe(() => {});
+  const delivered = await until(() => ca.snapshot().outbox.length === 0 && cb.snapshot().outbox.length === 0, 6000);
+  const onA = list(await events(ra, ta)).filter((e) => e.type === "contact_request");
+  const onB = list(await events(rb, tb)).filter((e) => e.type === "contact_request");
+  check("people: each request reaches only its own pair, once", delivered && onA.length === 1 && onB.length === 1 && onA[0].clientId === outA.clientId && onB[0].clientId === outB.clientId);
+  check("people: one person's token cannot read another's pair", (await events(rb, ta)).status === 401 || (await events(rb, ta)).status === 403);
+
+  // A reply from one person lands in that person's conversation only.
+  await api("POST", `/api/pairs/${rb.pair}/events`, { token: tb, body: { type: "greeting", clientId: newClientId(), text: "Walk after lunch?", kind: "question" } });
+  const got = await until(() => cb.snapshot().events.some((e) => e.type === "greeting"), 6000);
+  check("people: a reply shows with the person who sent it, and nowhere else", got && !ca.snapshot().events.some((e) => e.type === "greeting") && cb.snapshot().trustedName === "Sami");
+  stopA();
+  stopB();
+
+  // Removing one deletes only that pair, on the service and here.
+  await people.remove(a.id);
+  check("people: removing one deletes its pair on the service", (await events(ra, ta)).status === 404);
+  check("people: and only that one", people.list().length === 2 && !!people.client(b.id)?.pairing() && (await events(rb, tb)).status === 200 && storage.getItem(`${DEFAULT_STORAGE_KEY}.${a.id}`) === null);
+
+  // Offline: nothing removed unless asked to remove anyway.
+  net.state.online = false;
+  let threw = false;
+  try {
+    await people.remove(b.id);
+  } catch {
+    threw = true;
+  }
+  check("people: offline remove throws and keeps the person", threw && people.list().some((p) => p.id === b.id));
+  await people.remove(b.id, { evenOffline: true });
+  check("people: remove anyway takes them off this device", !people.list().some((p) => p.id === b.id) && storage.getItem(`${DEFAULT_STORAGE_KEY}.${b.id}`) === null);
+  net.state.online = true;
+  people.forgetAll();
+  check("people: forgetAll leaves nothing on this device", storage.getItem(PEOPLE_KEY) === null && storage.getItem(DEFAULT_STORAGE_KEY) === null);
+}
+
 // --- 7. Expiry (only when the service runs with a short lifetime) -------------------------
 
 async function testExpiry(): Promise<boolean> {
@@ -476,6 +543,7 @@ try {
       await testStory();
       await testRefusals();
       await testClient();
+      await testPeople();
     } else {
       skip("story, refusals and client", "skipped while the service runs with a short lifetime");
     }

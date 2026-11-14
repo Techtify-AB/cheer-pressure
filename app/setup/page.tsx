@@ -36,7 +36,7 @@ import { askPhonePermission, isPhoneApp } from "@/lib/phoneBridge";
 import { isDesktop } from "@/lib/platform";
 import { CLINIC_CHOICES, clinicOf, messagesUrlOf } from "@/lib/settings";
 import { readData, saveHelps, saveOnboarding, savePermission, saveProfile, saveSettings, useData } from "@/lib/storage";
-import { invite, useTrusted } from "@/lib/trusted";
+import { addPerson, personName, usePeople } from "@/lib/trusted";
 import type { AppData, DailyQuestionSettings, HelpItem, PermissionKind, PermissionState } from "@/lib/types";
 
 const MAX_SIGNS = 3;
@@ -446,20 +446,24 @@ function SignsStep({ voice, progress, nav, onDone }: StepProps & { voice: Voice 
 }
 
 function TrustStep({ data, progress, nav, onDone }: StepProps & { data: AppData }) {
-  const snap = useTrusted();
+  const everyone = usePeople();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const [mine, setMine] = useState(false);
+  const [mine, setMine] = useState<string | null>(null);
+  const [label, setLabel] = useState("");
+  const [crisis, setCrisis] = useState(false);
+  const crisisCheck = useCrisisCheck(() => setCrisis(true), () => label);
   const url = messagesUrlOf(data.settings);
-  const invited = mine && snap?.pairing ? { snapshot: snap } : null;
+  const invited = mine ? everyone.find((v) => v.id === mine) ?? null : null;
   const add = async () => {
+    if (crisisCheck.full(label)) return;
     setBusy(true);
     setProblem(null);
     try {
-      await invite(url);
-      setMine(true);
+      setMine(await addPerson(url, label));
+      setLabel("");
     } catch {
-      setProblem("I couldn't reach the messages service just now. You can invite someone later in Settings.");
+      setProblem("I couldn't reach the messages service just now. You can add someone later in Settings.");
     } finally {
       setBusy(false);
     }
@@ -471,7 +475,7 @@ function TrustStep({ data, progress, nav, onDone }: StepProps & { data: AppData 
           <>
             <Says state="joy">
               <h1>Who do you trust?</h1>
-              <p className="small muted">Let them scan this, or send them the link. They can open it later, within two days.</p>
+              <p className="small muted">Let {personName(invited)} scan this, or send them the link. It works for two days.</p>
             </Says>
             {progress}
           </>
@@ -481,28 +485,30 @@ function TrustStep({ data, progress, nav, onDone }: StepProps & { data: AppData 
             <button type="button" className="btn btn-primary" onClick={onDone}>
               Continue
             </button>
-            <p className="small muted center" style={{ margin: 0 }}>
-              You can add more people later in Settings.
-            </p>
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={() => setMine(null)}>
+                Add someone else
+              </button>
+            </div>
           </>
         }
       >
         <section className="card" aria-label="Invite link">
-          <LinkCode url={invited.snapshot.pairing.inviteUrl} label="Invite link for someone you trust" />
+          <LinkCode url={invited.snapshot.pairing.inviteUrl} label={`Invite link for ${personName(invited)}`} />
         </section>
       </Screen>
     );
   }
-  const already = snap?.pairing && snap.connection !== "ended" ? 1 : 0;
+  const already = everyone.filter((v) => v.snapshot.pairing && v.snapshot.connection !== "ended").length;
   return (
     <Screen
       lead={
         <>
           <Says state="idle">
             <h1>Who do you trust?</h1>
-            <p className="small muted">
-              A sister, a friend. They get a link to open on their phone, no app needed. I only ever ask them to get in
-              touch when you say yes.
+            <p className="small muted" hidden={crisis}>
+              A sister, a friend. They get a link to open on their phone, no app needed. I only ever ask them to talk or
+              meet up when you say yes.
             </p>
           </Says>
           {progress}
@@ -510,18 +516,41 @@ function TrustStep({ data, progress, nav, onDone }: StepProps & { data: AppData 
       }
       actions={
         <>
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={add}>
-            {busy ? "One moment" : "Invite someone"}
-          </button>
+          {!crisis && (
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={add}>
+              {busy ? "One moment" : "Invite someone"}
+            </button>
+          )}
           {nav(already ? "Continue" : "Skip for now")}
         </>
       }
     >
-      <p className="muted" style={{ margin: 0 }}>
-        {already
-          ? `${already === 1 ? "One person is" : `${already} people are`} already on your list. You can add more later in Settings.`
-          : "You can add one now, more later in Settings. The messages service never receives your measurements or answers."}
-      </p>
+      {crisis ? (
+        <CrisisCard />
+      ) : (
+        <>
+          <div className="field">
+            <label htmlFor="trust-label">Their name (only on this device, optional)</label>
+            <input
+              id="trust-label"
+              type="text"
+              maxLength={40}
+              value={label}
+              placeholder="For example: Anna"
+              onChange={(e) => {
+                setLabel(e.target.value);
+                crisisCheck.typed(e.target.value);
+              }}
+              onBlur={(e) => crisisCheck.full(e.target.value)}
+            />
+          </div>
+          <p className="small muted" style={{ margin: 0 }}>
+            {already
+              ? `${already === 1 ? "One person is" : `${already} people are`} already on your list. You can add more later in Settings.`
+              : "Add one now, more later in Settings. The messages service never receives your measurements or answers."}
+          </p>
+        </>
+      )}
       {problem && (
         <p className="small problem-text" role="alert">
           {problem}
