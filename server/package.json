@@ -4,9 +4,9 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "dev": "next dev -p 3480",
+    "dev": "next dev -H 0.0.0.0 -p 3480",
     "build": "next build",
-    "start": "next start -p 3480",
+    "start": "next start -H 0.0.0.0 -p 3480",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "fake-redis": "node scripts/fake-upstash.mjs",
