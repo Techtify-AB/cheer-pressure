@@ -131,8 +131,8 @@ export default function SetupPage() {
         <div className="bubble" aria-live="polite">
           <p>{QUESTION}</p>
           <p className="small muted">
-            Before things got harder last time, what changed first? Pick or type up to three. I&apos;ll ask about
-            them once a week.
+            Before things got harder last time, what changed first? Pick or type up to three. I&apos;ll keep
+            these in mind and ask about them only when something seems to have changed.
           </p>
         </div>
       </div>

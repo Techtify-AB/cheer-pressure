@@ -145,7 +145,7 @@ export const ruleBrain: Brain = {
     const lines =
       kind === "daily"
         ? ["Thanks. That's all for today.", "Done. That's all for today.", "Thanks, that's it for today."]
-        : ["Thanks. That's this week's questions done.", "Done. That's all for this week."];
+        : ["Thanks. That's all the questions done.", "Done. Thanks for answering."];
     const n = today.split("-").reduce((a, b) => a + Number(b), 0);
     return lines[n % lines.length];
   },
