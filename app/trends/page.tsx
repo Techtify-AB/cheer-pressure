@@ -48,15 +48,40 @@ function unitWord(m: PassiveMetric, n: number): string {
   return m.unit === "session" ? (n === 1 ? "session" : "sessions") : n === 1 ? "day" : "days";
 }
 
+const NUMBER_WORDS = ["None", "One", "Two", "Three"];
+
+/** "above" and "below" for most measures; "later" and "earlier" for times of day. */
+function sideWords(m: PassiveMetric): { up: string; down: string } {
+  return m.key === "firstActivity" || m.key === "lastActivity"
+    ? { up: "later than", down: "earlier than" }
+    : { up: "above", down: "below" };
+}
+
+/** The verdict, worded exactly as the rule in lib/passive.ts decides it. */
 function passiveStatus(m: PassiveMetric): string {
   const need = MIN_USUAL_POINTS + RECENT_POINTS;
   if (m.status === "learning") {
     return `Your usual range shows up after ${need} ${unitWord(m, need)}. ${m.points.length} so far.`;
   }
-  if (m.status === "no-recent") return "Nothing in the last 7 days to compare.";
-  if (m.status === "steady") return "Within your usual range.";
-  const p = m.phrase ?? "";
-  return `${p.charAt(0).toUpperCase()}${p.slice(1)}: outside your usual range.`;
+  if (m.status === "no-recent" || !m.usual || !m.recentValues) return "Nothing in the last 7 days to compare.";
+  const usual = m.usual;
+  const n = m.recentValues.length;
+  const above = m.recentValues.filter((v) => v > usual.high).length;
+  const below = m.recentValues.filter((v) => v < usual.low).length;
+  const words = sideWords(m);
+  const last = `your last ${NUMBER_WORDS[n]?.toLowerCase() ?? n} ${unitWord(m, n)}`;
+  if (m.status === "changed") {
+    const side = m.direction === "up" ? words.up : words.down;
+    const p = m.phrase ? ` ${m.phrase.charAt(0).toUpperCase()}${m.phrase.slice(1)}.` : "";
+    return `All ${NUMBER_WORDS[n]?.toLowerCase() ?? n} of your last ${unitWord(m, n)} were ${side} your usual range.${p}`;
+  }
+  if (above === 0 && below === 0) return "Within your usual range.";
+  if (above && below) {
+    return `Of ${last}, ${NUMBER_WORDS[above].toLowerCase()} ${above === 1 ? "was" : "were"} ${words.up} and ${NUMBER_WORDS[below].toLowerCase()} ${below === 1 ? "was" : "were"} ${words.down} your usual range, so this does not count as a change.`;
+  }
+  const k = above || below;
+  const side = above ? words.up : words.down;
+  return `${NUMBER_WORDS[k]} of ${last} ${k === 1 ? "was" : "were"} ${side} your usual range, so this does not count as a change yet.`;
 }
 
 /** The last 14 days for the chart: one value per day (the middle one for sessions). */
@@ -86,11 +111,17 @@ function PassiveCard({ m, today }: { m: PassiveMetric; today: string }) {
       </div>
       <dl className="numbers">
         <div>
-          <dt>Lately</dt>
-          <dd>{m.recent ? m.format(m.recent.median) : m.points.length ? m.format(m.points[m.points.length - 1].value) : "None yet"}</dd>
+          <dt>{m.recentValues ? `Last ${m.recentValues.length} ${unitWord(m, m.recentValues.length)}` : "Lately"}</dt>
+          <dd>
+            {m.recentValues
+              ? m.recentValues.map(m.format).join(", ")
+              : m.points.length
+                ? m.format(m.points[m.points.length - 1].value)
+                : "None yet"}
+          </dd>
           <dd className="small muted">
-            {m.recent
-              ? `middle of your last ${m.recent.n} ${unitWord(m, m.recent.n)}`
+            {m.recentValues
+              ? "oldest first, each one compared with your usual range"
               : m.points.length
                 ? `your latest ${m.unit}`
                 : "nothing measured yet"}
@@ -141,7 +172,9 @@ export default function TrendsPage() {
         <h1>Your own level</h1>
         <p className="muted" style={{ marginBottom: 0 }}>
           What is measured by itself, compared with your own usual range: the middle half of your own earlier
-          sessions and days. Never with other people.
+          sessions and days. Never with other people. A measure counts as changed only when your last three sessions
+          or days in a row are all outside that range on the same side, and I only ask how you are doing when at least
+          two measures have changed.
         </p>
       </div>
 
@@ -189,8 +222,10 @@ export default function TrendsPage() {
       </section>
 
       <p className="small muted" style={{ marginBottom: 0 }}>
-        In each chart, a dot is one day. The green band is your usual range and the dashed line your usual middle
-        value. The shaded right part is the last 7 days.
+        Each chart shows the last 14 days, one dot per day (for typing, the middle value of that day&apos;s sessions). The green
+        band is your usual range and the dashed line your usual middle value. The shaded right part marks the last 7
+        days, and dots there outside your usual range are coloured. The verdict above each chart uses only the last
+        three sessions or days listed on the card.
       </p>
 
       <section className="stack" aria-labelledby="passive-title">

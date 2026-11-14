@@ -56,6 +56,8 @@ export interface PassiveMetric {
   status: "learning" | "no-recent" | "steady" | "changed";
   usual: Range | null;
   recent: { median: number; n: number } | null;
+  /** The last 3 values, oldest first: what the rule compares with the usual range. */
+  recentValues: number[] | null;
   direction: Direction | null;
   /** Plain words for a change, e.g. "your typing has been more uneven". */
   phrase: string | null;
@@ -220,16 +222,18 @@ function metric(data: AppData, def: Def, today: DayKey): PassiveMetric {
   const j = judge(points.map((p) => p.value));
   const base = { key: def.key, label: def.label, meaning: def.meaning, unit: def.unit, format: def.format, points };
   if (j.status === "learning") {
-    return { ...base, status: "learning", usual: null, recent: null, direction: null, phrase: null };
+    return { ...base, status: "learning", usual: null, recent: null, recentValues: null, direction: null, phrase: null };
   }
   const recentDates = points.slice(-RECENT_POINTS).map((p) => p.date);
   const fresh = recentDates.some((d) => daysBetween(d, today) < RECENT_MAX_AGE_DAYS);
-  if (!fresh) return { ...base, status: "no-recent", usual: j.usual, recent: null, direction: null, phrase: null };
+  if (!fresh)
+    return { ...base, status: "no-recent", usual: j.usual, recent: null, recentValues: null, direction: null, phrase: null };
   return {
     ...base,
     status: j.status,
     usual: j.usual,
     recent: j.recent,
+    recentValues: points.slice(-RECENT_POINTS).map((p) => p.value),
     direction: j.direction,
     phrase: j.direction === "up" ? def.up : j.direction === "down" ? def.down : null,
   };
