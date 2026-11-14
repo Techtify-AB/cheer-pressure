@@ -7,7 +7,8 @@ concrete activities, each on its own static page (`/activities/<id>/`), with a l
 | Where | What |
 |---|---|
 | `lib/activities/index.ts` | The list, `activityForHelp(helpId, label?)`, `nextActivities` |
-| `lib/activities/feedback.ts` | "Did that help?" summed up: `activityHelpStats`, `activityHelpSentence`, `activityHelpScore`, `orderActivitiesByHelp` (stable names, for the ladder too) |
+| `lib/activities/feedback.ts` | "Did that help?" counted per activity: `activityHelpStats` (the second signal) |
+| `lib/activities/learning.ts` | Re-exports from `lib/helps.ts` what the screens need: `learnFromValues` (did the days after move back towards the usual, the main signal), `activityStats`, `orderActivities`, `followedLines` |
 | `lib/activities/reaction.ts` | The quick reaction check's rules (experimental) |
 | `lib/activities/timer.ts`, `game.ts`, `reply.ts`, `guide.ts` | Pure rules, unit tested in `scripts/test-activities.mts` |
 | `lib/activities/sounds.ts` | The two sounds; the only place their paths are written |
@@ -18,9 +19,11 @@ concrete activities, each on its own static page (`/activities/<id>/`), with a l
 
 Every activity opens on one screen with one primary button. "Make it easier" swaps in a
 smaller step. "End" stops all sound, light, speech and timers at any moment. "Done" records a
-self-reported `ActivityDone` (lib/storage.ts), then asks "Did that help?" once; ending partway
-after starting asks it more gently. After that, a quick reaction check is offered at most once a
-day, never forced.
+self-reported `ActivityDone` (lib/storage.ts), then asks "Did that help?" once, lightly, with a
+quiet Skip; ending partway after starting asks it more gently. After that, a quick reaction check
+is offered at most once a day, never forced. The opening screen shows what was learned, the two
+signals apart: "Followed by better days 2 of 2 times. You said it helped twice.", or "Too early
+to tell.", or one plain line when they disagree. The library is ordered by the same score.
 
 ## A recorded voice for "Move your attention for a moment"
 

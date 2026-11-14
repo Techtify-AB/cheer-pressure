@@ -137,11 +137,20 @@ conversation with Cheri; sigh detection; choosing Cheri's look in Settings; vide
 submission text.
 
 **Phone flow (Saturday night, web side):** onboarding one question per screen; step one from
-the person's own list, ordered by what they said helped; several trusted people; other ways to
+the person's own list, ordered by what was learned (below); several trusted people; other ways to
 reach someone when there is no one (peer contact is a demo); the clinic step as chosen with a
 local "Shared with my clinic" list (demo recipient); the daily hello at `/hello/` with the face
 model seam. See "The phone flow" in `README.md`. Checked by the builders' own tests and a
 headless fit check only.
+
+**How Cheri learns what helps (Saturday night).** Two signals, the values first: whether the
+person's days moved back towards their own usual in the three days after something was done
+(three days before against three after, every measure as its distance from the usual range,
+`followedBy` in `lib/helps.ts`), and second what the person said to a light, optional "Did that
+help?". Both are shown apart, always as "followed by", never as "it helped". Honestly: with one
+person and a handful of activities this is weak evidence. Days move for many reasons, so the
+order is a gentle preference, not a finding; it becomes meaningful only with many repetitions.
+The brain seam gets both histories, so a trained model can replace the rule later.
 
 **Not verified by a human:** almost everything since Saturday morning has only passed the
 builders' own automated checks. Nobody has yet clicked through the desktop app, tried the

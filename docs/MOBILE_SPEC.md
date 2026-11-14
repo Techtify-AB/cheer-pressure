@@ -94,8 +94,12 @@ question, "How are you doing?".
 
 - **Step 1, something for you.** Cheri suggests one thing from what the person said helps them
   in onboarding (not a generic tip). Later, the things that were followed by values coming back
-  are suggested first: this is the "learns what helps you" part. Optionally the short face and
-  voice reading from the daily hello is used here as one more observation.
+  are suggested first: this is the "learns what helps you" part. Cheri learns it by herself,
+  from whether the person's days move back towards their usual in the three days after
+  something was done; that is the main signal. The person's own answer to a light, optional
+  "Did that help?" after an activity is the second. Both are shown apart ("Followed by better
+  days 3 of 4 times. You said it helped twice."), never as "it helped" as a fact. Optionally
+  the short face and voice reading from the daily hello is used here as one more observation.
 - **Step 2, someone.** If values have not come back after two days: "Would you like to see or
   talk to someone?" The person picks who, from the people they trust. That person gets the
   request on their phone and answers with a few words ("Walk after lunch?"). This step is

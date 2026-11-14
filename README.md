@@ -79,13 +79,26 @@ screen fits 390 x 844 without page scrolling (`scripts/check-fit.mjs`, also 520 
   Cheri's look. People who set up before get the new questions offered once, quietly, on Home.
   Every free-text field shows the help card on crisis words.
 - **Step one** suggests ONE thing from the person's own list: I'll try that / Something else /
-  Not now. Every offer is recorded (`suggestions`). The order is one plain count in
-  `lib/helps.ts`: the person's own "Did it help?" answer first (yes 1, a little 0.5, from Home
-  after a suggestion, or from the activity library), the categories coming back within three
-  days second (a quarter weight); untried things before things that did not help. When the count
-  puts something first, Cheri says what it rests on ("You've said morning light helped 3 of 4
-  times, so I'm suggesting it first."). `brain.chooseHelp` gets the whole history, so a model can
-  choose instead. The activity link has one place: `activityLinkFor` in `app/prompt/page.tsx`.
+  Not now. Every offer is recorded (`suggestions`). Cheri learns what helps from two signals,
+  and the values come first (`lib/helps.ts`). **The values:** for each time something was done
+  (an activity, or a suggestion taken with no activity behind it), `followedBy` compares the
+  three days before with the three days after, every measure with values in Sleep, Energy,
+  Social and Mood, each as its distance from the person's own usual range (0 inside it, in
+  widths of the range, at most 3). After at least a quarter of the range (`CLEAR_CHANGE`) less:
+  "followed by better days"; a quarter more: "followed by worse days"; otherwise "no clear
+  change". "Too early to tell" until the three days have passed or with fewer than two days with
+  values on a side; "nothing to improve" when the days before were already within a quarter of
+  the usual range (not counted). Two different things in the same three days share the credit,
+  half each. **The person's answer:** "Did that help?" after an activity, and "Did it help?"
+  once on Home after a suggestion with no activity; never required, never repeated. **The
+  order:** (points + 1) / (out of + 2), where a time followed by better days counts 1 of 1, "Yes"
+  0.5 of 0.5, "A little" 0.25 of 0.5 and "Not really" 0 of 0.5 (`WEIGHT`); untried things start
+  at one half, so they still come before things that did not seem to help. Both signals are
+  shown apart, never merged: "After morning light, your days moved back towards your usual 2 of
+  2 times, and you said it helped twice, so I'm suggesting it first." When they disagree, one
+  plain line says so. `brain.chooseHelp` gets both histories (`occasions`, `feedback`,
+  `history`), so a trained model can choose instead. The activity link has one place:
+  `activityLinkFor` in `app/prompt/page.tsx`.
 - **Step two** is social, with several people: the person picks who to ask; each trusted person
   is their own pair on the messages service (`createPeople` in `lib/messages.ts`, the local-first
   outbox, idempotent retries and 48-hour deletion per pair). The request is "Could we talk or
