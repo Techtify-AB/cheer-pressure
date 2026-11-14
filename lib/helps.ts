@@ -88,6 +88,11 @@ export function itemPhrase(item: Pick<HelpItem, "id" | "label">): string {
   return s ? s.phrase : `"${item.label}"`;
 }
 
+/** The one plain line when a learned choice is used. */
+export function learnedLine(item: Pick<HelpItem, "id" | "label">): string {
+  return `Last time ${itemPhrase(item)} was followed by better days, so I'm suggesting it first.`;
+}
+
 export interface HelpStats {
   id: string;
   /** Times it was taken ("I'll try that") and judged. */
@@ -134,7 +139,7 @@ export function orderByWhatHelped(items: HelpItem[], history: SuggestionRecord[]
   // order would have offered something else.
   const plainFirst = on[0];
   const learned = !!first && !!s && s.back > 0 && plainFirst?.id !== first.id;
-  const reason = learned ? `Last time ${itemPhrase(first)} was followed by better days, so I'm suggesting it first.` : null;
+  const reason = learned ? learnedLine(first) : null;
   return { order, reason, learned };
 }
 
@@ -164,4 +169,46 @@ export function judgeSuggestions(
     return r;
   });
   return { history: out, changed };
+}
+
+// --- Recording what was offered ------------------------------------------------------------
+
+/** One new suggestion in the history, not answered yet. */
+export function recordOffer(
+  history: SuggestionRecord[],
+  o: { id: string; ladderStartedOn: DayKey; today: DayKey; item: HelpItem; learned: boolean; simulated: boolean },
+): SuggestionRecord[] {
+  const r: SuggestionRecord = {
+    id: o.id,
+    ladderStartedOn: o.ladderStartedOn,
+    offeredOn: o.today,
+    item: o.item.id,
+    label: o.item.label,
+    answer: null,
+    learned: o.learned,
+    simulated: o.simulated,
+  };
+  return [...history.filter((h) => h.id !== o.id), r];
+}
+
+/** The person's answer to one suggestion. An answered one keeps its first answer. */
+export function answerOffer(history: SuggestionRecord[], id: string, answer: "try" | "other" | "not-now"): SuggestionRecord[] {
+  return history.map((r) => (r.id === id && r.answer === null ? { ...r, answer } : r));
+}
+
+/** Item ids already offered in this ladder (so "Something else" moves on). */
+export function offeredIn(history: SuggestionRecord[], ladderStartedOn: DayKey): string[] {
+  return history.filter((r) => r.ladderStartedOn === ladderStartedOn).map((r) => r.item);
+}
+
+/** The newest suggestion of this ladder still waiting for an answer, if any. */
+export function openOffer(history: SuggestionRecord[], ladderStartedOn: DayKey): SuggestionRecord | null {
+  return [...history].reverse().find((r) => r.ladderStartedOn === ladderStartedOn && r.answer === null) ?? null;
+}
+
+/** The plain count for one item, for Settings: "Tried twice, followed by better days once." */
+export function countLine(s: HelpStats): string | null {
+  if (!s.tried) return null;
+  const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+  return s.back ? `Tried ${times(s.tried)}, followed by better days ${times(s.back)}.` : `Tried ${times(s.tried)}, values did not come back soon after.`;
 }

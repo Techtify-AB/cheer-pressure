@@ -16,21 +16,27 @@ import { CheriLook } from "@/components/CheriLook";
 import { COLOURS, FURS, lookOf } from "@/lib/look";
 import { useCamera } from "@/components/camera/useCamera";
 import { useVoice } from "@/components/voice/useVoice";
-import { isLocalOnly, messagesUrlOf, quietHoursOf, ROUTINES, routinesOf, sourcesOf } from "@/lib/settings";
+import { isLocalOnly, messagesUrlOf, quietHoursOf, sourcesOf } from "@/lib/settings";
+import { addOwn, CAME_BACK_WITHIN_DAYS, countLine, helpsOf, MAX_OWN_HELPS, statsFor } from "@/lib/helps";
+import { newId } from "@/lib/dates";
+import { saveHelps } from "@/lib/storage";
+import { CrisisCard } from "@/components/CrisisCard";
+import { OwnWords } from "@/components/OwnWords";
 import { notConnectedInputs, SOURCES, type CategoryId } from "@/lib/passive";
 import { disconnect, invite, useTrusted } from "@/lib/trusted";
 import { deleteEverything, saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
 import { dailyQuestionOf, FREQUENCIES, questionTime, TIMES } from "@/lib/daily";
-import type { AppData } from "@/lib/types";
+import type { AppData, HelpItem } from "@/lib/types";
 
-type View = "list" | "measure" | "routines" | "voice" | "daily" | "look" | "trust" | "data" | "delete";
-const VIEWS: View[] = ["measure", "routines", "voice", "daily", "look", "trust", "data", "delete"];
+type View = "list" | "measure" | "helps" | "voice" | "daily" | "look" | "trust" | "clinic" | "data" | "delete";
+const VIEWS: View[] = ["measure", "helps", "voice", "daily", "look", "trust", "clinic", "data", "delete"];
 
 function readHash(): View {
   const h = typeof window === "undefined" ? "" : window.location.hash.slice(1);
   // "#measure-energy" opens What I measure on that category (My values links to a switch).
   if (h.startsWith("measure-")) return "measure";
+  if (h === "routines") return "helps"; // the earlier name
   return (VIEWS as string[]).includes(h) ? (h as View) : "list";
 }
 
@@ -71,7 +77,7 @@ export default function SettingsPage() {
     </div>
   );
   if (view === "measure") return <Measure data={data} back={back} />;
-  if (view === "routines") return <Routines data={data} back={back} />;
+  if (view === "helps") return <Helps data={data} back={back} />;
   if (view === "voice") return <Voice data={data} back={back} />;
   if (view === "daily") return <DailyQuestionSettings data={data} back={back} />;
   if (view === "look") return <CheriLookSettings data={data} back={back} />;
@@ -91,8 +97,7 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
   const snap = useTrusted();
   const s = data.settings;
   const src = sourcesOf(s);
-  const on = routinesOf(s);
-  const q = quietHoursOf(s);
+  const helpsCount = helpsOf(data).filter((h) => h.on).length;
   // By category, in order: a category counts when at least one of its inputs is on.
   const dailyOn = dailyQuestionOf(s).every !== "off";
   const catOn: Record<CategoryId, boolean> = {
@@ -112,13 +117,13 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
       onClick: () => go("measure"),
     },
     {
-      key: "routines",
-      label: "Small things and quiet hours",
-      value: `${ROUTINES.filter((r) => on[r.id]).length} of ${ROUTINES.length} on, quiet ${q.from} to ${q.to}`,
-      onClick: () => go("routines"),
+      key: "helps",
+      label: "What helps me",
+      value: helpsCount ? `${helpsCount} on your list` : "Nothing on your list yet",
+      onClick: () => go("helps"),
     },
     { key: "voice", label: "Voice", value: s.muted ? "Off" : "On", onClick: () => go("voice") },
-    { key: "daily", label: "Daily question", value: dailySummary(s), onClick: () => go("daily") },
+    { key: "daily", label: "Daily hello and quiet hours", value: dailySummary(s), onClick: () => go("daily") },
     { key: "look", label: "Cheri's look", value: lookSummary(s), onClick: () => go("look") },
     { key: "trust", label: "Someone you trust", value: trusted, onClick: () => go("trust") },
     { key: "values", label: "My values", value: "Each category, and a report for your clinic", href: "/values/" },
@@ -341,53 +346,107 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
   );
 }
 
-function Routines({ data, back }: { data: AppData; back: React.ReactNode }) {
-  const on = routinesOf(data.settings);
-  const q = quietHoursOf(data.settings);
+/** What helps me: the person's own list. Step one of the ladder suggests one of these, never one that is off. */
+function Helps({ data, back }: { data: AppData; back: React.ReactNode }) {
+  const list = helpsOf(data);
+  const [crisis, setCrisis] = useState(false);
+  const stats = statsFor(list, data.suggestions ?? []);
+  const counted = list.map((h, i) => ({ h, line: countLine(stats[i]) })).filter((x) => x.line);
+  const ownCount = list.filter((h) => h.own).length;
+  const set = (next: HelpItem[]) => saveHelps(next);
   return (
     <Screen
       lead={
         <>
-          <h1 className="item-title">Small things I may suggest</h1>
-          <p className="muted">Only ever one, and only after you tell me it isn&apos;t your best.</p>
+          <h1 className="item-title">What helps me</h1>
+          <p className="muted">When things look different, I suggest one of these. Tap to switch one on or off.</p>
         </>
       }
-      actions={back}
+      actions={
+        <>
+          {!crisis && (
+            <Disclosure label="How I choose" title="How I choose">
+              <p>
+                I start with the things that were followed by better days. For each one I count how often you tried it, and
+                how often your values came back within {CAME_BACK_WITHIN_DAYS} days after. Things you have not tried yet come
+                before things that did not seem to help.
+              </p>
+              {counted.length ? (
+                <ul className="worked-out">
+                  {counted.map(({ h, line }) => (
+                    <li key={h.id}>
+                      <strong>{h.label}</strong>: {line}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>Nothing tried yet, so I go by the order of your list.</p>
+              )}
+            </Disclosure>
+          )}
+          {back}
+        </>
+      }
     >
-      <section className="card switches" aria-label="Small things and quiet hours">
-        {ROUTINES.map((r) => (
-          <SwitchRow
-            key={r.id}
-            label={r.label}
-            on={on[r.id]}
-            onChange={(v) => saveSettings({ routines: { ...on, [r.id]: v } })}
+      {crisis ? (
+        <CrisisCard />
+      ) : (
+        <>
+          <div className="chips" role="group" aria-label="What helps me">
+            {list.map((h) => (
+              <span key={h.id} className="chip-pair">
+                <button type="button" className="chip" aria-pressed={h.on} onClick={() => set(list.map((x) => (x.id === h.id ? { ...x, on: !x.on } : x)))}>
+                  {h.label}
+                </button>
+                {h.own && (
+                  <button type="button" className="chip chip-remove" aria-label={`Remove ${h.label}`} onClick={() => set(list.filter((x) => x.id !== h.id))}>
+                    Remove
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+          <OwnWords
+            id="own-help-settings"
+            label="Add your own"
+            placeholder={ownCount >= MAX_OWN_HELPS ? "That's plenty for now" : "For example: baking bread"}
+            disabled={ownCount >= MAX_OWN_HELPS}
+            onAdd={(t) => set(addOwn(list, t, newId()))}
+            onCrisis={() => setCrisis(true)}
           />
-        ))}
-        <div className="quiet-hours">
-          <span className="switch-text">
-            <span className="switch-label" id="quiet-label">
-              Quiet hours
-            </span>
-            <span className="switch-hint">I never speak up in between</span>
-          </span>
-          <span className="quiet-times" role="group" aria-labelledby="quiet-label">
-            <input
-              type="time"
-              aria-label="Quiet from"
-              value={q.from}
-              onChange={(e) => e.target.value && saveSettings({ quietHours: { ...q, from: e.target.value } })}
-            />
-            <span aria-hidden="true">to</span>
-            <input
-              type="time"
-              aria-label="Quiet until"
-              value={q.to}
-              onChange={(e) => e.target.value && saveSettings({ quietHours: { ...q, to: e.target.value } })}
-            />
-          </span>
-        </div>
-      </section>
+        </>
+      )}
     </Screen>
+  );
+}
+
+/** Quiet hours: Cheri never speaks up in between. Part of the daily hello's screen. */
+function QuietHours({ data }: { data: AppData }) {
+  const q = quietHoursOf(data.settings);
+  return (
+    <div className="quiet-hours">
+      <span className="switch-text">
+        <span className="switch-label" id="quiet-label">
+          Quiet hours
+        </span>
+        <span className="switch-hint">I never speak up in between</span>
+      </span>
+      <span className="quiet-times" role="group" aria-labelledby="quiet-label">
+        <input
+          type="time"
+          aria-label="Quiet from"
+          value={q.from}
+          onChange={(e) => e.target.value && saveSettings({ quietHours: { ...q, from: e.target.value } })}
+        />
+        <span aria-hidden="true">to</span>
+        <input
+          type="time"
+          aria-label="Quiet until"
+          value={q.to}
+          onChange={(e) => e.target.value && saveSettings({ quietHours: { ...q, to: e.target.value } })}
+        />
+      </span>
+    </div>
   );
 }
 
@@ -406,16 +465,16 @@ function DailyQuestionSettings({ data, back }: { data: AppData; back: React.Reac
     <Screen
       lead={
         <>
-          <h1 className="item-title">Daily question</h1>
+          <h1 className="item-title">Daily hello</h1>
           <p className="muted">
-            Cheri asks &quot;How are you today?&quot; with three answers. One tap, or Not now with no reminder that day.
-            Never in quiet hours.
+            &quot;How are you today?&quot; Talk, or one tap. {d.firstTwoWeeksDaily ? "Every day for the first two weeks, then as set here. " : ""}
+            Never in quiet hours, never twice a day.
           </p>
         </>
       }
       actions={back}
     >
-      <section className="card stack-sm daily-settings" aria-label="Daily question">
+      <section className="card stack-sm daily-settings" aria-label="Daily hello">
         <fieldset className="bare-fieldset">
           <legend className="switch-label">How often</legend>
           <div className="chips">
@@ -439,8 +498,9 @@ function DailyQuestionSettings({ data, back }: { data: AppData; back: React.Reac
         <p className="small muted">
           {d.every === "off"
             ? "Off. Cheri asks nothing day to day."
-            : `Around ${questionTime(data.settings)}. If the computer is off then, it comes once when you are next here that day.`}
+            : `Around ${questionTime(data.settings)}. If I miss you then, it comes once when you are next here that day.`}
         </p>
+        <QuietHours data={data} />
       </section>
     </Screen>
   );

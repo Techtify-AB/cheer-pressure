@@ -34,7 +34,8 @@ import {
   type Range,
   type SourceId,
 } from "./passive";
-import type { DailyEntry, PassiveKey, Profile, RoutineId, WeeklyEntry } from "./types";
+import { orderByWhatHelped, statsFor, suggestionText, type HelpStats } from "./helps";
+import type { DailyAnswerValue, DailyEntry, HelpItem, PassiveKey, Profile, RoutineId, SuggestionRecord, WeeklyEntry } from "./types";
 
 /** The small things the companion can suggest: the routines the person can switch on or off in Settings. */
 export type SuggestionId = RoutineId;
@@ -146,12 +147,67 @@ export interface BrainOutput {
   passive: PassiveWords;
 }
 
+/**
+ * Step one of the ladder: which ONE thing from the person's own list to suggest. The brain gets
+ * the list, every earlier suggestion and what followed it (offered, taken, values back or not),
+ * and the plain counts lib/helps.ts keeps. It must pick from `items` (never one switched off)
+ * and leave out `exclude`. The rule version takes the count's first; a model may choose
+ * differently, and then words `reason` itself (one plain line, or null).
+ */
+export interface HelpChoiceInput {
+  today: string;
+  items: HelpItem[];
+  history: SuggestionRecord[];
+  /** Already offered in this conversation. */
+  exclude: string[];
+  /** The plain counts per item: tried, back, score. */
+  stats: HelpStats[];
+  passive: PassiveInput | null;
+}
+
+export interface HelpChoice {
+  item: HelpItem;
+  /** The suggestion sentence. */
+  text: string;
+  /** One plain line when a learned choice is used, else null. Never says "AI" or "training". */
+  reason: string | null;
+  learned: boolean;
+}
+
+/** The daily hello: what the person said (their own words, or one tap) and what Cheri may say back. */
+export interface HelloReplyInput {
+  today: string;
+  /** The tap, or null when they talked. */
+  answer: DailyAnswerValue | null;
+  /** Their words, when the phone turned them into text. Crisis words never reach the brain. */
+  words: string | null;
+  /** One plain observation against their own usual, or the learning line. */
+  observation: string | null;
+}
+
 export interface Brain {
   readonly name: string;
   reflect(input: BrainInput): Promise<BrainOutput>;
   /** Short closing line for the end of a check-in. */
   closingLine(kind: "daily" | "weekly", today: string): string;
+  /** Step one: one thing from the person's own list, or null when nothing is switched on. */
+  chooseHelp(input: HelpChoiceInput): Promise<HelpChoice | null>;
+  /** The daily hello: one or two short sentences back. No advice, no verdict. */
+  helloReply(input: HelloReplyInput): Promise<string>;
 }
+
+/** The input for chooseHelp, from the stored list and history. */
+export function helpChoiceInput(today: string, items: HelpItem[], history: SuggestionRecord[], exclude: string[] = [], passive: PassiveInput | null = null): HelpChoiceInput {
+  return { today, items, history, exclude, stats: statsFor(items, history), passive };
+}
+
+/** The pre-written replies to the daily hello, by answer. Picked by the day, so they vary. */
+export const HELLO_REPLIES: Record<DailyAnswerValue | "words", string[]> = {
+  good: ["Good to hear. Thanks for saying hello.", "Nice. Thanks for the hello."],
+  okay: ["Okay is fine. Thanks for telling me.", "Thanks. Okay days count too."],
+  "not-so-good": ["Thanks for telling me. Not every day is a good one.", "Thanks for saying so. That's useful to know."],
+  words: ["Thanks for telling me.", "Thanks. I've got that."],
+};
 
 // Rule-based default
 
@@ -266,6 +322,18 @@ export const ruleBrain: Brain = {
         ? ["Thanks. That's all for today.", "Done. That's all for today.", "Thanks, that's it for today."]
         : ["Thanks. That's all the questions done.", "Done. Thanks for answering."];
     const n = today.split("-").reduce((a, b) => a + Number(b), 0);
+    return lines[n % lines.length];
+  },
+
+  async chooseHelp(input) {
+    const { order, reason, learned } = orderByWhatHelped(input.items, input.history, input.exclude);
+    const item = order[0];
+    return item ? { item, text: suggestionText(item), reason, learned } : null;
+  },
+
+  async helloReply(input) {
+    const lines = HELLO_REPLIES[input.answer ?? "words"];
+    const n = input.today.split("-").reduce((a, b) => a + Number(b), 0);
     return lines[n % lines.length];
   },
 };

@@ -224,7 +224,7 @@ export function clinicReport(data: AppData, today: DayKey, evaluation?: Evaluati
   if (l && (inPeriod(l.startedOn) || (l.closedOn && inPeriod(l.closedOn)) || !l.closedOn)) {
     ladder.push(`${formatDay(l.startedOn)}: I told Cheri it was not my best.`);
     if (l.smallThing) {
-      const what = l.smallThing.routine ? ROUTINE_WORDS[l.smallThing.routine] : "one small thing";
+      const what = l.smallThing.label ? `"${l.smallThing.label}", from my own list` : l.smallThing.routine ? ROUTINE_WORDS[l.smallThing.routine] : "one small thing";
       ladder.push(
         `One small thing was offered (${what}); ${l.smallThing.answer === "try" ? "I said I'd try it" : l.smallThing.answer === "not-now" ? "I said not now" : "no answer yet"}.`,
       );

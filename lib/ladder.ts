@@ -1,7 +1,8 @@
 // The ladder after the person answers "Not my best". Owner's decision: first one
 // small thing to do, then reaching someone they trust, then the clinic.
 //
-//   Step 1, right away: one small thing, chosen from the routines the person has on.
+//   Step 1, right away: one thing from the person's own "What helps you?" list (lib/helps.ts),
+//   best first by what was followed by values coming back. "Something else" offers the next one.
 //   Step 2, when the measures have still not come back after 2 days: someone you trust.
 //   Step 3, when the measures have still not come back after 7 days: the clinic.
 //
@@ -104,6 +105,19 @@ export function ladderDue(i: LadderInput): LadderOutcome {
 /** "Not my best": the ladder starts, and step 1 is offered now. */
 export function startAfterNotBest(today: DayKey, routine: RoutineId | null, simulated: boolean): LadderState {
   return { startedOn: today, simulated, smallThing: { routine, offeredOn: today } };
+}
+
+/**
+ * "Not my best": the ladder starts, and step 1 offers one thing from the person's own list.
+ * `choice` is null when nothing on the list is switched on.
+ */
+export function startWithHelp(today: DayKey, choice: { item: string; label: string; learned: boolean } | null, simulated: boolean): LadderState {
+  return { startedOn: today, simulated, smallThing: { routine: null, offeredOn: today, ...(choice ?? {}) } };
+}
+
+/** "Something else": the next thing on the list is offered instead, same ladder, same day. */
+export function offerNext(l: LadderState, next: { item: string; label: string; learned: boolean }, today: DayKey): LadderState {
+  return { ...l, smallThing: { routine: null, offeredOn: today, ...next } };
 }
 
 /** "I'd like someone to check in on me": straight to step 2. Keeps a ladder already running. */

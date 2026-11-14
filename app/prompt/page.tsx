@@ -6,7 +6,10 @@
 //   categories; no category alone): first a plain explanation
 //   of what changed, then "How are you doing?" with three answers.
 // - Opened by the person's own choice with nothing standing out: the question only.
-// - After "Not my best": step 1, one small thing from the routines the person has on.
+// - After "Not my best": step 1, ONE thing from the person's own "What helps you?" list,
+//   chosen by the brain (lib/brain.ts chooseHelp; the rule version orders the list by the plain
+//   count in lib/helps.ts). "I'll try that", "Something else" (the next one) or "Not now".
+//   Each offer is recorded, and later judged by whether the categories came back.
 //   Two days later, if the measures have not come back: step 2, someone you trust.
 //   Seven days later: step 3, a short summary for the clinic.
 //   "I'd like someone to check in on me" goes straight to step 2.
@@ -24,26 +27,47 @@ import { useEffect, useRef, useState } from "react";
 import { Disclosure, Says, Screen, StepCount } from "@/components/Screen";
 import { useCompanionStatus, useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import type { CompanionState } from "@/components/companion/Companion";
-import { SUGGESTIONS } from "@/lib/brain";
+import { brain, helpChoiceInput, type HelpChoice } from "@/lib/brain";
 import { GreetingScreen, ReplyCrisisScreen, who } from "@/components/Greeting";
 import { chooseContact, CONTACT_REQUEST_TEXT, type Contact, type ContactState } from "@/lib/contact";
 import type { Answer } from "@/lib/events";
 import { newId } from "@/lib/dates";
+import { answerOffer, helpsOf, learnedLine, offeredIn, openOffer, recordOffer, suggestionText } from "@/lib/helps";
 import {
   answerClinic,
   answerReply,
   answerSmallThing,
   answerSomeone,
   isActive,
+  offerNext,
   requestSomeone,
-  startAfterNotBest,
+  startWithHelp,
   type Due,
 } from "@/lib/ladder";
 import { evaluatePassive, SOURCES } from "@/lib/passive";
-import { forRule, pickSmallThing, routinesOf } from "@/lib/settings";
-import { hasDemo, readData, saveCheckIn, saveLadder, useData } from "@/lib/storage";
+import { forRule } from "@/lib/settings";
+import { hasDemo, readData, saveCheckIn, saveLadder, saveSuggestions, useData } from "@/lib/storage";
 import { messagesClient } from "@/lib/trusted";
-import type { AppData, CheckInAnswer } from "@/lib/types";
+import type { AppData, CheckInAnswer, HelpItem } from "@/lib/types";
+
+/**
+ * Where "I'll try that" goes for one thing on the person's list: a screen that helps them do it,
+ * or null to stay in the conversation. The activity library plugs in here, and only here.
+ */
+function activityLinkFor(item: Pick<HelpItem, "id" | "label" | "own">): string | null {
+  // activity link goes here
+  void item;
+  return null;
+}
+
+/** Offers one thing from the person's list (the brain chooses) and records it. Null: nothing is on. */
+async function offerHelp(today: string, ladderStartedOn: string, simulated: boolean): Promise<HelpChoice | null> {
+  const d = readData();
+  const history = d.suggestions ?? [];
+  const choice = await brain.chooseHelp(helpChoiceInput(today, helpsOf(d), history, offeredIn(history, ladderStartedOn)));
+  if (choice) saveSuggestions(recordOffer(history, { id: newId(), ladderStartedOn, today, item: choice.item, learned: choice.learned, simulated }));
+  return choice;
+}
 
 const QUESTION = "How are you doing?";
 
@@ -99,6 +123,9 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
   const [contactState, setContactState] = useState<ContactState | null>(null);
   const [replyAnswer, setReplyAnswer] = useState<{ answer: Answer | null; text?: string } | null>(null);
   const [crisisFor, setCrisisFor] = useState<string | null>(null);
+  // The plain line when step one's suggestion comes first because of what followed it before.
+  const [reason, setReason] = useState<string | null>(null);
+  const [listDone, setListDone] = useState(false);
   useEffect(() => () => stopContact.current?.(), []);
 
   const record = (value: CheckInAnswer) =>
@@ -125,10 +152,11 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
       setMood("joy");
       setView("okay");
     } else if (value === "not-best") {
-      const preferred = reflection?.passive.suggestion.id ?? "walk";
-      const routine = pickSmallThing(preferred, routinesOf(data.settings));
-      saveLadder(startAfterNotBest(today, routine, simulated));
-      setView("small-thing");
+      void offerHelp(today, today, simulated).then((choice) => {
+        saveLadder(startWithHelp(today, choice && { item: choice.item.id, label: choice.item.label, learned: choice.learned }, simulated));
+        setReason(choice?.reason ?? null);
+        setView("small-thing");
+      });
     } else {
       saveLadder(requestSomeone(readData().ladder, today, simulated));
       setView("someone");
@@ -199,11 +227,12 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
     );
   }
 
-  // Step 1: one small thing
+  // Step 1: one thing from the person's own list
   if (view === "small-thing" || view === "small-thing-done") {
-    const routine = ladder?.smallThing?.routine ?? null;
+    const st = ladder?.smallThing;
+    const item = st?.item ? helpsOf(data).find((h) => h.id === st.item) ?? { id: st.item, label: st.label ?? st.item, on: true, own: true } : null;
     if (view === "small-thing-done") {
-      const tried = ladder?.smallThing?.answer === "try";
+      const tried = st?.answer === "try";
       return (
         <Screen
           lead={
@@ -224,36 +253,73 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
         />
       );
     }
-    const done = (a: "try" | "not-now") => {
-      const l = readData().ladder;
-      if (l) saveLadder(answerSmallThing(l, a, today));
-      setView("small-thing-done");
+    const answerIt = (a: "try" | "other" | "not-now") => {
+      const d = readData();
+      const l = d.ladder;
+      const open = l ? openOffer(d.suggestions ?? [], l.startedOn) : null;
+      if (open) saveSuggestions(answerOffer(d.suggestions ?? [], open.id, a));
+      return l;
     };
+    const done = (a: "try" | "not-now") => {
+      const l = answerIt(a);
+      if (l) saveLadder(answerSmallThing(l, a, today));
+      const link = a === "try" && item ? activityLinkFor(item) : null;
+      if (link) router.push(link);
+      else setView("small-thing-done");
+    };
+    const somethingElse = () => {
+      const l = answerIt("other");
+      if (!l) return;
+      void offerHelp(today, l.startedOn, simulated).then((next) => {
+        if (!next) {
+          setListDone(true);
+          return;
+        }
+        saveLadder(offerNext(readData().ladder ?? l, { item: next.item.id, label: next.item.label, learned: next.learned }, today));
+        setReason(next.reason);
+      });
+    };
+    const empty = !item || listDone;
+    const why = reason ?? (st?.learned && item ? learnedLine(item) : null);
     return (
       <Screen
         lead={
           <>
             <Says state="concern" size={88}>
               <p>Thanks for telling me. Not every day is a good one.</p>
-              {routine ? (
+              {!empty ? (
                 <p className="suggestion">
-                  <strong>One small thing:</strong> {SUGGESTIONS[routine]}
+                  <strong>From your list:</strong> {suggestionText(item)}
                 </p>
-              ) : null}
+              ) : (
+                <p className="suggestion">
+                  {listDone ? "That's everything on your list for now." : "Your list of what helps is empty, so I have nothing to suggest yet."}
+                </p>
+              )}
+              {!empty && why && <p className="learned-line">{why}</p>}
             </Says>
-            <StepCount index={0} total={3} label="One small thing" />
+            <StepCount index={0} total={3} label="Something for you" />
           </>
         }
         actions={
           <>
-            <button type="button" className="btn btn-primary" onClick={() => done("try")}>
-              {routine ? "I'll try that" : "Okay"}
+            <button type="button" className="btn btn-primary" onClick={() => done(empty ? "not-now" : "try")}>
+              {empty ? "Okay" : "I'll try that"}
             </button>
             <div className="links">
-              {routine && (
+              {!empty && (
+                <button type="button" className="btn btn-quiet" onClick={somethingElse}>
+                  Something else
+                </button>
+              )}
+              {!empty ? (
                 <button type="button" className="btn btn-quiet" onClick={() => done("not-now")}>
                   Not now
                 </button>
+              ) : (
+                <Link href="/settings/#helps" className="btn btn-quiet">
+                  Change what helps you
+                </Link>
               )}
             </div>
           </>

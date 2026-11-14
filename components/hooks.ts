@@ -5,11 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { brain, passiveInput, type BrainOutput } from "@/lib/brain";
 import { addDays, todayKey } from "@/lib/dates";
 import { computeLevels, type Levels } from "@/lib/levels";
+import { judgeSuggestions } from "@/lib/helps";
 import { closeLadder, isActive, ladderDue, type LadderOutcome } from "@/lib/ladder";
 import { evaluatePassive, type Evaluation } from "@/lib/passive";
 import { forRule, quietHoursOf } from "@/lib/settings";
 import { containsCrisisWords, containsCrisisWordsWhileTyping } from "@/lib/crisis";
-import { readData, saveLadder } from "@/lib/storage";
+import { readData, saveLadder, saveSuggestions } from "@/lib/storage";
 import type { AppData } from "@/lib/types";
 import { speak, stopSpeaking, subscribeVoices, voiceAvailability, type VoiceAvailability } from "@/lib/voice";
 import type { CompanionState } from "./companion/Companion";
@@ -144,6 +145,14 @@ export function useCompanionStatus(data: AppData | null): {
   useEffect(() => {
     if (outcome?.close && isActive(ladder)) saveLadder(closeLadder(ladder, today));
   }, [outcome?.close, ladder, today]);
+  // Step one's suggestions are judged once their days have passed, or the values came back
+  // (lib/helps.ts): that is what orders the list next time.
+  const suggestions = data?.suggestions;
+  useEffect(() => {
+    if (!suggestions?.length) return;
+    const j = judgeSuggestions(suggestions, ladder, today);
+    if (j.changed) saveSuggestions(j.history);
+  }, [suggestions, ladder, today]);
   return { evaluation, outcome };
 }
 
