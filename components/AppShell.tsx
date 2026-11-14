@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useVoiceAvailability } from "@/components/hooks";
 import { saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
 
@@ -10,18 +11,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const muted = data?.settings.muted ?? false;
   const onHelp = pathname?.startsWith("/help");
+  const voice = useVoiceAvailability();
 
   return (
     <>
-      <a href="#main" className="sr-only">
+      <a href="#main" className="sr-only skip-link">
         Skip to content
       </a>
       <header className="shell-header">
         <div className="shell-header-inner">
           <Link href="/" className="brand">
-            Companion
+            Cheer Pressure
           </Link>
-          {data && (
+          {data && voice === "no" && (
+            <span
+              className="icon-button icon-status"
+              title="This device has no built-in voice, so the companion shows its text instead of reading it aloud."
+            >
+              <SpeakerIcon muted />
+              No voice<span className="hide-narrow"> on this device</span>
+            </span>
+          )}
+          {data && voice !== "no" && (
             <button
               type="button"
               className="icon-button"

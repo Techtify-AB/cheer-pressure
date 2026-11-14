@@ -17,7 +17,6 @@ body {
   font-family: var(--font-body);
   font-size: var(--font-size-md);
   line-height: var(--line-height);
-  overflow-x: hidden;
 }
 
 h1,
@@ -79,6 +78,29 @@ button {
   border: 0;
 }
 
+/* The skip link is hidden until it gets keyboard focus, then it shows on top of the header */
+.skip-link:focus,
+.skip-link:focus-visible {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 100;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  overflow: visible;
+  clip: auto;
+  white-space: nowrap;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border: 2px solid var(--color-focus);
+  border-radius: var(--radius-pill);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  box-shadow: var(--shadow-soft);
+}
+
 /* Shell */
 .shell-header {
   position: sticky;
@@ -114,8 +136,18 @@ button {
   background: var(--color-surface);
   font-size: var(--font-size-sm);
   color: var(--color-ink-soft);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .icon-button:hover { border-color: var(--color-ink-faint); }
+.icon-status {
+  background: transparent;
+  border-style: dashed;
+}
+.icon-status:hover { border-color: var(--color-line); }
+@media (max-width: 479px) {
+  .hide-narrow { display: none; }
+}
 .help-link {
   display: inline-flex;
   align-items: center;
@@ -128,6 +160,7 @@ button {
   font-weight: var(--font-weight-medium);
   text-decoration: none;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .help-link:hover { text-decoration: underline; }
 

@@ -10,7 +10,7 @@ const SCALE = ["not at all", "several days", "more than half the days", "nearly 
 
 export function buildSummary(data: AppData, levels: Levels, companionSays: string): string {
   const lines: string[] = [];
-  lines.push("Summary from my companion app");
+  lines.push("Summary from my Cheer Pressure app");
   lines.push(`Made on ${formatDay(levels.today)}. Compared only with my own earlier entries.`);
   if ([...data.daily, ...data.weekly, ...data.reaction].some((e) => e.source === "demo")) {
     lines.push("Note: this includes made-up demo data, not real entries.");

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ClinicContactPlaceholder } from "@/components/ClinicContactPlaceholder";
 
-export const metadata = { title: "Need help now? · Companion" };
+export const metadata = { title: "Need help now? · Cheer Pressure" };
 
 export default function HelpPage() {
   return (

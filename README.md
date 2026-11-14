@@ -1,8 +1,8 @@
-# Companion
+# Cheer Pressure
 
 A hackathon MVP for Junction 2026, Aalto University challenge "Beyond the Clinic".
 
-A small digital companion for people who have finished treatment and want to stay well at
+Cheer Pressure is a small digital companion for people who have finished treatment and want to stay well at
 home. It does a 30 second daily check-in and a short weekly one, and compares the person
 only with their own earlier answers. Everything stays in the browser on the device.
 

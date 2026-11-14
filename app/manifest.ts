@@ -4,8 +4,8 @@ export const dynamic = "force-static";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Companion",
-    short_name: "Companion",
+    name: "Cheer Pressure",
+    short_name: "Cheer Pressure",
     description: "Short daily check-ins that compare you only with your own earlier days. Stays on this device.",
     start_url: "/",
     scope: "/",

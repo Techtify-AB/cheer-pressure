@@ -3,10 +3,10 @@ import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Companion",
+  title: "Cheer Pressure",
   description: "Short daily check-ins that compare you only with your own earlier days. Stays on this device.",
-  applicationName: "Companion",
-  appleWebApp: { capable: true, title: "Companion", statusBarStyle: "default" },
+  applicationName: "Cheer Pressure",
+  appleWebApp: { capable: true, title: "Cheer Pressure", statusBarStyle: "default" },
   icons: { apple: "/icons/icon-192.png" },
 };
 
