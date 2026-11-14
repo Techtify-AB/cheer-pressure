@@ -110,6 +110,9 @@ export default function HomePage() {
         }
         actions={
           <div className="links">
+            <Link href="/hello/" className="btn btn-quiet">
+              Say it out loud instead
+            </Link>
             <button type="button" className="btn btn-quiet" onClick={daily.dismiss}>
               Not now
             </button>

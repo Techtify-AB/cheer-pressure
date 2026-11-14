@@ -41,7 +41,7 @@ export function MicrophoneBridge() {
   const view = useVoice();
   const visible = useSyncExternalStore(subscribeVisibility, isVisible, () => true);
   // "Voice, live" and "Live" start the microphone themselves, only on a press.
-  const onVoiceScreen = !!pathname?.startsWith("/demo/voice") || !!pathname?.startsWith("/live");
+  const onVoiceScreen = !!pathname?.startsWith("/demo/voice") || !!pathname?.startsWith("/live") || !!pathname?.startsWith("/hello");
   const wanted = !!data?.profile && sourcesOf(data.settings).microphone && !data.settings.pausedAll && visible;
   const ours = useRef(false);
 

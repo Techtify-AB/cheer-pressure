@@ -42,8 +42,8 @@ export function CameraBridge() {
   const video = useRef<HTMLVideoElement>(null);
   const view = useCamera();
   const visible = useSyncExternalStore(subscribeVisibility, isVisible, () => true);
-  // "Camera, live" and "Live" start the camera themselves, only on a press.
-  const onCameraScreen = !!pathname?.startsWith("/demo/camera") || !!pathname?.startsWith("/live");
+  // "Camera, live", "Live" and the daily hello start the camera themselves, only on a press.
+  const onCameraScreen = !!pathname?.startsWith("/demo/camera") || !!pathname?.startsWith("/live") || !!pathname?.startsWith("/hello");
   const wanted = !!data?.profile && sourcesOf(data.settings).camera && !data.settings.pausedAll && visible;
 
   // Finished stretches go into storage, once, while the person has the camera on: movement

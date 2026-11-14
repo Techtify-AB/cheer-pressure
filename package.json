@@ -13,7 +13,7 @@
     "desktop:build": "tauri build --debug",
     "test:typing": "tsx scripts/test-typing.mts",
     "test:passive": "tsx scripts/test-passive.mts",
-    "test": "tsx scripts/check-wording.mts && tsx scripts/test-typing.mts && tsx scripts/test-passive.mts && tsx scripts/test-contact.mts && tsx scripts/test-report.mts && tsx scripts/test-daily.mts && tsx scripts/test-camera.mts && tsx scripts/test-helps.mts && cargo test --manifest-path src-tauri/Cargo.toml",
+    "test": "tsx scripts/check-wording.mts && tsx scripts/test-typing.mts && tsx scripts/test-passive.mts && tsx scripts/test-contact.mts && tsx scripts/test-report.mts && tsx scripts/test-daily.mts && tsx scripts/test-camera.mts && tsx scripts/test-helps.mts && tsx scripts/test-hello.mts && cargo test --manifest-path src-tauri/Cargo.toml",
     "test:contact": "tsx scripts/test-contact.mts",
     "test:e2e": "node scripts/e2e-trusted.mjs",
     "test:report": "tsx scripts/test-report.mts",

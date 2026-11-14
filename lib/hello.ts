@@ -132,3 +132,20 @@ export function dayOfLearning(data: Pick<AppData, "profile">, today: DayKey): nu
   const s = startedOnOf(data);
   return s ? daysBetween(s, today) + 1 : null;
 }
+
+/** The reaction check at the end of the hello: at most this many times in seven days... */
+export const REACTION_PER_WEEK = 2;
+
+/**
+ * Whether to offer the optional reaction check at the end of today's hello: at most twice in
+ * seven days, and every day during the first two weeks only when the person agreed in
+ * onboarding ("Include a 15-second reaction check"). Never twice on one day.
+ */
+export function reactionOffered(data: Pick<AppData, "profile" | "settings" | "helloReadings">, today: DayKey): boolean {
+  const offered = (data.helloReadings ?? []).filter((r) => r.reactionOffered);
+  if (offered.some((r) => r.date === today)) return false;
+  const day = dayOfLearning(data, today);
+  if (data.settings.helloReaction && day !== null && day <= LEARNING_DAYS) return true;
+  const lastWeek = offered.filter((r) => daysBetween(r.date, today) < 7 && daysBetween(r.date, today) > 0);
+  return lastWeek.length < REACTION_PER_WEEK;
+}

@@ -710,8 +710,9 @@ function DailyStep({ data, progress, nav, onDone, last }: StepProps & { data: Ap
   const cur = dailyQuestionOf(data.settings);
   const [when, setWhen] = useState(cur.when);
   const [every, setEvery] = useState<DailyQuestionSettings["every"]>(AFTER_TWO_WEEKS.some((a) => a.value === cur.every) ? cur.every : "day");
+  const [reaction, setReaction] = useState(!!data.settings.helloReaction);
   const save = (next: Partial<DailyQuestionSettings>) => {
-    saveSettings({ dailyQuestion: { ...cur, when, every, firstTwoWeeksDaily: true, ...next } });
+    saveSettings({ dailyQuestion: { ...cur, when, every, firstTwoWeeksDaily: true, ...next }, helloReaction: next.every === "off" ? false : reaction });
     onDone();
   };
   return (
@@ -763,6 +764,13 @@ function DailyStep({ data, progress, nav, onDone, last }: StepProps & { data: Ap
             ))}
           </div>
         </fieldset>
+        <SwitchRow
+          label="Include a 15-second reaction check"
+          hint="Experimental. Five taps, only compared with your own usual."
+          keepHint
+          on={reaction}
+          onChange={setReaction}
+        />
       </section>
     </Screen>
   );

@@ -312,6 +312,8 @@ export interface Settings {
   clinic?: ClinicSettings;
   /** The camera and microphone may be used during the daily hello, after a tap. Missing: no. */
   helloSensors?: boolean;
+  /** "Include a 15-second reaction check" in the daily hello during the first two weeks. Missing: no. */
+  helloReaction?: boolean;
 }
 
 /**
@@ -455,6 +457,8 @@ export interface HelloReading {
   face: { readings: Record<string, number>; confidence: number; model: string } | null;
   /** Tone of voice while talking (lib/voice), or null when the microphone was refused or silent. */
   tone: { readings: Record<string, number>; confidence: number } | null;
+  /** The reaction check was offered at the end of this hello. */
+  reactionOffered?: boolean;
   source: Source;
 }
 
