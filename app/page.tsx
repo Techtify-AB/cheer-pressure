@@ -87,6 +87,9 @@ export default function HomePage() {
             </Link>
           </li>
           <li>
+            <Link href="/live/">Live view</Link>
+          </li>
+          <li>
             <Link href="/trends/">Your own level</Link>
           </li>
           <li>

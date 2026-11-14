@@ -639,3 +639,65 @@ pre.summary {
   margin-bottom: 0;
   min-width: 0;
 }
+
+/* The mascot window (desktop app): transparent, only the character */
+html:has(.mascot-page),
+html:has(.mascot-page) body {
+  background: transparent;
+  overflow: hidden;
+}
+.mascot-page {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.mascot-button {
+  border: 0;
+  padding: 0 0 var(--space-2);
+  background: transparent;
+  border-radius: var(--radius-lg);
+  touch-action: none;
+}
+
+/* Live view */
+.live-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.live-numbers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-4) var(--space-3);
+  margin: 0;
+}
+.live-numbers dt {
+  font-size: var(--font-size-sm);
+  color: var(--color-ink-soft);
+}
+.live-numbers dd { margin: 0; }
+.live-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+.day-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+.day-table th,
+.day-table td {
+  text-align: left;
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.day-table thead th { color: var(--color-ink-soft); font-weight: var(--font-weight-medium); }
+.day-table tbody th { font-weight: var(--font-weight-regular); }

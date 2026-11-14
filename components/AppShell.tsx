@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { DesktopBridge } from "@/components/desktop";
 import { useVoiceAvailability } from "@/components/hooks";
 import { saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
@@ -12,6 +13,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const muted = data?.settings.muted ?? false;
   const onHelp = pathname?.startsWith("/help");
   const voice = useVoiceAvailability();
+
+  // The mascot window shows only the character: no header, no page frame.
+  if (pathname?.startsWith("/mascot")) return <>{children}</>;
 
   return (
     <>
@@ -51,6 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
       </header>
+      <DesktopBridge />
       <main id="main" className="page">
         {children}
       </main>
