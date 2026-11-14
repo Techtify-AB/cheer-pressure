@@ -120,7 +120,7 @@ export default function SetupPage() {
       >
         <div className="card">
           <p style={{ marginBottom: 0 }}>
-            Your answers stay in this browser. There is no account, and nothing is sent anywhere.
+            Your measurements and answers stay on this device, and there is no account. Only messages with someone you trust, if you connect one, pass through a messages service.
           </p>
         </div>
       </Screen>

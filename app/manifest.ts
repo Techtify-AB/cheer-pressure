@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Cheer Pressure",
     short_name: "Cheer Pressure",
-    description: "A companion that notices changes in your own rhythm and asks how you are only when something stands out. Stays on this device.",
+    description: "A companion that notices changes in your own rhythm and asks how you are only when something stands out. Measurements and answers stay on this device.",
     start_url: "/",
     scope: "/",
     display: "standalone",

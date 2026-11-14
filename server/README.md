@@ -18,13 +18,13 @@ Needs Node 20 or newer and pnpm.
 ```bash
 cd server
 pnpm install
-pnpm dev            # http://localhost:3480
+pnpm dev            # http://localhost:3480, listening on all interfaces
 ```
 
 Other commands:
 
 ```bash
-pnpm build && pnpm start      # production build on 3480
+pnpm build && pnpm start      # production build on 3480, listening on all interfaces
 pnpm lint
 pnpm typecheck
 npx tsx ../scripts/test-messages.mts http://localhost:3480   # from the repo root: the API, the refusals, the client
@@ -36,6 +36,38 @@ node scripts/drive-pages.mjs http://localhost:3480 [shots]   # the phone pages i
 
 To try it by hand: `curl -X POST localhost:3480/api/pairs`, then open `inviteUrl` in one browser
 profile (the trusted person) and `userUrl` in another (the person's phone).
+
+## A table demo over a phone hotspot
+
+The laptop runs the service; the phones and the desktop app reach it over the hotspot's network.
+
+1. Join the laptop and every phone to the same hotspot (or Wi-Fi without client isolation).
+2. Find the laptop's address on it:
+
+   ```bash
+   ipconfig getifaddr en0        # macOS Wi-Fi, for example 192.168.1.20 (try en1 if empty)
+   ```
+
+3. Start the service (production is steadier for a demo than dev):
+
+   ```bash
+   cd server
+   pnpm build && pnpm start      # or: pnpm dev
+   ```
+
+   Check it from a phone: open `http://192.168.1.20:3480` in its browser; it shows two sentences.
+   If it does not load, macOS may have asked whether Node may accept incoming connections: allow it.
+4. In the desktop app: **Settings**, **For the demo**, **Messages service**, type
+   `http://192.168.1.20:3480` (or just `192.168.1.20`), **Save**.
+5. **Settings**, **Someone you trust**, **Invite someone**. The QR code and link now point at
+   `http://192.168.1.20:3480/t/...`: the trusted person scans it with their phone's camera.
+
+Invite and user links use the host the request came in on, so they point at the address typed
+in step 4 (unless `PUBLIC_BASE_URL` is set). The links are plain http on the local network;
+that is fine for a demo, not for real use. Everything is in memory: restarting the service
+ends every pair (set the Redis variables to keep them). Under `pnpm dev` the laptop's own
+network addresses are allowed to load the dev scripts (`next.config.ts`); another host name
+would need adding to `allowedDevOrigins`.
 
 ## The pages
 
@@ -133,8 +165,7 @@ Not done yet: nothing has been deployed, and no Upstash database exists.
 - Push notifications. The phones poll every 1.5 s while the page is open.
 - More than one trusted person per pair.
 - Accounts, or anything that lasts longer than 48 hours.
-- A QR code or share sheet for the links (the desktop app shows them).
+- A share sheet for the links (the desktop app shows a QR code and a Copy button).
 - Read receipts or typing indicators.
 - A rate limit on polling (only on sending and on creating pairs).
 - Translations. The pages are English only.
-- The robot that lights up when a greeting arrives (it can use `subscribe()` in `../lib/messages.ts`).

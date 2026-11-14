@@ -1,7 +1,8 @@
 "use client";
 
 // The only place that touches browser storage. Everything is kept in localStorage
-// under one key, on this device only. No account, no server, no sync.
+// under one key, on this device only. No account, no server, no sync. (Messages with someone
+// the person trusts are kept apart by lib/messages.ts and pass through the messages service.)
 //
 // To move to IndexedDB later, keep this module's exported functions and swap the
 // read/write helpers below.

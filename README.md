@@ -5,7 +5,10 @@ A hackathon MVP for Junction 2026, Aalto University challenge "Beyond the Clinic
 Cheer Pressure is a small digital companion for people who have finished treatment and want to stay well at
 home. It is passive first: it measures by itself (typing rhythm, first and last activity of
 the day) and asks "How are you doing?" only when the person's measures stand out from
-their own usual range. Everything stays on the device.
+their own usual range. Measurements, answers and summaries never leave this device. The one
+exception is short messages between the person and one person they trust (a sister, a friend):
+those pass through a small messages service (`server/`), which deletes them after 48 hours and
+never receives anything about health.
 
 It is a tool, not a therapist. It never diagnoses; it only describes change from the
 person's own usual level.
@@ -26,7 +29,9 @@ Other commands:
 ```bash
 pnpm build        # static export to out/
 pnpm lint
-pnpm test         # timing calculation, the passive rule, and the Rust tests
+pnpm test         # timing calculation, the passive rule, the ladder, the contact adapter, the Rust tests
+pnpm test:e2e     # someone you trust, end to end in a headless browser (starts and stops its own servers)
+node scripts/check-fit.mjs http://localhost:3472   # every screen fits, against a static build served on 3472
 ```
 
 To try it quickly: finish setup, then open **Settings**, **For the demo**, and press
@@ -41,7 +46,7 @@ The interface has three places. **Home** is the companion, one calm line and one
 person wants to; when the measures stand out, the companion looks attentive and home offers
 "Have a look" instead. **Settings** is a short list: what is measured (each source on or off,
 Pause everything), which small things it may suggest and quiet hours (22:00 to 08:00 by
-default, when it never speaks up), voice, someone you trust (not connected yet), your data,
+default, when it never speaks up), voice, someone you trust, your data,
 need help now, and **For the demo**, the one marked place for the live view, your own level,
 demo data and the replay.
 
@@ -51,8 +56,38 @@ are on, then after two days "Would you like someone you trust to check in on you
 seven days a short summary for the clinic, shown word for word before anything is approved.
 It escalates only while at least two measures still stand out, respects "Not now" for three
 days, and stays quiet in quiet hours. "I'd like someone to check in on me" goes straight to the
-second step. Reaching someone goes through `lib/contact.ts`, a seam whose only implementation
-is a local stand-in: it sends nothing, and in demo mode shows a reply marked as simulated.
+second step. Reaching someone goes through `lib/contact.ts`: when a pair exists it sends a real
+request through the messages service (see below); without one it sends nothing, and only in
+demo mode shows a reply marked as simulated.
+
+## Someone you trust
+
+**Settings, Someone you trust**, one step per screen: "Invite someone" creates a pair on the
+messages service and shows a QR code (drawn on the device by the bundled `qrcode` package) and a
+link to copy. It says "Invite created, waiting for them to open it" until the trusted person has
+opened it on their phone and typed a first name, then "Connected with Sara". A quieter step,
+"Your own phone", shows a second link so the person can answer from their phone too.
+"Disconnect" asks once, then deletes the pair on the service and the messages on this device;
+"Delete everything" does the same.
+
+- **Ladder step two** ("Would you like someone you trust to check in on you?", Yes) sends a
+  contact request. The screen shows "Sending", "Sent" or "Waiting for connection" from the local
+  outbox, so it works offline and goes by itself when the service is back. When the trusted
+  person sends something, it shows there with Yes, No and Write back.
+- **Greetings at any time.** The app follows the pair once, at app level, while a pair exists
+  (`components/TrustedBridge.tsx`, `lib/trusted.ts`; polling every 1.5 s, and in the desktop app
+  also while the main window is hidden). A greeting or question becomes home's one primary thing
+  ("Sara: Walk after lunch?" with Yes, No and Write back), the companion looks glad, the mascot
+  window shows its cue and a click opens home, and a robot connected under Live view gets
+  `{"t":"led","mode":"greeting","color":"warm","ms":4000}`. Outside quiet hours the companion
+  reads it aloud once (unless the voice is off or everything is paused); in quiet hours it is
+  still shown, silently. After the answer home is calm again. Only the newest unanswered
+  message is ever shown; there is no conversation history in the interface.
+- **Crisis words in a written answer** show the fixed help card, and the message is still sent:
+  it is the person's own message to someone they chose to trust.
+- **Where the service is:** For the demo, Messages service. Default `NEXT_PUBLIC_MESSAGES_URL`
+  from the build, else `http://localhost:3480`. For a table demo on a phone hotspot see
+  `server/README.md`.
 
 **Six weeks in 20 seconds** (`/demo/replay/`) replays made-up days (`lib/replay.ts`): five
 steady weeks, then a gradual drift in typing evenness, longer pauses and first and last
@@ -63,7 +98,11 @@ that the rule does not ask during the steady weeks.
 
 `node scripts/check-fit.mjs [url]` walks every screen headless at 1366x768, 390x844 and
 520x820 and checks that nothing scrolls, there is at most one primary action and at most four
-groups.
+groups, including the screens for someone you trust (against a fake service inside the
+browser). `pnpm test:e2e` plays the whole story with the real service: the desktop invites, a
+390 x 844 phone joins as Sara and sends "Walk after lunch?", the desktop shows it, answers Yes and
+the phone shows "They said yes"; then the service is stopped, the desktop's request shows
+"Waiting for connection", and it is delivered when the service is back.
 
 ## When the companion asks
 
@@ -96,7 +135,13 @@ still load.
 | `app/` | Screens: `setup`, home (`page.tsx`), `prompt` (the conversation and the ladder), `settings`, `help`, `weekly` (only from the conversation), `demo` (with `demo/replay`, `live` and `trends` reached from it), and `mascot` (the desktop mascot window) |
 | `lib/ladder.ts` | Which step is due after "Not my best", and the clinic text |
 | `lib/settings.ts` | Sources, routines and quiet hours, with their defaults |
-| `lib/contact.ts` | The seam for reaching someone you trust, with a local stand-in |
+| `lib/contact.ts` | Reaching someone you trust: the real contact on top of `lib/messages.ts`, the stand-in for demo mode without a pair, and which message home shows |
+| `lib/trusted.ts` | The app's one messages client, followed once while a pair exists, and the hook screens read it through |
+| `lib/messages.ts`, `lib/events.ts` | The local-first messages client and the event types (byte-for-byte copies in `server/lib/`) |
+| `components/Greeting.tsx` | "Sara: Walk after lunch?" with Yes, No and Write back, on home and in the ladder |
+| `components/TrustedBridge.tsx` | Follows the pair at app level; robot line and read-aloud when a greeting arrives |
+| `components/LinkCode.tsx` | A link as a QR code made on the device, with Copy |
+| `server/` | The messages service and the two phone pages (its own package, see `server/README.md`) |
 | `lib/replay.ts` | The made-up six weeks for the replay, run through the real rule |
 | `lib/passive.ts` | The passive measures and the rule that decides when to ask |
 | `lib/typing.ts` | Typing rhythm from key timings only (same calculation as the Rust side) |
@@ -108,7 +153,6 @@ still load.
 | `lib/levels.ts` | The person's own baseline and how the last 7 days compare with it |
 | `lib/brain.ts` | The companion's "brain": an interface plus a rule-based implementation |
 | `lib/crisis.ts` | The fixed list of crisis words. A match shows `components/CrisisCard.tsx` |
-| `lib/paceMeter.ts` | Reading pace (words per second) from microphone loudness, on the device |
 | `lib/voice.ts` | Read-aloud with the browser's built-in, on-device voices |
 | `lib/demo.ts` | The made-up demo data |
 | `lib/summary.ts` | The old "Share with my clinic" text, no longer shown (the clinic text is in `lib/ladder.ts`) |
@@ -118,25 +162,32 @@ still load.
 
 ## Data model
 
-All of it is in `localStorage` under `companion.v1`, as one JSON object (see `lib/types.ts`):
+The person's own data is in `localStorage` under `companion.v1`, as one JSON object (see
+`lib/types.ts`). It never leaves the device:
 
 - `profile`: when setup was done, and up to three personal early signs.
-- `daily[]`: one per day. Bedtime and wake time (`"HH:MM"`), form 1 to 5, reading pace in
+- `daily[]`: one per day, from an earlier version's daily check-in (no longer shown). Bedtime and wake time (`"HH:MM"`), form 1 to 5, reading pace in
   words per second (or `null` if skipped), an optional typed note.
 - `weekly[]`: one per date. The two PHQ-2 items (`down`, `interest`), `sleep` and `tense`,
   all on the standard 0 to 3 scale, plus one 0 to 3 answer per early sign.
-- `reaction[]`: five reaction times in ms and their median. Marked as an experiment in the UI.
+- `reaction[]`: five reaction times in ms and their median, from an earlier version (no longer shown).
 - `typingSessions[]`: one per typing session (ends after 5 minutes without typing, or on
   pause): date, where it was measured (`computer` or `box`), length in seconds, number of
   presses, median interval, spread, 95th percentile pause, median hold. Numbers only.
 - `activityDays[]`: first and last key press per day (`"HH:MM"`), from the desktop app.
 - `checkIns[]`: each proposed check-in and its answer, which measures triggered it, how
   many sessions and days it was based on, and whether it was simulated.
-- `settings`: whether read-aloud is muted, and a running "Simulate a change".
+- `settings`: whether read-aloud is muted, a running "Simulate a change", sources, small
+  things, quiet hours, and `messagesUrl`, where the messages service lives.
+- `ladder`: the steps after "Not my best" and the answers to them.
+
+The messages with someone you trust are kept apart, under `cheerpressure.messages.v1`
+(`lib/messages.ts`): the pair code and this device's token, the invite links, the trusted
+person's first name, the most recent messages (at most 200) and the outbox of messages not
+yet confirmed. Disconnect and Delete everything remove that key.
 
 Every entry has `source: "user" | "demo"` so demo data can be cleared on its own.
-No raw audio is ever stored: the pace meter keeps one loudness number per 30 ms while
-listening and throws even those away once it has the speaking time.
+No audio is recorded or stored.
 
 **Baseline.** "Your usual" is the median (and 25th to 75th percentile band) of the person's
 own entries from the 8 weeks before the last 7 days. It needs at least 5 entries. The last 7
@@ -216,14 +267,19 @@ the brain is asked anything.
 
 ## Privacy
 
-- No backend, no database, no account, no analytics, no fonts or scripts from other origins.
-  At runtime the app only requests files from its own origin.
-- Reading pace is computed on the device with Web Audio. The browser's SpeechRecognition API
-  is not used, because in Chrome it sends audio to a server.
+- Measurements, answers and summaries never leave this device. No account, no analytics, no
+  fonts or scripts from other origins.
+- The one thing that does leave it: short messages between the person and the one person they
+  trust (a request to get in touch, greetings, questions and replies, at most 280 characters,
+  and the trusted person's first name). They pass through the messages service, which deletes
+  them 48 hours after the pair was created, or at once on Disconnect. The service never receives
+  measurements, check-in or weekly answers, the clinic text, the person's name or anything
+  about health. Until a pair exists, the app requests nothing from any other origin.
+- QR codes are made on the device; the links are not sent to any other service to draw them.
 - Read-aloud uses only voices the browser reports as on-device (`localService`). If there is
   none, the companion stays silent and shows its text.
-- "Share with my clinic" shows the exact text, and lets the person copy or download it.
-  It sends nothing. Typed notes are left out.
+- The clinic step shows the exact text before anything is approved, and sends nothing: approving
+  marks a demo recipient.
 - "Delete everything" (in Your data and settings) clears all stored data after one confirmation.
 
 ## Desktop app
@@ -270,7 +326,7 @@ or up anywhere on the computer. It cannot change or block input.
 - **Kept:** session summaries and first and last activity, in `rhythm.json` in the app's
   data folder (`~/Library/Application Support/fi.junction.cheerpressure/`) until the UI has
   stored them, then in the UI's local storage. "Delete everything" clears both.
-- **Sent anywhere:** nothing. No network calls.
+- **Sent anywhere:** nothing. The listener makes no network calls.
 
 macOS asks for **Input Monitoring** (System Settings, Privacy & Security, Input
 Monitoring). Without it the app does not crash: Live view says "Permission needed", has a
@@ -293,6 +349,10 @@ falls back to the box); they are not tested.
   and a person typing), the permission flow, dragging and clicking the mascot, the menu bar
   items, hide on close, the mascot cue in the real window, Web Serial with a real robot,
   Windows and Linux.
+- Someone you trust: the chain was driven headless against the real service (`pnpm test:e2e`).
+  **Not verified:** the desktop app talking to the service (the connect-src rule, macOS's
+  local network prompt, polling while the main window is hidden), and a real phone on a
+  hotspot.
 
 ## Phone
 
@@ -305,14 +365,17 @@ the menu bar icon.
 
 - Voice answers. Questions can be read aloud; answers are always tapped or typed.
 - A trained model. The rule-based brain is the default (see above).
-- Any sync, backup, account or server. Clearing the browser's site data deletes everything.
-- Sending anything to a clinic. Sharing is copy or download only.
+- Any sync, backup or account. Clearing the browser's site data deletes everything. The only
+  server is the messages service for someone you trust.
+- Sending anything to a clinic. The clinic step shows the text and marks a demo recipient.
 - The clinic's real contact details. The help screen has a marked placeholder.
-- Reminders or notifications.
+- Reminders or notifications. Greetings arrive by polling every 1.5 s while the app runs.
+- More than one trusted person, or a conversation history in the interface.
 - Offline caching (no service worker).
 - Camera, microphone and bedside sensor views (the macOS usage texts are in place).
-- The contact request ("I'd like someone to check in on me" shows a marked placeholder).
-- A serial port for the robot inside the desktop app (marked TODO in `lib/robot.ts`).
+- A serial port for the robot inside the desktop app (marked TODO in `lib/robot.ts`). The
+  greeting light reaches a robot connected over Web Serial in Chrome; in the desktop app
+  nothing is sent to a robot.
 - The character's final look.
 - Translations. The UI is English only.
 - Clinical validation of any threshold. The change thresholds in `lib/levels.ts` are first guesses.
