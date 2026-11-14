@@ -427,3 +427,21 @@ export function savePermission(kind: PermissionKind, state: PermissionState) {
   const d = readData();
   commit({ ...d, permissions: { ...(d.permissions ?? {}), [kind]: state } });
 }
+
+// --- Activities: "something for you" (lib/activities, lib/plan.ts) --------------------------
+
+/** The person's plan for the activities, or null to go back to the demo defaults. */
+export function savePlan(plan: import("./types").SavedPlan | null) {
+  commit({ ...readData(), plan: plan ?? undefined });
+}
+
+/** One activity the person said they did. */
+export function saveActivityDone(entry: import("./types").ActivityDone) {
+  const d = readData();
+  commit({ ...d, activitiesDone: [...(d.activitiesDone ?? []).filter((e) => e.id !== entry.id), entry] });
+}
+
+/** The running activity timer, or null when it is stopped. */
+export function saveActivityTimer(timer: import("./types").ActivityTimer | null) {
+  commit({ ...readData(), activityTimer: timer });
+}

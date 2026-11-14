@@ -463,3 +463,48 @@ export interface OnboardingState {
 export type PermissionKind = "health" | "location" | "notifications" | "camera-microphone";
 /** granted / denied: the phone's answer; yes: said yes where the system asks later; skipped; not-here: not available on this device. */
 export type PermissionState = "granted" | "denied" | "yes" | "skipped" | "not-here";
+
+// --- Activities: "something for you" (lib/activities, lib/plan.ts) --------------------------
+
+/** The person's plan for the activities. Every field is optional: lib/plan.ts fills the demo defaults. */
+export interface SavedPlan {
+  hobby?: { name?: string; firstStep?: string; smallestStep?: string };
+  /** A simple meal: up to three steps. With only a name, it is shown as one action. */
+  meal?: { name?: string; steps?: string[]; smallest?: string };
+  eveningStep?: string;
+  eveningSmallest?: string;
+  firstStepAfterMusic?: string;
+  /** A sound id from lib/activities/sounds.ts. */
+  sound?: string;
+  contact?: { name?: string };
+}
+
+/** One activity the person said they did ("Done" or "Did it"): self-reported, nothing measured. */
+export interface ActivityDone {
+  id: string;
+  /** The activity id (lib/activities/index.ts). */
+  activity: string;
+  date: DayKey;
+  at: string; // ISO
+  /** The "Make it easier" version was used. */
+  easier: boolean;
+  /** "Done" came before the timer or the sound had run out. */
+  endedEarly: boolean;
+}
+
+/** A running activity timer. The end time is kept so the countdown is right after the app was closed. */
+export interface ActivityTimer {
+  activity: string;
+  /** ms since the epoch. */
+  startedAt: number;
+  endsAt: number;
+}
+
+export interface AppData {
+  /** The person's plan for the activities. Missing: the demo defaults (lib/plan.ts). */
+  plan?: SavedPlan;
+  /** Activities the person said they did. Missing in older data. */
+  activitiesDone?: ActivityDone[];
+  /** The one running activity timer, or null. */
+  activityTimer?: ActivityTimer | null;
+}
