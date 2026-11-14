@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build --debug"
+    "desktop:build": "tauri build --debug",
+    "test:typing": "node --experimental-strip-types scripts/test-typing.mts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

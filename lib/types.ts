@@ -58,6 +58,32 @@ export interface ReactionResult {
   savedAt: string;
 }
 
+/**
+ * One typing session: timing numbers only. No keys, characters or text are ever
+ * stored. A session ends after 5 minutes without typing (or on pause).
+ */
+export interface TypingSession {
+  id: string;
+  /** Local day the session started. */
+  date: DayKey;
+  /** Where it was measured: across the whole computer (desktop app) or only in the app's own box. */
+  measuredIn: "computer" | "box";
+  /** Seconds from the first to the last key press. */
+  windowSec: number;
+  /** Number of key presses. */
+  presses: number;
+  /** Middle time between one key press and the next, in ms. Gaps over 5 s are left out. */
+  medianIntervalMs: number | null;
+  /** Spread of those times: 75th minus 25th percentile, in ms. Higher is more uneven. */
+  spreadMs: number | null;
+  /** 95th percentile of those times, in ms: the longer pauses. */
+  p95PauseMs: number | null;
+  /** Middle time a key is held down, in ms. */
+  medianHoldMs: number | null;
+  source: Source;
+  savedAt: string;
+}
+
 export interface Settings {
   /** Mutes the companion's read-aloud voice. */
   muted: boolean;
@@ -69,5 +95,6 @@ export interface AppData {
   daily: DailyEntry[];
   weekly: WeeklyEntry[];
   reaction: ReactionResult[];
+  typingSessions: TypingSession[];
   settings: Settings;
 }

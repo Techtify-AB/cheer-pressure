@@ -1,9 +1,9 @@
 // Six weeks of made-up entries for trying the app. Weeks 1 to 5 are steady; in the
-// final week bedtime drifts later, form drops, reading slows and the weekly answers
-// go up. Everything is tagged source "demo" so it can be cleared on its own.
+// final week bedtime drifts later, form drops, reading slows, typing gets more uneven
+// and the weekly answers go up. Everything is tagged source "demo" so it can be cleared on its own.
 
 import { addDays, minutesToClock } from "./dates";
-import type { DailyEntry, ReactionResult, Scale03, WeeklyEntry } from "./types";
+import type { DailyEntry, ReactionResult, Scale03, TypingSession, WeeklyEntry } from "./types";
 
 const DAYS = 42;
 const DRIFT_DAYS = 6; // the last six days before today
@@ -76,5 +76,34 @@ export function makeDemoData(today: string, earlySigns: string[]) {
     reaction.push({ id: `demo-r-${date}`, date, trialsMs, medianMs: sorted[2], source: "demo", savedAt: now });
   }
 
-  return { daily, weekly, reaction };
+  // Typing sessions: timing numbers only, as the desktop app would store them.
+  const typingSessions: TypingSession[] = [];
+  const round = (v: number) => Math.round(v * 10) / 10;
+  for (let i = DAYS; i >= 1; i--) {
+    const date = addDays(today, -i);
+    const drift = i <= DRIFT_DAYS ? (DRIFT_DAYS + 1 - i) / DRIFT_DAYS : 0;
+    const inDrift = i <= DRIFT_DAYS;
+    if (!inDrift && rand() < 0.15) continue; // days without the computer
+    const sessions = 1 + Math.floor(rand() * 3);
+    for (let k = 0; k < sessions; k++) {
+      const presses = 250 + Math.round(rand() * 1200);
+      const medianInterval = (inDrift ? 215 + drift * 30 : 185) + jitter(14);
+      const spread = (inDrift ? 125 + drift * 45 : 92) + jitter(14);
+      typingSessions.push({
+        id: `demo-t-${date}-${k}`,
+        date,
+        measuredIn: "computer",
+        windowSec: Math.round(presses * (medianInterval / 1000) * 1.6),
+        presses,
+        medianIntervalMs: round(medianInterval),
+        spreadMs: round(spread),
+        p95PauseMs: round((inDrift ? 820 + drift * 260 : 640) + jitter(80)),
+        medianHoldMs: round((inDrift ? 104 : 96) + jitter(6)),
+        source: "demo",
+        savedAt: now,
+      });
+    }
+  }
+
+  return { daily, weekly, reaction, typingSessions };
 }

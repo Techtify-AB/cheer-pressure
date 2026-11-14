@@ -7,12 +7,12 @@
 // read/write helpers below.
 
 import { useSyncExternalStore } from "react";
-import type { AppData, DailyEntry, Profile, ReactionResult, Settings, WeeklyEntry } from "./types";
+import type { AppData, DailyEntry, Profile, ReactionResult, Settings, TypingSession, WeeklyEntry } from "./types";
 
 const KEY = "companion.v1";
 
 function empty(): AppData {
-  return { version: 1, profile: null, daily: [], weekly: [], reaction: [], settings: { muted: false } };
+  return { version: 1, profile: null, daily: [], weekly: [], reaction: [], typingSessions: [], settings: { muted: false } };
 }
 
 let cache: AppData | null = null;
@@ -49,6 +49,7 @@ function load(): AppData {
       daily: parsed.daily ?? [],
       weekly: parsed.weekly ?? [],
       reaction: parsed.reaction ?? [],
+      typingSessions: parsed.typingSessions ?? [],
     };
   } catch {
     return empty();
@@ -65,6 +66,7 @@ function commit(next: AppData) {
     daily: sortByDate(next.daily),
     weekly: sortByDate(next.weekly),
     reaction: sortByDate(next.reaction),
+    typingSessions: sortByDate(next.typingSessions),
   };
   cache = tidy;
   rawWrite(JSON.stringify(tidy));
@@ -118,13 +120,28 @@ export function saveReaction(result: ReactionResult) {
   commit({ ...d, reaction: [...d.reaction, result] });
 }
 
+/** Saves typing sessions; one with an id that is already stored is skipped. */
+export function saveTypingSessions(sessions: TypingSession[]) {
+  if (!sessions.length) return;
+  const d = readData();
+  const known = new Set(d.typingSessions.map((s) => s.id));
+  const fresh = sessions.filter((s) => !known.has(s.id));
+  if (!fresh.length) return;
+  commit({ ...d, typingSessions: [...d.typingSessions, ...fresh] });
+}
+
 export function saveSettings(settings: Partial<Settings>) {
   const d = readData();
   commit({ ...d, settings: { ...d.settings, ...settings } });
 }
 
 /** Adds demo entries on days that have no real entry. */
-export function addDemo(demo: { daily: DailyEntry[]; weekly: WeeklyEntry[]; reaction: ReactionResult[] }) {
+export function addDemo(demo: {
+  daily: DailyEntry[];
+  weekly: WeeklyEntry[];
+  reaction: ReactionResult[];
+  typingSessions: TypingSession[];
+}) {
   const d = clearDemoFrom(readData());
   const realDaily = new Set(d.daily.map((e) => e.date));
   const realWeekly = new Set(d.weekly.map((e) => e.date));
@@ -133,6 +150,7 @@ export function addDemo(demo: { daily: DailyEntry[]; weekly: WeeklyEntry[]; reac
     daily: [...d.daily, ...demo.daily.filter((e) => !realDaily.has(e.date))],
     weekly: [...d.weekly, ...demo.weekly.filter((e) => !realWeekly.has(e.date))],
     reaction: [...d.reaction, ...demo.reaction],
+    typingSessions: [...d.typingSessions, ...demo.typingSessions],
   });
 }
 
@@ -142,6 +160,7 @@ function clearDemoFrom(d: AppData): AppData {
     daily: d.daily.filter((e) => e.source !== "demo"),
     weekly: d.weekly.filter((e) => e.source !== "demo"),
     reaction: d.reaction.filter((e) => e.source !== "demo"),
+    typingSessions: d.typingSessions.filter((e) => e.source !== "demo"),
   };
 }
 
@@ -150,7 +169,7 @@ export function clearDemo() {
 }
 
 export function hasDemo(d: AppData): boolean {
-  return [...d.daily, ...d.weekly, ...d.reaction].some((e) => e.source === "demo");
+  return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions].some((e) => e.source === "demo");
 }
 
 /** Removes everything this app has stored in this browser. */

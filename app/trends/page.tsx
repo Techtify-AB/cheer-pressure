@@ -39,6 +39,8 @@ function changeText(m: MetricLevel): string {
       return up ? "Quicker than your usual." : "Slower than your usual.";
     case "reaction":
       return up ? "Slower than your usual." : "Quicker than your usual.";
+    case "typing":
+      return up ? "More uneven than your usual." : "More even than your usual.";
   }
 }
 
@@ -52,7 +54,7 @@ export default function TrendsPage() {
   if (!data || !ready || !levels) return null;
 
   const demoOn = hasDemo(data);
-  const anything = data.daily.length + data.weekly.length + data.reaction.length > 0;
+  const anything = data.daily.length + data.weekly.length + data.reaction.length + data.typingSessions.length > 0;
   const weeklyList = data.weekly.slice(-6).reverse(); // newest first, so it is visible on a phone
 
   return (

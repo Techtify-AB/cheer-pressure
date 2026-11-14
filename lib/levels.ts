@@ -14,7 +14,7 @@ export const CHART_DAYS = 14;
 const BASELINE_DAYS = 56;
 const MIN_BASELINE = 5;
 
-export type MetricKey = "bedtime" | "wake" | "sleep" | "form" | "speech" | "reaction";
+export type MetricKey = "bedtime" | "wake" | "sleep" | "form" | "speech" | "reaction" | "typing";
 export type Direction = "up" | "down" | "steady";
 
 export interface Summary {
@@ -137,12 +137,30 @@ const DEFS: Record<MetricKey, MetricDef> = {
     threshold: (u) => Math.max(30, u.median * 0.12),
     experimental: true,
   },
+  typing: {
+    key: "typing",
+    label: "Typing spread",
+    meaning: "How uneven the time between key presses is, in milliseconds. Higher is more uneven",
+    format: (v) => `${Math.round(v)} ms`,
+    threshold: (u) => Math.max(15, u.median * 0.2),
+    experimental: true,
+  },
 };
 
 function valuesByDay(data: AppData, key: MetricKey): Map<DayKey, number> {
   const map = new Map<DayKey, number>();
   if (key === "reaction") {
     for (const r of data.reaction) map.set(r.date, r.medianMs); // last test of a day wins
+    return map;
+  }
+  if (key === "typing") {
+    // One value per day: the middle spread of that day's typing sessions.
+    const perDay = new Map<DayKey, number[]>();
+    for (const t of data.typingSessions) {
+      if (t.spreadMs === null || !Number.isFinite(t.spreadMs)) continue;
+      perDay.set(t.date, [...(perDay.get(t.date) ?? []), t.spreadMs]);
+    }
+    for (const [date, list] of perDay) map.set(date, median(list));
     return map;
   }
   for (const e of data.daily) {
