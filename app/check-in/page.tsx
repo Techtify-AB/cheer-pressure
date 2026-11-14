@@ -9,7 +9,7 @@ import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@
 import { ReadAloudStep } from "@/components/ReadAloudStep";
 import { ScaleButtons } from "@/components/ScaleButtons";
 import { brain } from "@/lib/brain";
-import { containsCrisisWords } from "@/lib/crisis";
+import { containsCrisisWords, containsCrisisWordsWhileTyping } from "@/lib/crisis";
 import { newId, shiftClock } from "@/lib/dates";
 import { saveDaily, useData } from "@/lib/storage";
 import type { AppData, DailyEntry } from "@/lib/types";
@@ -107,7 +107,7 @@ function CheckInFlow({ data }: { data: AppData }) {
 
   const onNoteChange = (value: string) => {
     setNote(value);
-    if (containsCrisisWords(value)) handOff(value);
+    if (containsCrisisWordsWhileTyping(value)) handOff(value);
   };
 
   const leaveFormStep = () => {

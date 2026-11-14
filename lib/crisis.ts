@@ -42,3 +42,13 @@ export function containsCrisisWords(text: string | null | undefined): boolean {
     return new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`).test(t);
   });
 }
+
+/**
+ * For checking on every key press: ignores a word that is still being typed, so
+ * "want to die" does not match while someone is typing "want to diet". The full
+ * text is checked again with containsCrisisWords when they move on.
+ */
+export function containsCrisisWordsWhileTyping(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return containsCrisisWords(text.replace(/[\p{L}'’-]+$/u, ""));
+}

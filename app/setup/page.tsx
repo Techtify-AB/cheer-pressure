@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Companion } from "@/components/companion/Companion";
 import { CrisisCard } from "@/components/CrisisCard";
 import { useCompanionVoice } from "@/components/hooks";
-import { containsCrisisWords } from "@/lib/crisis";
+import { containsCrisisWords, containsCrisisWordsWhileTyping } from "@/lib/crisis";
 import { saveProfile, useData } from "@/lib/storage";
 
 const MAX_SIGNS = 3;
@@ -56,7 +56,7 @@ export default function SetupPage() {
   const onCustomChange = (value: string) => {
     setCustom(value);
     // Checked on every change, so the handoff card shows as soon as the words are typed.
-    if (containsCrisisWords(value)) {
+    if (containsCrisisWordsWhileTyping(value)) {
       voice.quiet();
       setCrisis(true);
     }
