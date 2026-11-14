@@ -29,13 +29,41 @@ pnpm lint
 pnpm test         # timing calculation, the passive rule, and the Rust tests
 ```
 
-To try it quickly: finish setup, then open **Your own level** and press **Load demo data**.
-That adds six weeks of made-up measurements where the last days drift (more uneven typing,
-the whole day shifted later, plus later bedtime, lower form, slower reading and higher
-weekly answers in the manual entries). **Simulate a change** loads the same data and makes
-the companion ask right away, for showing it live. **Clear demo data** removes only those.
-While any made-up data is stored, a calm banner in the header says so on every screen, with a
-link that clears it. The manual check-in never pre-fills from made-up entries.
+To try it quickly: finish setup, then open **Settings**, **For the demo**, and press
+**Six weeks in 20 seconds**, or **Simulate a change** to see the companion ask and walk the
+ladder (with **Skip ahead two days**). While any made-up data is stored, a calm banner in the
+header says so on every screen, with a link that clears it.
+
+## Three places, the ladder and the replay
+
+The interface has three places. **Home** is the companion, one calm line and one row,
+"What I'm noticing", that opens the details. "Talk to me" starts the **conversation** when the
+person wants to; when the measures stand out, the companion looks attentive and home offers
+"Have a look" instead. **Settings** is a short list: what is measured (each source on or off,
+Pause everything), which small things it may suggest and quiet hours (22:00 to 08:00 by
+default, when it never speaks up), voice, someone you trust (not connected yet), your data,
+need help now, and **For the demo**, the one marked place for the live view, your own level,
+demo data and the replay.
+
+After "Not my best" the ladder (`lib/ladder.ts`, one pure function, tested in
+`scripts/test-ladder.mts`) offers one step at a time: one small thing from the routines that
+are on, then after two days "Would you like someone you trust to check in on you?", then after
+seven days a short summary for the clinic, shown word for word before anything is approved.
+It escalates only while at least two measures still stand out, respects "Not now" for three
+days, and stays quiet in quiet hours. "I'd like someone to check in on me" goes straight to the
+second step. Reaching someone goes through `lib/contact.ts`, a seam whose only implementation
+is a local stand-in: it sends nothing, and in demo mode shows a reply marked as simulated.
+
+**Six weeks in 20 seconds** (`/demo/replay/`) replays made-up days (`lib/replay.ts`): five
+steady weeks, then a gradual drift in typing evenness, longer pauses and first and last
+activity. Each day it runs the real rule on the data up to that day and shows four measures
+against their usual band. It stops when the rule would ask, with the same explanation the
+conversation shows, and "See what it asks" opens the conversation on those days. A test checks
+that the rule does not ask during the steady weeks.
+
+`node scripts/check-fit.mjs [url]` walks every screen headless at 1366x768, 390x844 and
+520x820 and checks that nothing scrolls, there is at most one primary action and at most four
+groups.
 
 ## When the companion asks
 
@@ -57,14 +85,19 @@ percentile), hold time, first activity, last activity, and quiet night (last act
 to first activity the next, an estimate of rest, not measured sleep). A day runs from 04:00
 to 04:00. No percentages, no score, no diagnosis words.
 
-The daily and weekly questions are still there, through quiet links ("Tell me how you're
-doing", "Weekly questions"); the weekly ones are also offered after the answer "Not my best".
+The weekly questions are offered only inside the conversation, after "Not my best". The
+manual daily check-in, the reaction test and the share page are gone; their stored entries
+still load.
 
 ## What is where
 
 | Path | What it is |
 | --- | --- |
-| `app/` | Screens: `setup`, home (`page.tsx`), `prompt` (the proposed check-in), `live`, `check-in`, `weekly`, `reaction`, `trends`, `share`, `settings`, `help`, and `mascot` (the desktop mascot window) |
+| `app/` | Screens: `setup`, home (`page.tsx`), `prompt` (the conversation and the ladder), `settings`, `help`, `weekly` (only from the conversation), `demo` (with `demo/replay`, `live` and `trends` reached from it), and `mascot` (the desktop mascot window) |
+| `lib/ladder.ts` | Which step is due after "Not my best", and the clinic text |
+| `lib/settings.ts` | Sources, routines and quiet hours, with their defaults |
+| `lib/contact.ts` | The seam for reaching someone you trust, with a local stand-in |
+| `lib/replay.ts` | The made-up six weeks for the replay, run through the real rule |
 | `lib/passive.ts` | The passive measures and the rule that decides when to ask |
 | `lib/typing.ts` | Typing rhythm from key timings only (same calculation as the Rust side) |
 | `lib/platform.ts` | Desktop app or browser: wraps the desktop app's commands and events |
@@ -78,7 +111,7 @@ doing", "Weekly questions"); the weekly ones are also offered after the answer "
 | `lib/paceMeter.ts` | Reading pace (words per second) from microphone loudness, on the device |
 | `lib/voice.ts` | Read-aloud with the browser's built-in, on-device voices |
 | `lib/demo.ts` | The made-up demo data |
-| `lib/summary.ts` | The text shown on "Share with my clinic" |
+| `lib/summary.ts` | The old "Share with my clinic" text, no longer shown (the clinic text is in `lib/ladder.ts`) |
 | `styles/tokens.css` | Design tokens: colours, type, spacing, radius. The look lives here |
 | `components/companion/` | The character. One component, swappable |
 | `components/Screen.tsx` | The layout every screen uses: the lead (answer or question first), the content, the actions; plus the step count, the pager and the one disclosure sheet |
