@@ -414,9 +414,9 @@ export interface SuggestionRecord {
   label: string;
   /** "other" is "Something else": the next one was offered instead. Null until answered. */
   answer: "try" | "other" | "not-now" | null;
-  /** Offered first because of what was followed by values coming back before. */
+  /** Offered first because of what was learned before (lib/helps.ts). */
   learned: boolean;
-  /** Judged after it was taken: did the categories come back within the following days? */
+  /** From an earlier version (did the ladder close within three days). No longer written or read: the values are judged in lib/helps.ts followedBy. */
   cameBack?: boolean;
   judgedOn?: DayKey;
   /** When "I'll try that" was tapped (ISO). */
@@ -502,6 +502,8 @@ export interface ActivityDone {
   easier: boolean;
   /** "Done" came before the timer or the sound had run out. */
   endedEarly: boolean;
+  /** Made-up history for the demo (lib/demo.ts); cleared with the rest of the demo data. */
+  source?: "demo";
 }
 
 /** A running activity timer. The end time is kept so the countdown is right after the app was closed. */

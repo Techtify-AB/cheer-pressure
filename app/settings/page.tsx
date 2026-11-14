@@ -6,7 +6,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRequireProfile, useVoiceAvailability } from "@/components/hooks";
 import { Disclosure, Screen } from "@/components/Screen";
 import { SwitchRow } from "@/components/Switch";
@@ -19,7 +19,8 @@ import { useVoice } from "@/components/voice/useVoice";
 import { CLINIC_CHOICES, clinicOf, isLocalOnly, messagesUrlOf, quietHoursOf, sourcesOf } from "@/lib/settings";
 import { DEMO_RECIPIENT_LINE, SHARED_KIND_WORDS } from "@/lib/report";
 import { formatDay } from "@/lib/dates";
-import { addOwn, CAME_BACK_WITHIN_DAYS, countLine, feedbackFromActivities, helpsOf, MAX_OWN_HELPS, statsFor } from "@/lib/helps";
+import { addOwn, countLine, helpsOf, learnedFrom, MAX_OWN_HELPS, statsFor } from "@/lib/helps";
+import { todayKey } from "@/lib/dates";
 import { newId } from "@/lib/dates";
 import { saveHelps } from "@/lib/storage";
 import { CrisisCard } from "@/components/CrisisCard";
@@ -358,7 +359,8 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
 function Helps({ data, back }: { data: AppData; back: React.ReactNode }) {
   const list = helpsOf(data);
   const [crisis, setCrisis] = useState(false);
-  const stats = statsFor(list, data.suggestions ?? [], feedbackFromActivities(data));
+  // Both signals per item, worked out once per change to the stored data.
+  const stats = useMemo(() => statsFor(helpsOf(data), learnedFrom(data, todayKey())), [data]);
   const counted = list.map((h, i) => ({ h, line: countLine(stats[i]) })).filter((x) => x.line);
   const ownCount = list.filter((h) => h.own).length;
   const set = (next: HelpItem[]) => saveHelps(next);
@@ -375,9 +377,8 @@ function Helps({ data, back }: { data: AppData; back: React.ReactNode }) {
           {!crisis && (
             <Disclosure label="How I choose" title="How I choose">
               <p>
-                I start with what you said helped. After you try something I ask &quot;Did it help?&quot;, and your answer
-                counts most. How often your values came back within {CAME_BACK_WITHIN_DAYS} days after counts a little too.
-                Things you have not tried yet come before things that did not seem to help.
+                I look at whether your days move back towards your usual in the three days after you do something. I
+                also keep what you tell me when I ask if it helped.
               </p>
               {counted.length ? (
                 <ul className="worked-out">

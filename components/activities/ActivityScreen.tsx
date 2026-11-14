@@ -5,7 +5,9 @@
 // "Make it easier" and "End". At most four groups, no page scrolling.
 
 import { Screen } from "@/components/Screen";
-import { activityHelpSentence, activityHelpStats } from "@/lib/activities/feedback";
+import { useMemo } from "react";
+import { activityStats, followedLines, learnFromValues } from "@/lib/activities/learning";
+import { todayKey } from "@/lib/dates";
 import { useData } from "@/lib/storage";
 import type { ActivityRun } from "./useActivity";
 
@@ -36,8 +38,15 @@ export function ActivityScreen({
   children?: React.ReactNode;
 }) {
   const data = useData();
-  // What the person said before, on the opening screen only.
-  const history = !run.started && !run.easier ? activityHelpSentence(activityHelpStats(data?.activitiesDone ?? [])[run.id]) : null;
+  // What was learned before, on the opening screen only: whether the days after moved back
+  // towards the person's usual, and what they said, apart (lib/helps.ts).
+  const opening = !run.started && !run.easier;
+  const lines = useMemo(() => {
+    if (!opening || !data) return [];
+    const s = activityStats(run.id, learnFromValues(data, todayKey()), data.activitiesDone ?? []);
+    return followedLines(s.values, s.answers);
+  }, [opening, data, run.id]);
+  const history = lines.length ? lines.join(" ") : null;
   return (
     <Screen
       lead={

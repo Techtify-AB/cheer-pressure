@@ -8,8 +8,9 @@
 // - Opened by the person's own choice with nothing standing out: the question only.
 // - After "Not my best": step 1, ONE thing from the person's own "What helps you?" list,
 //   chosen by the brain (lib/brain.ts chooseHelp; the rule version orders the list by the plain
-//   count in lib/helps.ts). "I'll try that", "Something else" (the next one) or "Not now".
-//   Each offer is recorded, and later judged by whether the categories came back.
+//   score in lib/helps.ts). "I'll try that", "Something else" (the next one) or "Not now".
+//   Each offer is recorded; what is done is later judged by whether the person's days moved
+//   back towards their usual in the three days after, and by their own "Did that help?".
 //   Two days later, if the measures have not come back: step 2, someone you trust.
 //   Seven days later: step 3, a short summary for the clinic.
 //   "I'd like someone to check in on me" goes straight to step 2.
@@ -36,7 +37,7 @@ import { chooseContact, CONTACT_REQUEST_TEXT, type Contact, type ContactState } 
 import type { Answer } from "@/lib/events";
 import { formatDay, newId } from "@/lib/dates";
 import { DEMO_RECIPIENT_LINE } from "@/lib/report";
-import { answerOffer, feedbackFromActivities, helpsOf, learnedLine, offeredIn, openOffer, recordOffer, statsFor, suggestionText } from "@/lib/helps";
+import { answerOffer, helpsOf, learnedFrom, learnedLine, offeredIn, openOffer, recordOffer, statsFor, suggestionText } from "@/lib/helps";
 import {
   answerClinic,
   answerReply,
@@ -82,7 +83,9 @@ function activityLinkFor(item: Pick<HelpItem, "id" | "label" | "own">): string |
 async function offerHelp(today: string, ladderStartedOn: string, simulated: boolean): Promise<HelpChoice | null> {
   const d = readData();
   const history = d.suggestions ?? [];
-  const choice = await brain.chooseHelp(helpChoiceInput(today, helpsOf(d), history, offeredIn(history, ladderStartedOn), null, feedbackFromActivities(d)));
+  // Both histories: what followed in the person's values, and what they said (lib/helps.ts).
+  const learned = learnedFrom(d, today);
+  const choice = await brain.chooseHelp(helpChoiceInput(today, helpsOf(d), history, offeredIn(history, ladderStartedOn), null, learned.feedback, learned.occasions));
   if (choice) saveSuggestions(recordOffer(history, { id: newId(), ladderStartedOn, today, item: choice.item, learned: choice.learned, simulated }));
   return choice;
 }
@@ -302,7 +305,7 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
       });
     };
     const empty = !item || listDone;
-    const why = reason ?? (st?.learned && item ? learnedLine(item, statsFor([item], data.suggestions ?? [], feedbackFromActivities(data))[0]) : null);
+    const why = reason ?? (st?.learned && item ? learnedLine(item, statsFor([item], learnedFrom(data, today))[0]) : null);
     return (
       <Screen
         lead={

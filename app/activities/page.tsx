@@ -2,14 +2,17 @@
 
 // "Things to do": the activities, three to a view, paged instead of scrolled. Each opens its
 // own page. Step one of the ladder opens the one that fits the suggestion directly.
-// Ordered by what the person said helped ("Did that help?"): those first, untried ones next,
-// ones that did not help last (lib/activities/feedback.ts). The quick reaction check is last.
+// Ordered by what was learned (lib/helps.ts, through lib/activities/learning.ts): mainly whether
+// the person's days moved back towards their usual in the three days after, then what they said
+// when asked "Did that help?". Those followed by better days first, untried ones next, ones that
+// did not seem to help last. The quick reaction check is last.
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pager, Screen } from "@/components/Screen";
 import { ACTIVITIES, activityHref } from "@/lib/activities";
-import { orderActivitiesByHelp } from "@/lib/activities/feedback";
+import { learnFromValues, orderActivities } from "@/lib/activities/learning";
+import { useToday } from "@/components/hooks";
 import { useData } from "@/lib/storage";
 
 const REACTION = {
@@ -25,8 +28,11 @@ const PER_VIEW = 3;
 export default function ActivitiesPage() {
   const data = useData();
   const [page, setPage] = useState(0);
-  const order = orderActivitiesByHelp(
+  const today = useToday();
+  const occasions = useMemo(() => (data ? learnFromValues(data, today) : []), [data, today]);
+  const order = orderActivities(
     ACTIVITIES.map((a) => a.id),
+    occasions,
     data?.activitiesDone ?? [],
   );
   const items = [

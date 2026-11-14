@@ -34,7 +34,7 @@ import {
   type Range,
   type SourceId,
 } from "./passive";
-import { orderByWhatHelped, statsFor, suggestionText, type FeedbackByItem, type HelpStats } from "./helps";
+import { orderByWhatHelped, statsFor, suggestionText, type FeedbackByItem, type HelpStats, type Occasion } from "./helps";
 import type { DailyAnswerValue, DailyEntry, HelpItem, PassiveKey, Profile, RoutineId, SuggestionRecord, WeeklyEntry } from "./types";
 
 /** The small things the companion can suggest: the routines the person can switch on or off in Settings. */
@@ -149,10 +149,13 @@ export interface BrainOutput {
 
 /**
  * Step one of the ladder: which ONE thing from the person's own list to suggest. The brain gets
- * the list, every earlier suggestion and what followed it (offered, taken, values back or not),
- * and the plain counts lib/helps.ts keeps. It must pick from `items` (never one switched off)
- * and leave out `exclude`. The rule version takes the count's first; a model may choose
- * differently, and then words `reason` itself (one plain line, or null).
+ * the list, every earlier suggestion, and both histories lib/helps.ts learns from: what followed
+ * each time something was done in the person's own values (`occasions`, the main signal: better
+ * days, worse, no clear change, too early to tell, nothing to improve), and what the person said
+ * when asked "Did that help?" (`feedback` and the suggestions' `helped`). It must pick from
+ * `items` (never one switched off) and leave out `exclude`. The rule version takes the score's
+ * first; a trained model may choose differently from the same histories, and then words
+ * `reason` itself (one plain line, or null; "followed by", never "it helped" as a fact).
  */
 export interface HelpChoiceInput {
   today: string;
@@ -162,7 +165,9 @@ export interface HelpChoiceInput {
   exclude: string[];
   /** What the person said when asked "Did that help?" in the activity library, per item. */
   feedback: FeedbackByItem;
-  /** The plain counts per item: tried, back, asked, helped, score. */
+  /** What followed each time something was done, in the person's own values (lib/helps.ts followedBy). */
+  occasions: Occasion[];
+  /** The plain counts per item: both signals apart, and the combined score. */
   stats: HelpStats[];
   passive: PassiveInput | null;
 }
@@ -206,8 +211,9 @@ export function helpChoiceInput(
   exclude: string[] = [],
   passive: PassiveInput | null = null,
   feedback: FeedbackByItem = {},
+  occasions: Occasion[] = [],
 ): HelpChoiceInput {
-  return { today, items, history, exclude, feedback, stats: statsFor(items, history, feedback), passive };
+  return { today, items, history, exclude, feedback, occasions, stats: statsFor(items, { occasions, history, feedback }), passive };
 }
 
 /** The pre-written replies to the daily hello, by answer. Picked by the day, so they vary. */
@@ -335,7 +341,7 @@ export const ruleBrain: Brain = {
   },
 
   async chooseHelp(input) {
-    const { order, reason, learned } = orderByWhatHelped(input.items, input.history, input.exclude, input.feedback);
+    const { order, reason, learned } = orderByWhatHelped(input.items, { occasions: input.occasions, history: input.history, feedback: input.feedback }, input.exclude);
     const item = order[0];
     return item ? { item, text: suggestionText(item), reason, learned } : null;
   },
