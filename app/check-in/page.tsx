@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Companion } from "@/components/companion/Companion";
 import { CrisisCard } from "@/components/CrisisCard";
-import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
+import { useCompanionVoice, useCrisisCheck, useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import { ReadAloudStep } from "@/components/ReadAloudStep";
 import { ScaleButtons } from "@/components/ScaleButtons";
 import { brain } from "@/lib/brain";
-import { containsCrisisWords, containsCrisisWordsWhileTyping } from "@/lib/crisis";
+import { containsCrisisWords } from "@/lib/crisis";
 import { newId, shiftClock } from "@/lib/dates";
 import { saveDaily, useData } from "@/lib/storage";
 import type { AppData, DailyEntry } from "@/lib/types";
@@ -84,6 +84,8 @@ function CheckInFlow({ data }: { data: AppData }) {
     (speechRate: number | null, text: string) => {
       if (!form) return false;
       const trimmed = text.trim();
+      // A note with crisis wording is never stored; the rest of the check-in is.
+      const keep = trimmed && !containsCrisisWords(trimmed) ? trimmed : undefined;
       saveDaily({
         id: existing?.id ?? newId(),
         date: today,
@@ -91,7 +93,7 @@ function CheckInFlow({ data }: { data: AppData }) {
         wakeTime,
         form,
         speechRate,
-        note: trimmed || undefined,
+        note: keep,
         source: "user",
         savedAt: new Date().toISOString(),
       });
@@ -102,19 +104,27 @@ function CheckInFlow({ data }: { data: AppData }) {
 
   /** Crisis words in the note: the handoff card right away, no read-aloud step. */
   const handOff = (text: string) => {
+    if (finished) return;
     quiet();
     const saved = save(null, text);
     setFinished({ crisis: true, line: "", saved });
   };
 
+  // Checked while typing, when typing pauses, on blur, on Next and Back, and on any link
+  // that leaves the page. Once the card shows, links work as usual again.
+  const crisisCheck = useCrisisCheck(handOff, () => (finished ? "" : note));
+
   const onNoteChange = (value: string) => {
     setNote(value);
-    if (containsCrisisWordsWhileTyping(value)) handOff(value);
+    crisisCheck.typed(value);
   };
 
   const leaveFormStep = () => {
-    if (containsCrisisWords(note)) handOff(note);
-    else go(2);
+    if (!crisisCheck.full(note)) go(2);
+  };
+
+  const back = () => {
+    if (!crisisCheck.full(note)) go(step - 1);
   };
 
   const finish = useCallback(
@@ -143,7 +153,7 @@ function CheckInFlow({ data }: { data: AppData }) {
       <div className="stack-lg">
         {finished.crisis ? (
           <>
-            {finished.saved && <p className="muted">Your check-in is saved.</p>}
+            {finished.saved && <p className="muted">Your answers are saved. What you wrote in the note was not kept.</p>}
             <CrisisCard />
             <Link href="/" className="btn btn-secondary">
               Back to home
@@ -210,7 +220,10 @@ function CheckInFlow({ data }: { data: AppData }) {
               value={note}
               maxLength={500}
               onFocus={() => voice.setListening(true)}
-              onBlur={() => voice.setListening(false)}
+              onBlur={(e) => {
+                voice.setListening(false);
+                crisisCheck.full(e.target.value);
+              }}
               onChange={(e) => onNoteChange(e.target.value)}
             />
           </div>
@@ -224,7 +237,7 @@ function CheckInFlow({ data }: { data: AppData }) {
 
       {step > 0 && (
         <div className="notice">
-          <button type="button" className="btn btn-quiet" onClick={() => go(step - 1)}>
+          <button type="button" className="btn btn-quiet" onClick={back}>
             Back
           </button>
         </div>

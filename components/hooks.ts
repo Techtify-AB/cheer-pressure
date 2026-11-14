@@ -6,6 +6,7 @@ import { brain, type BrainOutput } from "@/lib/brain";
 import { addDays, todayKey } from "@/lib/dates";
 import { computeLevels, type Levels } from "@/lib/levels";
 import { evaluatePassive, type Evaluation } from "@/lib/passive";
+import { containsCrisisWords, containsCrisisWordsWhileTyping } from "@/lib/crisis";
 import { readData } from "@/lib/storage";
 import type { AppData } from "@/lib/types";
 import { speak, stopSpeaking, subscribeVoices, voiceAvailability, type VoiceAvailability } from "@/lib/voice";
@@ -89,4 +90,94 @@ export function useReflection(data: AppData | null) {
 export function usePassive(data: AppData | null): Evaluation | null {
   const today = useToday();
   return useMemo(() => (data ? evaluatePassive(data, today) : null), [data, today]);
+}
+
+/** How long typing has to pause before the full crisis check runs, last word included. */
+export const CRISIS_PAUSE_MS = 800;
+
+/**
+ * Crisis wording in free text (lib/crisis.ts). `typed` runs on every change and skips
+ * the word still being typed, so "want to diet" does not match half-way; when typing
+ * pauses for CRISIS_PAUSE_MS the whole text is checked. `full` checks the whole text
+ * now (on blur, Next, Back or Save).
+ *
+ * A blur often comes from pressing a button or link. If that blur shows the card, the
+ * click that follows is swallowed, so the card is not replaced by wherever the click
+ * was going. With `leaving`, any link click is also checked first, so leaving the page
+ * by a link shows the card instead.
+ */
+export function useCrisisCheck(onCrisis: (text: string) => void, leaving?: () => string) {
+  const timer = useRef<number | null>(null);
+  const callback = useRef(onCrisis);
+  const leavingText = useRef(leaving);
+  const gesture = useRef({ down: false, swallow: false });
+  useEffect(() => {
+    callback.current = onCrisis;
+    leavingText.current = leaving;
+  });
+
+  const cancel = useCallback(() => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+
+  const hit = useCallback((text: string) => {
+    if (gesture.current.down) gesture.current.swallow = true;
+    callback.current(text);
+  }, []);
+
+  const full = useCallback(
+    (text: string): boolean => {
+      cancel();
+      if (!containsCrisisWords(text)) return false;
+      hit(text);
+      return true;
+    },
+    [cancel, hit],
+  );
+
+  const typed = useCallback(
+    (text: string): boolean => {
+      cancel();
+      if (containsCrisisWordsWhileTyping(text)) {
+        hit(text);
+        return true;
+      }
+      timer.current = window.setTimeout(() => {
+        timer.current = null;
+        if (containsCrisisWords(text)) hit(text);
+      }, CRISIS_PAUSE_MS);
+      return false;
+    },
+    [cancel, hit],
+  );
+
+  useEffect(() => {
+    const down = () => {
+      gesture.current = { down: true, swallow: false };
+    };
+    const click = (e: MouseEvent) => {
+      const swallow = gesture.current.swallow;
+      gesture.current = { down: false, swallow: false };
+      const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
+      const text = leavingText.current?.();
+      if (swallow || (link && text && containsCrisisWords(text))) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!swallow && text) {
+          cancel();
+          callback.current(text);
+        }
+      }
+    };
+    document.addEventListener("pointerdown", down, true);
+    document.addEventListener("click", click, true);
+    return () => {
+      cancel();
+      document.removeEventListener("pointerdown", down, true);
+      document.removeEventListener("click", click, true);
+    };
+  }, [cancel]);
+
+  return { typed, full, cancel };
 }

@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Companion } from "@/components/companion/Companion";
 import { CrisisCard } from "@/components/CrisisCard";
-import { useCompanionVoice } from "@/components/hooks";
-import { containsCrisisWords, containsCrisisWordsWhileTyping } from "@/lib/crisis";
+import { useCompanionVoice, useCrisisCheck } from "@/components/hooks";
+import { containsCrisisWords } from "@/lib/crisis";
 import { saveProfile, useData } from "@/lib/storage";
 
 const MAX_SIGNS = 3;
@@ -33,6 +33,10 @@ export default function SetupPage() {
   const [signs, setSigns] = useState<string[]>([]);
   const [custom, setCustom] = useState("");
   const [crisis, setCrisis] = useState(false);
+  const crisisCheck = useCrisisCheck(() => {
+    voice.quiet();
+    setCrisis(true);
+  });
 
   // Already set up: go home.
   useEffect(() => {
@@ -55,20 +59,15 @@ export default function SetupPage() {
 
   const onCustomChange = (value: string) => {
     setCustom(value);
-    // Checked on every change, so the handoff card shows as soon as the words are typed.
-    if (containsCrisisWordsWhileTyping(value)) {
-      voice.quiet();
-      setCrisis(true);
-    }
+    // Checked on every change, so the handoff card shows as soon as the words are typed,
+    // and again with the last word included when typing pauses.
+    crisisCheck.typed(value);
   };
 
   const addCustom = () => {
     const text = tidy(custom);
     if (!text) return;
-    if (containsCrisisWords(text)) {
-      setCrisis(true);
-      return;
-    }
+    if (crisisCheck.full(text)) return;
     setSigns(withCustom(text));
     setCustom("");
   };
@@ -173,7 +172,10 @@ export default function SetupPage() {
                 disabled={full}
                 placeholder={full ? "You've picked three" : "For example: stopped cooking"}
                 onFocus={() => voice.setListening(true)}
-                onBlur={() => voice.setListening(false)}
+                onBlur={(e) => {
+                  voice.setListening(false);
+                  crisisCheck.full(e.target.value);
+                }}
                 onChange={(e) => onCustomChange(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
