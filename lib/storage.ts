@@ -327,6 +327,7 @@ export function addDemo(demo: {
   movementSessions?: StoredMovementSession[];
   contactDays?: ContactDay[];
   toneSessions?: StoredToneSession[];
+  activitiesDone?: import("./types").ActivityDone[];
 }) {
   const d = clearDemoFrom(readData());
   const realDaily = new Set(d.daily.map((e) => e.date));
@@ -350,6 +351,7 @@ export function addDemo(demo: {
       ...demo.typingDays.filter((t) => !(d.typingDays ?? []).some((u) => u.date === t.date && u.kind === t.kind)),
     ],
     activityDays: [...d.activityDays, ...demo.activityDays.filter((e) => !realActivity.has(e.date))],
+    activitiesDone: [...(d.activitiesDone ?? []), ...(demo.activitiesDone ?? [])],
   });
 }
 
@@ -366,6 +368,7 @@ function clearDemoFrom(d: AppData): AppData {
     contactDays: (d.contactDays ?? []).filter((e) => e.source !== "demo"),
     toneSessions: (d.toneSessions ?? []).filter((e) => e.source !== "demo"),
     activityDays: d.activityDays.filter((e) => e.source !== "demo"),
+    activitiesDone: (d.activitiesDone ?? []).filter((e) => e.source !== "demo"),
     // Made-up weeks in the phone's Health come back on the next read until removed there.
     healthNights: (d.healthNights ?? []).filter((e) => e.source !== "demo"),
     stepDays: (d.stepDays ?? []).filter((e) => e.source !== "demo"),

@@ -6,10 +6,19 @@
 // answers, reaction times) cover the same eight weeks with a final drifting week; only the
 // weekly answers are still shown, in the clinic report. Everything is tagged source "demo" so
 // it can be cleared on its own.
+//
+// What helps, told by the same made-up weeks (lib/helps.ts learns it from the values): two
+// rough patches in the steady weeks (fewer messages and "Not so good" on days 19 to 21; later
+// mornings and looser typing on days 31 to 33), each followed by letting the daylight in on
+// days 22 and 34 and by days back within the usual, and the person said yes both times (the two
+// signals agree). Music on day 51, in the middle of the drift: the person said it helped, but
+// the days that followed stayed about as far from the usual (no clear change). A short walk
+// yesterday: too early to tell. The replay itself (lib/replay.ts) is left exactly as it was.
 
-import { addDays, minutesToClock } from "./dates";
+import { addDays, minutesToClock, shiftClock } from "./dates";
 import { makeReplayData } from "./replay";
-import type { DailyEntry, ReactionResult, Scale03, TypingSession, WeeklyEntry } from "./types";
+import type { ActivityDone, DailyEntry, ReactionResult, Scale03, TypingSession, WeeklyEntry } from "./types";
+import type { ReplayData } from "./replay";
 
 const DAYS = 56;
 const DRIFT_DAYS = 6; // the last six days before today
@@ -84,8 +93,67 @@ export function makeDemoData(today: string, earlySigns: string[]) {
 
   // The four categories: the replay's eight weeks, ending today, so "Load demo data" and
   // "Eight weeks in 20 seconds" tell the same story.
-  const { typingDays, activityDays, dailyAnswers, movementSessions, contactDays } = makeReplayData(today);
+  const { typingDays, activityDays, dailyAnswers, movementSessions, contactDays } = withRoughPatches(makeReplayData(today), today);
   const typingSessions: TypingSession[] = [];
+  const activitiesDone = demoActivitiesDone(today, now);
 
-  return { daily, weekly, reaction, typingSessions, typingDays, activityDays, dailyAnswers, movementSessions, contactDays };
+  return { daily, weekly, reaction, typingSessions, typingDays, activityDays, dailyAnswers, movementSessions, contactDays, activitiesDone };
+}
+
+/** The replay's day number (1 to 56, today is 56) as a date. */
+const onDay = (today: string, day: number) => addDays(today, day - 56);
+
+/** The days of the two rough patches, and what each one changes. */
+export const ROUGH_PATCHES = [
+  { days: [19, 20, 21], kind: "quiet" as const },
+  { days: [31, 32, 33], kind: "late" as const },
+];
+
+/** The activities done in the made-up weeks, with the person's own answer. */
+export const DEMO_ACTIVITIES: { day: number; activity: string; feedback: ActivityDone["feedback"] }[] = [
+  { day: 22, activity: "daylight", feedback: "yes" },
+  { day: 34, activity: "daylight", feedback: "yes" },
+  { day: 51, activity: "song", feedback: "yes" },
+  { day: 55, activity: "outside", feedback: null },
+];
+
+/**
+ * The two rough patches, on top of the replay's days: "quiet" is no messages, a "Not so good"
+ * answer and looser typing; "late" is later mornings and longer key holds. Neither touches the
+ * evenings or the movement that carry the drift at the end, so the rule still asks as before.
+ */
+export function withRoughPatches(r: ReplayData, today: string): ReplayData {
+  const dates = (kind: "quiet" | "late") => new Set(ROUGH_PATCHES.filter((p) => p.kind === kind).flatMap((p) => p.days.map((d) => onDay(today, d))));
+  const quiet = dates("quiet");
+  const late = dates("late");
+  const answered = new Set(r.dailyAnswers.map((a) => a.date));
+  return {
+    ...r,
+    contactDays: r.contactDays.map((c) => (quiet.has(c.date) ? { ...c, exchanged: 0 } : c)),
+    dailyAnswers: [
+      ...r.dailyAnswers.map((a) => (quiet.has(a.date) ? { ...a, answer: "not-so-good" as const } : a)),
+      ...[...quiet].filter((d) => !answered.has(d)).map((date) => ({ date, answer: "not-so-good" as const, dismissed: false, at: "", source: "demo" as const })),
+    ].sort((a, b) => a.date.localeCompare(b.date)),
+    typingDays: r.typingDays.map((t) =>
+      quiet.has(t.date) && t.spreadMs !== null
+        ? { ...t, spreadMs: t.spreadMs + 40 }
+        : late.has(t.date) && t.holdMs !== null
+          ? { ...t, holdMs: t.holdMs + 25 }
+          : t,
+    ),
+    activityDays: r.activityDays.map((d) => (late.has(d.date) ? { ...d, first: shiftClock(d.first, 110) } : d)),
+  };
+}
+
+export function demoActivitiesDone(today: string, now = new Date().toISOString()): ActivityDone[] {
+  return DEMO_ACTIVITIES.map((a) => ({
+    id: `demo-a-${a.day}-${a.activity}`,
+    activity: a.activity,
+    date: onDay(today, a.day),
+    at: now,
+    easier: false,
+    endedEarly: false,
+    feedback: a.feedback,
+    source: "demo" as const,
+  }));
 }

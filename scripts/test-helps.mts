@@ -226,6 +226,40 @@ check("ladder step one holds the item offered last and its answer", ladder.small
   check("and they order the suggestions", oA.order[0].id === "music" && oA.reason === "You said music helped twice, so I'm suggesting it first.", oA.reason ?? "");
 }
 
+// The demo history tells the story (lib/demo.ts): both agree, said yes but no clear change, too early
+{
+  const { makeDemoData } = await import("../lib/demo.ts");
+  const { makeReplayData } = await import("../lib/replay.ts");
+  const { evaluatePassive } = await import("../lib/passive.ts");
+  const { learnFromValues, learnedFrom, activityStats } = await import("../lib/helps.ts");
+  const asData = (r: ReturnType<typeof makeReplayData>, activitiesDone: unknown[]) =>
+    ({ version: 1, profile: { createdAt: "", earlySigns: [] }, daily: [], weekly: [], reaction: [], typingSessions: [], ...r, checkIns: [], settings: { muted: false }, ladder: null, activitiesDone }) as never;
+  let story = 0;
+  let same = 0;
+  const DAYS = 56;
+  for (let k = 0; k < DAYS; k++) {
+    const today = addDays("2026-11-14", k);
+    const demo = makeDemoData(today, []);
+    const data = asData(demo, demo.activitiesDone);
+    const got = learnFromValues(data, today).map((o) => `${o.thing}=${o.followed}`).join(" ");
+    const o = orderByWhatHelped(helpsOf(data), learnedFrom(data, today));
+    if (got === "activity:daylight=better activity:daylight=better activity:song=no-change activity:outside=too-early" && o.order[0].id === "light" && o.learned) story++;
+    const plain = evaluatePassive(asData(makeReplayData(today), []), today);
+    const withDemo = evaluatePassive(data, today);
+    if (plain.askNow === withDemo.askNow && plain.changed.map((m) => m.key).join() === withDemo.changed.map((m) => m.key).join()) same++;
+    if (k === 0) {
+      const l = learnedFrom(data, today);
+      check("demo: step one suggests morning light first, with both signals", o.reason === "After morning light, your days moved back towards your usual 2 of 2 times, and you said it helped twice, so I'm suggesting it first.", o.reason ?? "");
+      const song = activityStats("song", l.occasions, demo.activitiesDone);
+      check("demo: music said yes, days did not move, said plainly", followedLines(song.values, song.answers).join(" ") === "Not followed by better days last time. You said this helped, though your days did not change much afterwards.", followedLines(song.values, song.answers).join(" "));
+      const walk = activityStats("outside", l.occasions, demo.activitiesDone);
+      check("demo: a short walk yesterday is too early to tell", followedLines(walk.values, walk.answers).join(" ") === "Too early to tell.");
+    }
+  }
+  check(`demo: the story holds for every one of ${DAYS} start days`, story === DAYS, `${story} of ${DAYS}`);
+  check(`demo: the rough patches leave the rule's outcome as it was, ${DAYS} of ${DAYS} days`, same === DAYS, `${same} of ${DAYS}`);
+}
+
 if (failed) {
   console.log(`\n${failed} failed`);
   process.exit(1);
