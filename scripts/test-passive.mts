@@ -218,7 +218,7 @@ const keys = et.changed.map((m) => m.key);
 check("two changes: asks", et.askNow && keys.includes("spread") && keys.includes("firstActivity"), keys.join());
 check(
   "explanation is plain",
-  /^Sleep and Energy have changed: over the last week your days have started later, .*your typing has been more uneven than in the four weeks before\. This compares 7 days this week with 2\d days in the four weeks before\.$/.test(
+  /^Sleep and Energy have changed compared with your usual: over the last week .*your days have started later.*.*your typing has been more uneven than in the four weeks before\. This compares 7 days this week with 2\d days in the four weeks before\.$/.test(
     explainChange(et),
   ),
   explainChange(et),
@@ -252,7 +252,7 @@ check("enoughToAsk: two Sleep measures are one category", !enoughToAsk([{ key: "
 check("enoughToAsk: Mood's own answers alone are one category", !enoughToAsk([{ key: "ownAnswer" }]) && enoughToAsk([{ key: "ownAnswer" }, { key: "lastActivity" }]));
 check("enoughToAsk: both typing measures are not enough", !enoughToAsk([{ key: "spread" }, { key: "hold" }]));
 check("enoughToAsk: one sleep is not enough", !enoughToAsk([{ key: "lastActivity" }]));
-check("explanation names the categories, then the plain observation", explainChange(et).startsWith("Sleep and Energy have changed: over the last week your days have started later"), explainChange(et));
+check("explanation names the categories, then the plain observation", /^Sleep and Energy have changed compared with your usual: over the last week your nights have been longer, your days have started later/.test(explainChange(et)), explainChange(et));
 check("brain input carries each measure's source", passiveInput(et).measures.every((m) => m.source === sourceOf(m.key)));
 
 const asked = history(40, 7, { spread: true, first: true });

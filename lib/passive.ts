@@ -4,10 +4,11 @@
 // THE RULE (keep it explainable):
 // - Four categories, the same everywhere the person looks: Sleep, Energy, Social and Mood
 //   (SOURCES below: category, then its inputs, then their measures). Today: Sleep is estimated
-//   from when this computer is used (first and last activity, quiet night); Energy from typing
-//   rhythm (evenness and hold, from bursts of real writing, lib/typing.ts) and body movement
-//   from the camera; Social from messages with the person they trust; Mood from the person's
-//   own daily answer, its anchor. Other inputs are listed as not connected yet.
+//   from when this computer is used (the estimated night, first and last activity); Energy from
+//   body movement in front of the camera, the pace of the voice, and typing rhythm (evenness and
+//   hold, from bursts of real writing, lib/typing.ts); Social from contact with the person they
+//   trust; Mood from the person's own daily answer, its anchor, with face movement, posture and
+//   tone of voice. Other inputs are listed as not connected yet.
 // - One value per measure per day. Windows, the same for every measure: the person's usual is
 //   the 28 days before the last week (at least 10 days with a value); recent is the last 7
 //   days (at least 4). Weekdays are compared with weekdays and weekends with weekends when the
@@ -157,9 +158,9 @@ export const SOURCES: {
     reportLabel: "Energy",
     words: "energy",
     inputs: [
-      { id: "typing", label: "Typing rhythm", measures: ["spread", "hold"], setting: "typing", sensor: true },
       { id: "movement", label: "Body movement (camera)", measures: ["movementLevel", "positionChanges"], setting: "camera", sensor: true },
       { id: "voice-pace", label: "Pace of the voice (microphone)", measures: ["voicePace"], setting: "microphone", sensor: true },
+      { id: "typing", label: "Typing rhythm", measures: ["spread", "hold"], setting: "typing", sensor: true },
     ],
   },
   {
@@ -168,7 +169,7 @@ export const SOURCES: {
     reportLabel: "Social",
     words: "social",
     inputs: [
-      { id: "trusted-contact", label: "Messages with the person you trust", measures: ["contact"], setting: "contact" },
+      { id: "trusted-contact", label: "Contact with the person you trust", measures: ["contact"], setting: "contact" },
       { id: "talking", label: "Talking with someone", measures: [], setting: null },
       { id: "home-or-out", label: "At home or out", measures: [], setting: null },
     ],
@@ -371,6 +372,18 @@ const ms = (v: number) => `${Math.round(v)} ms`;
 /** In the order of the categories: Sleep, Energy, Social, Mood. */
 export const PASSIVE_DEFS: Def[] = [
   {
+    key: "quietNight",
+    label: "Estimated rest",
+    meaning:
+      "Time from your last activity one day to your first the next. An estimate of rest, not measured sleep",
+    format: (v) => `${v.toFixed(1)} h`,
+    up: "your nights have been longer",
+    down: "your nights have been shorter",
+    upWord: "longer",
+    downWord: "shorter",
+    is: "Time from the last key press one day to the first the next",
+    isNot: "An estimate of rest, not measured sleep",
+  },  {
     key: "firstActivity",
     label: "First activity",
     meaning: "Your first key press of the day on this computer",
@@ -394,43 +407,9 @@ export const PASSIVE_DEFS: Def[] = [
     is: "The last key press of the day on this computer",
     isNot: "Not the time of going to bed",
   },
-  {
-    key: "quietNight",
-    label: "Estimated rest",
-    meaning:
-      "Time from your last activity one day to your first the next. An estimate of rest, not measured sleep",
-    format: (v) => `${v.toFixed(1)} h`,
-    up: "your nights have been longer",
-    down: "your nights have been shorter",
-    upWord: "longer",
-    downWord: "shorter",
-    is: "Time from the last key press one day to the first the next",
-    isNot: "An estimate of rest, not measured sleep",
-  },
-  {
-    key: "spread",
-    label: "Typing evenness",
-    meaning: "How uneven the rhythm of your typing is, from the gaps under a second while you write. Higher means more uneven",
-    format: ms,
-    up: "your typing has been more uneven",
-    down: "your typing has been more even",
-    upWord: "more uneven",
-    downWord: "more even",
-    is: "How even the rhythm of typing is: the timing between key presses while writing, gaps under a second only",
-    isNot: "Never which keys, never what was written, not time spent thinking",
-  },
-  {
-    key: "hold",
-    label: "Hold time",
-    meaning: "How long a key is usually held down while you write",
-    format: ms,
-    up: "you've held keys down longer",
-    down: "you've held keys down for less time",
-    upWord: "longer",
-    downWord: "shorter",
-    is: "How long a key is usually held down while writing",
-    isNot: "Never which keys",
-  },
+
+
+
   {
     key: "movementLevel",
     label: "Movement",
@@ -466,6 +445,28 @@ export const PASSIVE_DEFS: Def[] = [
     downWord: "slower",
     is: "How many voiced stretches a minute while talking, a stand-in for pace",
     isNot: "No sound is kept, no words are recognised",
+  },  {
+    key: "spread",
+    label: "Typing evenness",
+    meaning: "How uneven the rhythm of your typing is, from the gaps under a second while you write. Higher means more uneven",
+    format: ms,
+    up: "your typing has been more uneven",
+    down: "your typing has been more even",
+    upWord: "more uneven",
+    downWord: "more even",
+    is: "How even the rhythm of typing is: the timing between key presses while writing, gaps under a second only",
+    isNot: "Never which keys, never what was written, not time spent thinking",
+  },  {
+    key: "hold",
+    label: "Hold time",
+    meaning: "How long a key is usually held down while you write",
+    format: ms,
+    up: "you've held keys down longer",
+    down: "you've held keys down for less time",
+    upWord: "longer",
+    downWord: "shorter",
+    is: "How long a key is usually held down while writing",
+    isNot: "Never which keys",
   },
   {
     key: "contact",
@@ -729,7 +730,7 @@ function lastCheckIn(data: AppData): PromptedCheckIn | null {
   return data.checkIns.length ? data.checkIns[data.checkIns.length - 1] : null;
 }
 
-/** Days with any value: typing days with enough presses, or first and last activity. */
+/** Days with any value: first and last activity, movement, or typing days with enough presses. */
 export function daysWithData(data: AppData, today: DayKey): number {
   const dates = new Set([
     ...(data.typingDays ?? []).filter((d) => d.presses >= MIN_DAY_PRESSES).map((d) => d.date),
@@ -742,7 +743,7 @@ export function daysWithData(data: AppData, today: DayKey): number {
 export function evaluatePassive(data: AppData, today: DayKey, opts: { test?: ChangeTest } = {}): Evaluation {
   const test = opts.test ?? CHANGE_TEST;
   const kind = typingKindFor(data.typingDays ?? [], today);
-  // In source order (typing, then day and night rhythm), so the wording groups them.
+  // In category order (Sleep, Energy, Social, Mood), so the wording groups them.
   const metrics = PASSIVE_DEFS.map((d) => metric(data, d, today, kind, test));
   const changed = metrics.filter((m) => m.status === "changed");
   // The person's own answer outweighs any camera or voice measure under Mood.
@@ -804,7 +805,7 @@ export interface PassiveView {
   changed: Pick<PassiveMetric, "key" | "direction" | "phrase">[];
 }
 
-/** True when what changed is only typing: shown under the demo, never asked about. */
+/** True when what changed lies in one category only: shown, never asked about. */
 export function typingAloneChanged(e: PassiveView): boolean {
   return !e.learning && onlyQuietSources(e.changed);
 }
@@ -825,14 +826,15 @@ function basedOnText(b: PassiveView["basedOn"]): string {
 }
 
 /**
- * "Two things have changed: over the last week your typing has been more uneven and your days
- * have started later than in the four weeks before. This compares 6 days this week with 24 ..."
+ * "Sleep and Energy have changed compared with your usual: over the last week your nights have
+ * been shorter and you've moved less in front of the computer than in the four weeks before.
+ * This compares 7 days this week with 24 ..."
  */
 export function explainChange(e: PassiveView): string {
   const phrases = e.changed.map((m) => m.phrase).filter((p): p is string => !!p);
   if (!phrases.length || typingAloneChanged(e)) return "Nothing stands out compared with your usual right now.";
   const cats = changedCategories(e);
-  const head = `${joinPhrases(cats)} ${cats.length === 1 ? "has" : "have"} changed:`;
+  const head = `${joinPhrases(cats)} ${cats.length === 1 ? "has" : "have"} changed compared with your usual:`;
   return `${head} over the last week ${joinPhrases(phrases)} than in the four weeks before. ${basedOnText(e.basedOn)}`.trim();
 }
 
@@ -845,7 +847,7 @@ export function calmLine(e: PassiveView): string {
   return "I'm keeping an eye on your rhythm. Nothing is needed from you.";
 }
 
-/** One sentence for "Your own level". */
+/** One sentence for My values. */
 export function weeklyInsight(e: PassiveView): string {
   if (e.learning) return `Still learning your usual rhythm: ${e.daysOfData} of ${LEARNING_DAYS} days so far.`;
   const phrases = e.changed.map((m) => m.phrase).filter((p): p is string => !!p);
