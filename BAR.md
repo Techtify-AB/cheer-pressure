@@ -1,6 +1,6 @@
-# BAR: what "usable MVP" means
+# BAR: what "usable MVP" means (version 2, passive first, 14 Nov)
 
-Working name: companion (final name not chosen). Junction 2026, Aalto challenge "Beyond the Clinic":
+Name: Cheer Pressure. Junction 2026, Aalto challenge "Beyond the Clinic":
 help people stay well at home after depression treatment. A digital companion that lives locally,
 does short check-ins, and compares the person only with their own earlier answers.
 
@@ -17,30 +17,34 @@ observable in the browser or in the repo. UI language: English.
 - B2. Setup asks "What did you notice first last time?" and lets the person pick or type up to three personal early signs. They are saved.
 - B3. After setup, reloading the page goes to home, not back to setup.
 
-## C. Home
+## C. Home (passive first)
 - C1. The companion character is visible. It is a single swappable component with at least the states idle, speaking and listening, and the state visibly changes.
-- C2. Exactly one primary action on home: start today's check-in. Secondary links are visually quieter.
-- C3. Home says whether today's check-in is done.
+- C2. Home asks for nothing: no primary "start check-in" button and no "done today" status. It shows one calm line and a short list of what is being measured right now, each with its state.
+- C3. One quiet link lets the person say how they are doing on their own initiative.
 
-## D. Daily check-in (about 30 seconds)
-- D1. Three steps at most: how you slept (bedtime and wake time, or a 1 to 5 tap), today's form (1 to 5 tap), and reading one fixed sentence aloud.
-- D2. The read-aloud step records with the microphone and shows a speech rate (words per second) computed on the device. If the microphone is refused or missing, the step can be skipped and the check-in still completes.
-- D3. Every question can be answered by tapping or typing. Voice is never required.
-- D4. Finishing saves the entry and returns home, which now shows the check-in as done.
+## D. What is measured without asking
+- D1. Passive measures: typing evenness (spread), longer pauses, key hold time, first activity, last activity, and "quiet night" labelled as an estimate of rest, never as measured sleep.
+- D2. /live/ shows the typing numbers updating while the person types, each with a one-line plain meaning, and says truthfully where it measures ("only in this box" in a browser).
+- D3. A visible Pause / Resume control stops and restarts measuring.
+- D4. What is typed is never stored or shown: only timing numbers are kept (check stored data in the browser).
+- D5. Until 7 days of data exist the companion says it is still learning and does not ask.
 
-## E. Weekly questions
-- E1. Reachable from home by a quiet link, and offered automatically when 7 days have passed since the last one.
-- E2. Asks the two PHQ-2 items (feeling down, depressed or hopeless; little interest or pleasure) on the standard 0 to 3 scale, one item on sleep and feeling tense, and one item per personal early sign from setup.
-- E3. Saved with a date; visible in the trend view.
+## E. The companion asks only when values stand out
+- E1. A measure counts as changed only when all of its last 3 sessions or days lie on the same side outside the person's own typical range. The companion proposes a check-in when at least 2 measures have changed.
+- E2. The proposed check-in first explains in plain words which measures changed and how much data it is based on, then asks one question, "How are you doing?", with three tap answers ("I'm okay", "Not my best", "I'd like someone to check in on me") and a quiet way to decline.
+- E3. "I'm okay" ends with a short closing line. "Not my best" offers the weekly questions (the two PHQ-2 items on the 0 to 3 scale, sleep, feeling tense, one per personal early sign) and one small suggestion. "I'd like someone to check in on me" shows a clearly marked "not connected yet" screen.
+- E4. No percentages, no risk score, no diagnosis words in any of this.
+- E5. Weekly questions are never offered on a schedule: only after "Not my best" or through a quiet link.
+- E6. A clearly marked demo control triggers the proposed check-in immediately, and screens say when data is made up.
 
 ## F. One experimental test
 - F1. A reaction-time test (five trials, shows the median in ms) reachable from home.
 - F2. It is labelled as an experiment in the UI, and its result is saved.
 
 ## G. Your own level
-- G1. A view shows each tracked thing over the last 14 days against the person's own baseline (their own earlier entries), never against other people.
-- G2. A clearly marked "Load demo data" control fills six weeks of made-up entries where the last week drifts (later sleep, lower form, slower speech, higher weekly answers). A matching control clears it.
-- G3. With the drift present, the companion states in one plain sentence what changed compared with the person's own level, and suggests one small action (morning light, a walk, a regular bedtime, or music).
+- G1. A view shows each passive measure against the person's own typical range (their own earlier sessions and days), never against other people, with a one-sentence insight. Entries the person made themselves appear below as secondary.
+- G2. A clearly marked "Load demo data" control fills six weeks of made-up passive measures where the last days drift. A matching control clears it.
+- G3. With the drift present, the companion states in plain words what changed compared with the person's own level.
 - G4. No diagnosis words anywhere in the UI: it never says the person is depressed, relapsing or at risk. It only describes change from their own level.
 
 ## H. Voice
@@ -66,4 +70,10 @@ observable in the browser or in the repo. UI language: English.
 ## L. Craft
 - L1. Every clickable thing has `cursor: pointer` and a visible keyboard focus state.
 - L2. The font is not Bricolage Grotesque. No italic headings.
-- L3. A first-time user can complete setup and one daily check-in without reading any instructions outside the app.
+- L3. A first-time user can complete setup, find the live view and understand what is measured without reading any instructions outside the app.
+
+## M. Desktop app (owner tests by hand; a browser critic cannot)
+- M1. The mascot window appears bottom-right, transparent, on top, draggable, and does not take focus. Clicking it opens the main window.
+- M2. Closing the main window hides it to the menu bar. The menu bar item offers Open, Pause / Resume and Quit.
+- M3. With Input Monitoring allowed, typing in another app moves the numbers in the live view, which says it measures across the whole computer. Without the permission the app explains what is needed and falls back to the box.
+- M4. Only key timing is read: never which key.
