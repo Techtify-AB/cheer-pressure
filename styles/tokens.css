@@ -1,0 +1,67 @@
+/*
+  Design tokens: the one place for colours, type, spacing and radius.
+  Change the look here. Components only read these variables.
+*/
+:root {
+  /* Colours */
+  --color-bg: #f6f2ea;
+  --color-surface: #fffdf9;
+  --color-surface-muted: #efe9df;
+  --color-ink: #24302c;
+  --color-ink-soft: #55625d;
+  --color-ink-faint: #6f7a75;
+  --color-line: #ddd5c8;
+  --color-primary: #2f6656;
+  --color-primary-hover: #26574a;
+  --color-primary-ink: #ffffff;
+  --color-accent: #e9a46a;
+  --color-band: #d9e7df; /* "your usual range" in charts */
+  --color-change: #b5643a; /* a value that differs from your usual */
+  --color-done: #3e7b5f;
+  --color-help: #9b3d2e;
+  --color-help-bg: #fbe9e4;
+  --color-focus: #1f5fbf;
+  --color-placeholder-bg: #fff8e1;
+  --color-placeholder-line: #c9a227;
+  --color-placeholder-ink: #6b5410;
+
+  /* The companion character */
+  --companion-body: #f2c39b;
+  --companion-body-shade: #e5a978;
+  --companion-cheek: #ec9c86;
+  --companion-ink: #33302c;
+  --companion-wave: #2f6656;
+
+  /* Type: system fonts only, nothing loaded from elsewhere */
+  --font-body: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.1875rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 1.875rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 560;
+  --font-weight-bold: 680;
+  --line-height: 1.5;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  /* Layout and motion */
+  --content-width: 560px;
+  --tap-size: 48px;
+  --shadow-soft: 0 1px 2px rgba(36, 48, 44, 0.06), 0 6px 20px rgba(36, 48, 44, 0.06);
+  --ease: cubic-bezier(0.3, 0.7, 0.2, 1);
+}

@@ -1,0 +1,93 @@
+.wrap {
+  display: inline-block;
+  max-width: 100%;
+}
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.shadow { fill: rgba(36, 48, 44, 0.1); }
+.skin { fill: var(--companion-body); }
+.leaf { fill: var(--companion-wave); opacity: 0.85; }
+.cheek { fill: var(--companion-cheek); opacity: 0.55; }
+.eyes ellipse { fill: var(--companion-ink); }
+.mouthIdle {
+  fill: none;
+  stroke: var(--companion-ink);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+.mouthTalk { fill: var(--companion-ink); transform-box: fill-box; transform-origin: center; }
+.mouthListen { fill: var(--companion-ink); }
+
+.waves path,
+.talkLines path {
+  fill: none;
+  stroke: var(--companion-wave);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+.waves,
+.talkLines {
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.body {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: transform 0.35s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+.eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* idle: slow breathing and a blink */
+.wrap[data-state="idle"] .body { animation: breathe 4.5s ease-in-out infinite; }
+.wrap[data-state="idle"] .eyes { animation: blink 5s infinite; }
+
+/* speaking: mouth moves, small bounce, lines by the mouth */
+.wrap[data-state="speaking"] .mouthTalk { animation: talk 0.32s ease-in-out infinite alternate; }
+.wrap[data-state="speaking"] .body { animation: bounce 0.64s ease-in-out infinite alternate; }
+.wrap[data-state="speaking"] .talkLines { opacity: 1; }
+
+/* listening: leans in, eyes a little wider, sound waves pulse */
+.wrap[data-state="listening"] .body { transform: rotate(-6deg); }
+.wrap[data-state="listening"] .eyes { transform: scale(1.15); }
+.wrap[data-state="listening"] .waves { opacity: 1; }
+.wrap[data-state="listening"] .waves path { animation: pulse 1.2s ease-in-out infinite; }
+.wrap[data-state="listening"] .waves path:nth-child(2),
+.wrap[data-state="listening"] .waves path:nth-child(4) { animation-delay: 0.3s; }
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.02, 0.975); }
+}
+@keyframes blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+@keyframes talk {
+  from { transform: scaleY(0.35); }
+  to { transform: scaleY(1.1); }
+}
+@keyframes bounce {
+  from { transform: translateY(0); }
+  to { transform: translateY(-3px); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+/* Reduced motion: the states still look different, they just do not move. */
+@media (prefers-reduced-motion: reduce) {
+  .wrap .body,
+  .wrap .eyes,
+  .wrap .mouthTalk,
+  .wrap .waves path { animation: none !important; }
+}
