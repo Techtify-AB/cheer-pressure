@@ -3,14 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { brain, passiveInput, type BrainOutput } from "@/lib/brain";
-import { addDays, todayKey } from "@/lib/dates";
+import { addDays, newId, todayKey } from "@/lib/dates";
 import { computeLevels, type Levels } from "@/lib/levels";
 import { judgeSuggestions } from "@/lib/helps";
-import { closeLadder, isActive, ladderDue, type LadderOutcome } from "@/lib/ladder";
+import { closeLadder, isActive, ladderDue, tellClinicAutomatically, type LadderOutcome } from "@/lib/ladder";
+import { alwaysShareDue, sharedEntry } from "@/lib/report";
 import { evaluatePassive, type Evaluation } from "@/lib/passive";
-import { forRule, quietHoursOf } from "@/lib/settings";
+import { clinicOf, forRule, quietHoursOf } from "@/lib/settings";
 import { containsCrisisWords, containsCrisisWordsWhileTyping } from "@/lib/crisis";
-import { readData, saveLadder, saveSuggestions } from "@/lib/storage";
+import { addClinicShared, readData, saveLadder, saveSuggestions } from "@/lib/storage";
 import type { AppData } from "@/lib/types";
 import { speak, stopSpeaking, subscribeVoices, voiceAvailability, type VoiceAvailability } from "@/lib/voice";
 import type { CompanionState } from "./companion/Companion";
@@ -139,12 +140,33 @@ export function useCompanionStatus(data: AppData | null): {
       quietHours: quietHoursOf(data.settings),
       pausedAll: !!data.settings.pausedAll,
       passive: evaluation,
+      clinic: clinicOf(data.settings),
     });
   }, [data, evaluation, today, minutes]);
   const ladder = data?.ladder;
   useEffect(() => {
     if (outcome?.close && isActive(ladder)) saveLadder(closeLadder(ladder, today));
   }, [outcome?.close, ladder, today]);
+  // Step three as the person chose: told automatically, exactly the report as it is today, to a
+  // demo recipient (nothing leaves the device). Then shown until seen ("clinic-told").
+  const reason = outcome?.reason;
+  useEffect(() => {
+    if (reason !== "clinic-auto") return;
+    const d = readData();
+    if (!isActive(d.ladder) || d.ladder.clinic) return;
+    const entry = sharedEntry(d, today, "automatic", newId());
+    addClinicShared(entry);
+    saveLadder(tellClinicAutomatically(d.ladder, today, entry.id));
+  }, [reason, today]);
+  // "Always": a weekly summary, and a note when two categories stand out (lib/report.ts).
+  const askNow = !!evaluation?.askNow;
+  const share = data ? clinicOf(data.settings).share : null;
+  useEffect(() => {
+    if (!share) return;
+    const d = readData();
+    const kind = alwaysShareDue(d, today, askNow, share);
+    if (kind) addClinicShared(sharedEntry(d, today, kind, newId()));
+  }, [share, askNow, today]);
   // Step one's suggestions are judged once their days have passed, or the values came back
   // (lib/helps.ts): that is what orders the list next time.
   const suggestions = data?.suggestions;

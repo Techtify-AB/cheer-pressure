@@ -3,17 +3,20 @@
 // "Share with my clinic": the exact report first, one part at a time, then the person's own
 // act: Save as PDF or Print, or Not now. Nothing is sent over the network from here; there
 // is no clinic integration in this version and the messages service never receives this.
-// The ladder's third step opens this screen (?from=ladder).
+// The ladder's third step opens this screen (?from=ladder): there "Approve" adds the report to
+// "Shared with my clinic", marked as a demo recipient. ?entry=<id> shows one entry from that
+// list exactly as it was shared.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useRequireProfile, useToday } from "@/components/hooks";
 import { Pager, Screen } from "@/components/Screen";
-import { answerClinic, isActive } from "@/lib/ladder";
+import { answerClinic, approveClinic, isActive } from "@/lib/ladder";
+import { formatDay, newId } from "@/lib/dates";
 import { printPage } from "@/lib/platform";
-import { clinicReport, type Report } from "@/lib/report";
-import { hasDemo, readData, saveLadder, useData } from "@/lib/storage";
+import { clinicReport, DEMO_RECIPIENT_LINE, SHARED_KIND_WORDS, sharedEntry, type Report } from "@/lib/report";
+import { addClinicShared, readData, saveLadder, useData } from "@/lib/storage";
 
 type Part = { title: string; body: React.ReactNode };
 
@@ -171,16 +174,21 @@ export default function SharePage() {
   const [index, setIndex] = useState(0);
   const [fromLadder, setFromLadder] = useState(false);
   const [approved, setApproved] = useState(false);
+  const [entryId, setEntryId] = useState<string | null>(null);
   useEffect(() => {
-    const id = window.setTimeout(() => setFromLadder(new URLSearchParams(window.location.search).get("from") === "ladder"), 0);
+    const id = window.setTimeout(() => {
+      const q = new URLSearchParams(window.location.search);
+      setFromLadder(q.get("from") === "ladder");
+      setEntryId(q.get("entry"));
+    }, 0);
     return () => window.clearTimeout(id);
   }, []);
   if (!data || !ready) return null;
 
-  const report = clinicReport(data, today);
+  const entry = entryId ? (data.clinicShared ?? []).find((e) => e.id === entryId) ?? null : null;
+  const report = entry?.report ?? clinicReport(data, today);
   const list = parts(report);
   const part = list[Math.min(index, list.length - 1)];
-  const demo = hasDemo(data) || !!data.settings.simulatedChangeAt;
   const answerLadder = (a: "approve" | "not-now") => {
     const l = readData().ladder;
     if (fromLadder && isActive(l)) saveLadder(answerClinic(l, a, today));
@@ -191,8 +199,9 @@ export default function SharePage() {
       <Screen
         lead={
           <>
-            <span className="placeholder-tag">Demo</span>
-            <h1 className="item-title">Marked as a demo recipient. Nothing was sent.</h1>
+            <span className="placeholder-tag">{DEMO_RECIPIENT_LINE}</span>
+            <h1 className="item-title">Shared with your clinic.</h1>
+            <p className="muted">It is on &quot;Shared with my clinic&quot; in Settings, exactly as you saw it.</p>
           </>
         }
         actions={
@@ -201,6 +210,39 @@ export default function SharePage() {
           </Link>
         }
       />
+    );
+  }
+
+  // One entry from "Shared with my clinic", exactly as it was shared.
+  if (entryId) {
+    return (
+      <Screen
+        lead={
+          <div className="item-lead">
+            <span className="placeholder-tag">{DEMO_RECIPIENT_LINE}</span>
+            <p className="small muted">
+              {entry ? `Shared on ${formatDay(entry.date)}: ${SHARED_KIND_WORDS[entry.kind].toLowerCase()}` : "Shared with my clinic"}
+            </p>
+            <h1>{entry ? part.title : "This entry is no longer here"}</h1>
+          </div>
+        }
+        actions={
+          <>
+            {entry && <Pager index={index} total={list.length} onChange={setIndex} />}
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={() => router.back()}>
+                Back
+              </button>
+            </div>
+          </>
+        }
+      >
+        {entry && (
+          <section className="card stack-sm report-part" aria-live="polite">
+            {part.body}
+          </section>
+        )}
+      </Screen>
     );
   }
 
@@ -215,18 +257,32 @@ export default function SharePage() {
         }
         actions={
           <>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                answerLadder("approve");
-                void printPage();
-              }}
-            >
-              Save as PDF or print
-            </button>
+            {fromLadder ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  const d = readData();
+                  const e = sharedEntry(d, today, "approved", newId());
+                  addClinicShared(e);
+                  if (isActive(d.ladder)) saveLadder(approveClinic(d.ladder, today, e.id));
+                  setApproved(true);
+                }}
+              >
+                Approve, share with my clinic
+              </button>
+            ) : (
+              <button type="button" className="btn btn-primary" onClick={() => void printPage()}>
+                Save as PDF or print
+              </button>
+            )}
             <Pager index={index} total={list.length} onChange={setIndex} secondary />
             <div className="links">
+              {fromLadder && (
+                <button type="button" className="btn btn-quiet" onClick={() => void printPage()}>
+                  Save as PDF or print
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-quiet"
@@ -237,18 +293,6 @@ export default function SharePage() {
               >
                 Not now
               </button>
-              {fromLadder && demo && (
-                <button
-                  type="button"
-                  className="btn btn-quiet"
-                  onClick={() => {
-                    answerLadder("approve");
-                    setApproved(true);
-                  }}
-                >
-                  Approve for the demo clinic
-                </button>
-              )}
             </div>
           </>
         }
@@ -257,7 +301,9 @@ export default function SharePage() {
           {part.body}
           {index === 0 && (
             <p className="small muted report-note">
-              Nothing is sent from here. You save or print it yourself, each time you choose to.
+              {fromLadder
+                ? "In this version the clinic is a demo recipient: approving keeps it on Shared with my clinic, and nothing is actually sent."
+                : "Nothing is sent from here. You save or print it yourself, each time you choose to."}
             </p>
           )}
         </section>

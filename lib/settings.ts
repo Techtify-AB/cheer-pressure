@@ -112,7 +112,7 @@ export function clinicOf(s: Settings): ClinicSettings {
 }
 
 export const CLINIC_CHOICES: { value: ClinicSettings["share"]; label: string; hint: string }[] = [
-  { value: "always", label: "Always", hint: "A short weekly summary" },
+  { value: "always", label: "Always", hint: "Weekly, and when two categories stand out" },
   { value: "when-i-say", label: "Only when I say", hint: "Nothing unless you approve it" },
   { value: "never", label: "Never", hint: "Nothing, ever" },
 ];

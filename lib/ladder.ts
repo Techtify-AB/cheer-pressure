@@ -4,7 +4,10 @@
 //   Step 1, right away: one thing from the person's own "What helps you?" list (lib/helps.ts),
 //   best first by what was followed by values coming back. "Something else" offers the next one.
 //   Step 2, when the measures have still not come back after 2 days: someone you trust.
-//   Step 3, when the measures have still not come back after 7 days: the clinic.
+//   Step 3, when the measures have still not come back after 7 days: the clinic, as the person
+//   chose. With "If my values have not come back after 7 days, tell my clinic for me" it is told
+//   at once ("clinic-auto": the caller stores exactly what was shared, then "clinic-told" shows
+//   it until seen); otherwise Cheri asks first; with "Never" step 3 never comes.
 //
 // "I'd like someone to check in on me" jumps straight to step 2.
 // "Not now" at any step is respected for 3 days: nothing is offered in that time.
@@ -18,7 +21,7 @@
 import { daysBetween, addDays } from "./dates";
 import { enoughToAsk, type Evaluation } from "./passive";
 import { inQuietHours } from "./settings";
-import type { DayKey, LadderState, RoutineId } from "./types";
+import type { ClinicSettings, DayKey, LadderState, RoutineId } from "./types";
 
 export const SOMEONE_AFTER_DAYS = 2;
 export const CLINIC_AFTER_DAYS = 7;
@@ -36,6 +39,8 @@ export interface LadderInput {
   pausedAll: boolean;
   /** The passive rule's result for today. */
   passive: Pick<Evaluation, "askNow" | "changed">;
+  /** The clinic choice from onboarding or Settings (lib/settings.ts clinicOf). Missing: ask first. */
+  clinic?: ClinicSettings;
 }
 
 export interface LadderOutcome {
@@ -53,6 +58,9 @@ export interface LadderOutcome {
     | "too-early"
     | "someone-due"
     | "clinic-due"
+    | "clinic-auto"
+    | "clinic-told"
+    | "clinic-never"
     | "done";
   /** True when the measures came back: the caller may close the ladder. */
   close: boolean;
@@ -75,6 +83,8 @@ function decide(i: LadderInput): Omit<LadderOutcome, "speakUp" | "quiet"> {
       : { due: "none", reason: "nothing", close: false };
   }
 
+  // The clinic was told automatically: shown until the person has seen what was shared.
+  if (l.clinic?.auto && !l.clinic.seenOn) return { due: "clinic", reason: "clinic-told", close: false };
   // Step 1 is offered in the same conversation as "Not my best".
   if (l.smallThing && !l.smallThing.answer) return { due: "small-thing", reason: "small-thing-waiting", close: false };
   // The person asked for someone: offered right away, whatever the measures say.
@@ -88,8 +98,14 @@ function decide(i: LadderInput): Omit<LadderOutcome, "speakUp" | "quiet"> {
   const days = daysBetween(l.startedOn, i.today);
   const someoneOffered = !!l.someone?.answer;
   if (l.clinic?.answer === "approve") return { due: "none", reason: "done", close: false };
-  if (days >= CLINIC_AFTER_DAYS && someoneOffered) return { due: "clinic", reason: "clinic-due", close: false };
+  const c = i.clinic;
+  if (days >= CLINIC_AFTER_DAYS && c?.share !== "never") {
+    if (c?.tellAfterDays && !l.clinic) return { due: "clinic", reason: "clinic-auto", close: false };
+    if (someoneOffered) return { due: "clinic", reason: "clinic-due", close: false };
+  }
   if (days >= SOMEONE_AFTER_DAYS && l.someone?.answer !== "yes") return { due: "someone", reason: "someone-due", close: false };
+  // "Never": nothing to the clinic, ever, so step 3 does not come.
+  if (days >= CLINIC_AFTER_DAYS && c?.share === "never") return { due: "none", reason: "clinic-never", close: false };
   return { due: "none", reason: "too-early", close: false };
 }
 
@@ -154,6 +170,21 @@ export function answerClinic(l: LadderState, answer: "approve" | "not-now", toda
   return { ...l, clinic: { offeredOn: today, answer }, declinedOn: answer === "not-now" ? today : l.declinedOn };
 }
 
+/** Step 3 without asking, as the person chose: `sharedId` is the entry on "Shared with my clinic". */
+export function tellClinicAutomatically(l: LadderState, today: DayKey, sharedId: string): LadderState {
+  return { ...l, clinic: { offeredOn: today, answer: "approve", auto: true, sharedId } };
+}
+
+/** The person has seen what was shared (the automatic step's "OK"). */
+export function seenClinic(l: LadderState, today: DayKey): LadderState {
+  return l.clinic ? { ...l, clinic: { ...l.clinic, seenOn: today } } : l;
+}
+
+/** Step 3 approved when asked: `sharedId` is the entry on "Shared with my clinic". */
+export function approveClinic(l: LadderState, today: DayKey, sharedId: string): LadderState {
+  return { ...l, clinic: { offeredOn: today, answer: "approve", sharedId }, declinedOn: l.declinedOn };
+}
+
 export function closeLadder(l: LadderState, today: DayKey): LadderState {
   return { ...l, closedOn: today };
 }
@@ -167,7 +198,7 @@ export function shiftLadder(l: LadderState, days: number): LadderState {
     smallThing: l.smallThing && { ...l.smallThing, offeredOn: s(l.smallThing.offeredOn)! },
     someoneRequestedOn: s(l.someoneRequestedOn),
     someone: l.someone && { ...l.someone, offeredOn: s(l.someone.offeredOn)! },
-    clinic: l.clinic && { ...l.clinic, offeredOn: s(l.clinic.offeredOn)! },
+    clinic: l.clinic && { ...l.clinic, offeredOn: s(l.clinic.offeredOn)!, seenOn: s(l.clinic.seenOn) },
     declinedOn: s(l.declinedOn),
     closedOn: s(l.closedOn),
   };

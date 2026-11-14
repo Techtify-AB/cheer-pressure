@@ -32,16 +32,19 @@ import { brain, helpChoiceInput, type HelpChoice } from "@/lib/brain";
 import { GreetingScreen, ReplyCrisisScreen, who } from "@/components/Greeting";
 import { chooseContact, CONTACT_REQUEST_TEXT, type Contact, type ContactState } from "@/lib/contact";
 import type { Answer } from "@/lib/events";
-import { newId } from "@/lib/dates";
+import { formatDay, newId } from "@/lib/dates";
+import { DEMO_RECIPIENT_LINE } from "@/lib/report";
 import { answerOffer, feedbackFromActivities, helpsOf, learnedLine, offeredIn, openOffer, recordOffer, statsFor, suggestionText } from "@/lib/helps";
 import {
   answerClinic,
   answerReply,
   answerSmallThing,
   answerSomeone,
+  CLINIC_AFTER_DAYS,
   isActive,
   offerNext,
   requestSomeone,
+  seenClinic,
   startWithHelp,
   type Due,
 } from "@/lib/ladder";
@@ -574,9 +577,58 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
     );
   }
 
-  // Step 3: the clinic. The report itself is on "Share with my clinic", shown in full before
-  // anything is saved or printed; nothing is ever sent from the app.
+  // Step 3: the clinic, as the person chose in onboarding or Settings (My clinic). Told
+  // automatically: Cheri says so and shows exactly what was shared. Otherwise she asks first,
+  // and the report is shown in full before anything is approved. A demo recipient: nothing is
+  // ever sent from the app.
   if (view === "clinic") {
+    const told = ladder?.clinic?.auto ? (data.clinicShared ?? []).find((e) => e.id === ladder.clinic?.sharedId) : null;
+    if (ladder?.clinic?.auto) {
+      return (
+        <Screen
+          lead={
+            <>
+              <span className="placeholder-tag">{DEMO_RECIPIENT_LINE}</span>
+              <Says state="idle" size={88}>
+                <h1>I&apos;ve told your clinic, as you asked.</h1>
+                <p className="small muted">
+                  Your values have not come back for {CLINIC_AFTER_DAYS} days. This is exactly what was shared
+                  {told ? `, on ${formatDay(told.date)}` : ""}.
+                </p>
+              </Says>
+              <StepCount index={2} total={3} label="Your clinic" />
+            </>
+          }
+          actions={
+            <>
+              {told ? (
+                <Link href={`/share/?entry=${told.id}`} className="btn btn-primary">
+                  Show what was shared
+                </Link>
+              ) : null}
+              <div className="links">
+                <button
+                  type="button"
+                  className={told ? "btn btn-quiet" : "btn btn-primary"}
+                  onClick={() => {
+                    const cur = readData().ladder;
+                    if (cur) saveLadder(seenClinic(cur, today));
+                    router.push("/");
+                  }}
+                >
+                  OK
+                </button>
+                <Link href="/settings/#clinic" className="btn btn-quiet">
+                  Change this
+                </Link>
+              </div>
+            </>
+          }
+        >
+          <p className="muted">Only the summary of your values, compared with your own usual. Nothing you typed or said.</p>
+        </Screen>
+      );
+    }
     return (
       <Screen
         lead={
@@ -608,9 +660,7 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
           </>
         }
       >
-        <p className="muted">
-          You see all of it first. Nothing is sent: you save it as a PDF or print it yourself, and give it to them.
-        </p>
+        <p className="muted">You see all of it first, and nothing goes unless you approve it. In this version the clinic is a demo recipient.</p>
       </Screen>
     );
   }

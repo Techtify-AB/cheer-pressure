@@ -214,6 +214,57 @@ console.log(`  replay seed ${REPLAY_SEED}: stops on day ${[...new Set(stopDays)]
   check("replay: the stopping frame is exactly the rule's result", e.askNow && e.changed.length === a1!.evaluation.changed.length);
 }
 
+// --- The phone flow: several people at step 2, the clinic step as the person chose ---------
+{
+  const { approveClinic, seenClinic, tellClinicAutomatically, startWithHelp } = await import("../lib/ladder.ts");
+  const { alwaysShareDue } = await import("../lib/report.ts");
+  const dueWith = (l: LadderState | null, day: number, clinic?: LadderInput["clinic"], passive = CHANGED) =>
+    ladderDue({ ladder: l, today: addDays(DAY0, day), minutesNow: NOON, quietHours: DEFAULT_QUIET_HOURS, pausedAll: false, passive, clinic });
+
+  let l: LadderState = startWithHelp(DAY0, { item: "music", label: "Music", learned: false }, false);
+  l = answerSmallThing(l, "try", DAY0);
+  check("step 2 after two days, with several people picked", dueWith(l, 2).due === "someone");
+  l = answerSomeone(l, "yes", addDays(DAY0, 2), ["anna", "sami"]);
+  check("step 2: both people picked are kept", l.someone?.answer === "yes" && l.someone.asked?.join() === "anna,sami");
+  const replied = (await import("../lib/ladder.ts")).answerReply(l, "yes", "sami");
+  check("step 2: whose reply was answered is kept", replied.someone?.reply === "yes" && replied.someone.personId === "sami");
+  check("step 2: not-now keeps no list", answerSomeone(l, "not-now", addDays(DAY0, 2)).someone?.asked === undefined);
+
+  const AUTO = { share: "when-i-say" as const, tellAfterDays: true };
+  const ASK = { share: "when-i-say" as const, tellAfterDays: false };
+  const NEVER = { share: "never" as const, tellAfterDays: false };
+  check("clinic: day 6 is too early, even with the automatic yes", dueWith(l, 6, AUTO).due === "none");
+  check("clinic: day 7 with the automatic yes tells the clinic", dueWith(l, 7, AUTO).reason === "clinic-auto");
+  check("clinic: day 7 without it asks first", dueWith(l, 7, ASK).reason === "clinic-due");
+  check("clinic: no choice stored asks first", dueWith(l, 7).reason === "clinic-due");
+  check("clinic: Never never brings step 3", dueWith(l, 7, NEVER).due === "none" && dueWith(l, 30, NEVER).reason === "clinic-never");
+  check("clinic: values back by day 7: nothing told, the ladder closes", dueWith(l, 7, AUTO, BACK).close && dueWith(l, 7, AUTO, BACK).due === "none");
+  const lonely = answerSmallThing(startWithHelp(DAY0, null, false), "not-now", DAY0);
+  check("clinic: automatic yes does not wait for step 2 to be answered", dueWith(lonely, 7, AUTO).reason === "clinic-auto");
+
+  const told = tellClinicAutomatically(l, addDays(DAY0, 7), "entry-1");
+  check("clinic: after telling, Cheri says so until it is seen", dueWith(told, 7, AUTO).reason === "clinic-told" && dueWith(told, 7, AUTO).speakUp);
+  check("clinic: shown even when values came back meanwhile", dueWith(told, 8, AUTO, BACK).reason === "clinic-told");
+  const seen = seenClinic(told, addDays(DAY0, 7));
+  check("clinic: once seen, nothing more (told once)", dueWith(seen, 8, AUTO).due === "none" && dueWith(seen, 20, AUTO).reason === "done");
+  check("clinic: told entry is kept on the ladder", told.clinic?.sharedId === "entry-1" && told.clinic.auto === true);
+  const approved = approveClinic(l, addDays(DAY0, 7), "entry-2");
+  check("clinic: approved when asked: done, never again", dueWith(approved, 9, ASK).reason === "done" && approved.clinic?.sharedId === "entry-2");
+  check("clinic: Not now at step 3 is respected for 3 days", dueWith(answerClinic(l, "not-now", addDays(DAY0, 7)), 9, ASK).reason === "declined-recently");
+
+  // "Always": weekly, and a note when two categories stand out
+  const base = { profile: { createdAt: "2026-10-01T10:00:00Z", earlySigns: [] }, settings: {}, clinicShared: [] } as unknown as Parameters<typeof alwaysShareDue>[0];
+  check("always: the first weekly summary is due", alwaysShareDue(base, DAY0, false, "always") === "weekly");
+  check("always: nothing when only when I say", alwaysShareDue(base, DAY0, true, "when-i-say") === null);
+  const week = { ...base, clinicShared: [{ id: "w", date: addDays(DAY0, -3), kind: "weekly" }] } as unknown as typeof base;
+  check("always: not again within seven days", alwaysShareDue(week, DAY0, false, "always") === null);
+  check("always: again after seven days", alwaysShareDue(week, addDays(DAY0, 4), false, "always") === "weekly");
+  check("always: a note when two categories stand out", alwaysShareDue(week, DAY0, true, "always") === "note");
+  const noted = { ...base, clinicShared: [{ id: "w", date: DAY0, kind: "weekly" }, { id: "n", date: DAY0, kind: "note" }] } as unknown as typeof base;
+  check("always: at most one note a week", alwaysShareDue(noted, addDays(DAY0, 3), true, "always") === null);
+  check("always: nothing while paused", alwaysShareDue({ ...base, settings: { pausedAll: true } } as typeof base, DAY0, true, "always") === null);
+}
+
 if (failed) {
   console.log(`${failed} failed`);
   process.exit(1);

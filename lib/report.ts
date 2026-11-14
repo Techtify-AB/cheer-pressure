@@ -278,3 +278,45 @@ export function reportText(r: Report): string {
   out.push(r.disclaimer);
   return out.join("\n");
 }
+
+// --- "Shared with my clinic" (a demo recipient: nothing is sent) ----------------------------
+//
+// What the clinic is told, by the person's choice (lib/settings.ts clinicOf):
+// - "Always": a short weekly summary, and a note when two categories stand out (at most weekly).
+// - The ladder's step three, told automatically when the person said yes to "tell my clinic for
+//   me", or approved when Cheri asked first.
+// Each one is an entry holding exactly the report as it was that day. In this version the
+// clinic is a demo recipient: nothing leaves the device, and every screen says so.
+
+export const DEMO_RECIPIENT_LINE = "Demo recipient. Nothing was actually sent.";
+/** Days between two "Always" summaries, and between two notes. */
+export const ALWAYS_EVERY_DAYS = 7;
+
+export type SharedKind = "weekly" | "note" | "automatic" | "approved";
+
+/** The entry to store: exactly the report as it is today. */
+export function sharedEntry(data: AppData, today: DayKey, kind: SharedKind, id: string, at = new Date().toISOString(), evaluation?: Evaluation) {
+  const report = clinicReport(data, today, evaluation);
+  return { id, date: today, at, kind, demoRecipient: true as const, report, simulated: report.simulated };
+}
+
+/**
+ * Which "Always" entry is due today, if any: the weekly summary once every seven days, or a note
+ * when the rule asks (two categories stand out) and no note went in the last seven days.
+ * Nothing unless the person chose "Always", has finished setup, and nothing is paused.
+ */
+export function alwaysShareDue(data: AppData, today: DayKey, askNow: boolean, share: "always" | "when-i-say" | "never"): "weekly" | "note" | null {
+  if (share !== "always" || !data.profile || data.settings.pausedAll) return null;
+  const entries = data.clinicShared ?? [];
+  const recent = (kind: SharedKind) => entries.some((e) => e.kind === kind && daysBetween(e.date, today) < ALWAYS_EVERY_DAYS && daysBetween(e.date, today) >= 0);
+  if (askNow && !recent("note")) return "note";
+  if (!recent("weekly")) return "weekly";
+  return null;
+}
+
+export const SHARED_KIND_WORDS: Record<SharedKind, string> = {
+  weekly: "Weekly summary",
+  note: "A note: two categories stood out",
+  automatic: "Told for you, as you asked",
+  approved: "You approved it",
+};

@@ -16,7 +16,9 @@ import { CheriLook } from "@/components/CheriLook";
 import { COLOURS, FURS, lookOf } from "@/lib/look";
 import { useCamera } from "@/components/camera/useCamera";
 import { useVoice } from "@/components/voice/useVoice";
-import { isLocalOnly, messagesUrlOf, quietHoursOf, sourcesOf } from "@/lib/settings";
+import { CLINIC_CHOICES, clinicOf, isLocalOnly, messagesUrlOf, quietHoursOf, sourcesOf } from "@/lib/settings";
+import { DEMO_RECIPIENT_LINE, SHARED_KIND_WORDS } from "@/lib/report";
+import { formatDay } from "@/lib/dates";
 import { addOwn, CAME_BACK_WITHIN_DAYS, countLine, feedbackFromActivities, helpsOf, MAX_OWN_HELPS, statsFor } from "@/lib/helps";
 import { newId } from "@/lib/dates";
 import { saveHelps } from "@/lib/storage";
@@ -84,6 +86,7 @@ export default function SettingsPage() {
   if (view === "daily") return <DailyQuestionSettings data={data} back={back} />;
   if (view === "look") return <CheriLookSettings data={data} back={back} />;
   if (view === "trust") return <Trust data={data} back={back} />;
+  if (view === "clinic") return <MyClinic data={data} back={back} />;
   if (view === "data") return <YourData data={data} back={back} onDelete={() => go("delete")} />;
   if (view === "delete") return <ConfirmDelete onKeep={() => go("data")} />;
   return <List data={data} go={go} />;
@@ -130,6 +133,7 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
     { key: "daily", label: "Daily hello and quiet hours", value: dailySummary(s), onClick: () => go("daily") },
     { key: "look", label: "Cheri's look", value: lookSummary(s), onClick: () => go("look") },
     { key: "trust", label: "People you trust", value: trusted, onClick: () => go("trust") },
+    { key: "clinic", label: "My clinic", value: CLINIC_CHOICES.find((c) => c.value === clinicOf(s).share)!.label, onClick: () => go("clinic") },
     { key: "values", label: "My values", value: "Each category, and a report for your clinic", href: "/values/" },
     { key: "data", label: "Your data", value: "On this device unless you share a report", onClick: () => go("data") },
     { key: "help", label: "Need help now", value: "112 and your clinic", href: "/help/" },
@@ -824,6 +828,96 @@ function Person({ v, url, onBack }: { v: PersonView; url: string; onBack: () => 
               : "This connection has ended. Remove it, and add them again if you like."}
         </p>
       )}
+    </Screen>
+  );
+}
+
+/**
+ * My clinic: what the clinic is told (Always / Only when I say / Never, and the automatic step
+ * after 7 days), and "Shared with my clinic": every entry, each opening exactly what was shared.
+ * In this version the clinic is a demo recipient: nothing is sent.
+ */
+function MyClinic({ data, back }: { data: AppData; back: React.ReactNode }) {
+  const c = clinicOf(data.settings);
+  const [list, setList] = useState(false);
+  const shared = [...(data.clinicShared ?? [])].sort((a, b) => b.at.localeCompare(a.at));
+  const set = (next: Partial<typeof c>) => {
+    const merged = { ...c, ...next };
+    saveSettings({ clinic: merged.share === "never" ? { ...merged, tellAfterDays: false } : merged });
+  };
+  if (list) {
+    return (
+      <Screen
+        lead={
+          <>
+            <span className="placeholder-tag">{DEMO_RECIPIENT_LINE}</span>
+            <h1 className="item-title">Shared with my clinic</h1>
+            <p className="muted">{shared.length ? "The newest first. Each opens exactly what was shared." : "Nothing has been shared."}</p>
+          </>
+        }
+        actions={
+          <div className="links">
+            <button type="button" className="btn btn-quiet" onClick={() => setList(false)}>
+              Back to My clinic
+            </button>
+          </div>
+        }
+      >
+        {shared.length > 0 && (
+          <nav className="card menu shared-list" aria-label="Shared with my clinic">
+            {shared.slice(0, 5).map((e) => (
+              <Link key={e.id} href={`/share/?entry=${e.id}`} className="menu-row">
+                <span className="menu-label">{formatDay(e.date)}</span>
+                <span className="menu-value">
+                  {SHARED_KIND_WORDS[e.kind]}
+                  {e.simulated ? ", made-up data" : ""}
+                </span>
+              </Link>
+            ))}
+            {shared.length > 5 && <p className="small muted switch-note">And {shared.length - 5} older.</p>}
+          </nav>
+        )}
+      </Screen>
+    );
+  }
+  return (
+    <Screen
+      lead={
+        <>
+          <h1 className="item-title">My clinic</h1>
+          <p className="muted">What your clinic is told. Nothing about your health goes anywhere else.</p>
+        </>
+      }
+      actions={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={() => setList(true)}>
+            Shared with my clinic{shared.length ? ` (${shared.length})` : ""}
+          </button>
+          {back}
+        </>
+      }
+    >
+      <div className="options clinic-options" role="group" aria-label="What your clinic is told">
+        {CLINIC_CHOICES.map((o) => (
+          <button key={o.value} type="button" className="option" aria-pressed={c.share === o.value} onClick={() => set({ share: o.value })}>
+            <span>{o.label}</span>
+            <span className="small muted option-hint">{o.hint}</span>
+          </button>
+        ))}
+      </div>
+      <section className="card switches" aria-label="The automatic step">
+        {c.share === "never" ? (
+          <SwitchRow label="If my values have not come back after 7 days, tell my clinic for me" on={false} disabledText="Off while your clinic is told nothing" />
+        ) : (
+          <SwitchRow
+            label="If my values have not come back after 7 days, tell my clinic for me"
+            hint={DEMO_RECIPIENT_LINE}
+            keepHint
+            on={c.tellAfterDays}
+            onChange={(v) => set({ tellAfterDays: v })}
+          />
+        )}
+      </section>
     </Screen>
   );
 }

@@ -437,8 +437,8 @@ export interface ClinicSharedEntry {
   id: string;
   date: DayKey;
   at: string; // ISO
-  /** weekly: the "Always" summary; automatic: the ladder's step three as asked; approved: the person approved it. */
-  kind: "weekly" | "automatic" | "approved";
+  /** weekly: the "Always" summary; note: "Always", when two categories stand out; automatic: the ladder's step three as asked; approved: the person approved it. */
+  kind: "weekly" | "note" | "automatic" | "approved";
   demoRecipient: true;
   /** Exactly what was shared: the report as it was that day (lib/report.ts). */
   report: import("./report").Report;
