@@ -13,7 +13,9 @@
     "desktop:build": "tauri build --debug",
     "test:typing": "tsx scripts/test-typing.mts",
     "test:passive": "tsx scripts/test-passive.mts",
-    "test": "tsx scripts/test-typing.mts && tsx scripts/test-passive.mts && cargo test --manifest-path src-tauri/Cargo.toml"
+    "test": "tsx scripts/test-typing.mts && tsx scripts/test-passive.mts && tsx scripts/test-contact.mts && cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:contact": "tsx scripts/test-contact.mts",
+    "test:e2e": "node scripts/e2e-trusted.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

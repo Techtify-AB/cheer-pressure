@@ -1,6 +1,8 @@
 // Headless check that every screen fits one view: no page scroll either way, at most
 // one primary action, at most four groups, no console errors. Walks the three places
-// (home, the conversation with its ladder, settings) and the demo area, at three sizes.
+// (home, the conversation with its ladder, settings) and the demo area, at three sizes,
+// and the screens for someone you trust against a small fake messages service (answered in
+// the browser, so no service needs to run).
 //
 //   node scripts/check-fit.mjs [base-url] [screenshot-dir]
 //
@@ -88,9 +90,46 @@ async function measure(page, name) {
 const results = [];
 const errors = [];
 
+/** A fake messages service on http://localhost:3480, answered inside the browser context. */
+async function fakeService(context) {
+  const state = { trustedName: null, events: [], n: 0 };
+  const PAIR = "ABC234";
+  const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS" };
+  const reply = (route, status, body) => route.fulfill({ status, headers: { ...cors, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const event = (fields) => ({ v: 1, id: `evt${String(++state.n).padStart(6, "0")}`, ts: new Date().toISOString(), pair: PAIR, ...fields });
+  await context.route("http://localhost:3480/**", async (route) => {
+    const req = route.request();
+    const url = new URL(req.url());
+    if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    if (url.pathname === "/api/pairs" && req.method() === "POST") {
+      return reply(route, 201, { pair: PAIR, userToken: "u".repeat(43), inviteToken: "i".repeat(43), inviteUrl: `http://localhost:3480/t/${PAIR}?i=${"i".repeat(43)}`, userUrl: `http://localhost:3480/u/${PAIR}?u=${"u".repeat(43)}`, expiresAt: new Date(Date.now() + 172800000).toISOString() });
+    }
+    if (url.pathname === `/api/pairs/${PAIR}/events` && req.method() === "GET") {
+      return reply(route, 200, { events: state.events, role: "user", trustedName: state.trustedName, serverTime: new Date().toISOString(), expiresAt: new Date(Date.now() + 172800000).toISOString() });
+    }
+    if (url.pathname === `/api/pairs/${PAIR}/events` && req.method() === "POST") {
+      const d = JSON.parse(req.postData() ?? "{}");
+      const e = event({ ...d, from: { role: "user" } });
+      state.events.push(e);
+      return reply(route, 201, { event: e });
+    }
+    if (url.pathname === `/api/pairs/${PAIR}` && req.method() === "DELETE") {
+      state.events = [];
+      state.trustedName = null;
+      return reply(route, 200, {});
+    }
+    return reply(route, 404, { error: "not found" });
+  });
+  return {
+    join: (name) => (state.trustedName = name),
+    greet: (text, kind = "question") => state.events.push(event({ type: "greeting", clientId: `g${state.n}abcdefgh`, from: { role: "trusted", name: state.trustedName }, text, kind, replyTo: null })),
+  };
+}
+
 async function run(size) {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: size });
+  const service = await fakeService(context);
   const page = await context.newPage();
   page.on("console", (msg) => {
     if (msg.type() === "error") errors.push(`${size.width}: ${msg.text().slice(0, 160)}`);
@@ -178,6 +217,61 @@ async function run(size) {
   await measure(page, "trends");
   await go("/weekly/");
   await measure(page, "weekly");
+
+  // Someone you trust: invite, connected, own phone, disconnect, the service address.
+  await go("/demo/");
+  await click("Messages service");
+  await measure(page, "demo-service-address");
+  await go("/settings/#trust");
+  await click("Invite someone");
+  await page.locator(".qr img").waitFor({ timeout: 5000 });
+  await measure(page, "trust-invite-waiting");
+  service.join("Sara");
+  await page.getByText("Connected with Sara").waitFor({ timeout: 5000 });
+  await measure(page, "trust-connected");
+  await click("Your own phone");
+  await page.locator(".qr img").waitFor({ timeout: 5000 });
+  await measure(page, "trust-own-phone");
+  await click("Back");
+  await click("Disconnect");
+  await measure(page, "trust-disconnect-confirm");
+  await click("Keep the connection");
+
+  // A greeting at any time: home, writing back, and the help card after crisis words.
+  service.greet("Walk after lunch?");
+  await go("/");
+  await page.locator(".greeting-line").waitFor({ timeout: 5000 });
+  await measure(page, "home-greeting");
+  await click("Write back");
+  await measure(page, "home-write-back");
+  await page.fill("#reply-text", "I want to die");
+  await click("Send to Sara");
+  await measure(page, "home-reply-crisis-card");
+  const card = await page.locator(".crisis-card").count();
+  results.push({ ok: card === 1, name: "crisis words in a reply show the help card", vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
+  await click("Back to home");
+  service.greet("Thinking of you", "greeting");
+  await go("/");
+  await page.locator(".greeting-line").waitFor({ timeout: 5000 });
+  await measure(page, "home-greeting-thanks");
+  await click("Thank you");
+  await measure(page, "home-after-answer");
+
+  // Step two with a real pair: the request, the reply, the answer.
+  await go("/prompt/");
+  await click("I'd like someone to check in on me");
+  await click("Yes");
+  await page.locator(".request-status").waitFor({ timeout: 5000 });
+  await measure(page, "step2-real-sent");
+  service.greet("Call tonight?");
+  await page.locator(".greeting-line").waitFor({ timeout: 5000 });
+  await measure(page, "step2-real-reply");
+  await click("Yes");
+  await measure(page, "step2-real-answered");
+  await go("/settings/#trust");
+  await click("Disconnect");
+  await click("Yes, disconnect");
+  await page.getByText("Not connected").waitFor({ timeout: 5000 });
 
   // Quiet hours now: the companion sleeps on home.
   const now = new Date();

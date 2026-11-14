@@ -148,8 +148,8 @@ check("small thing: none when every routine is off", pickSmallThing("walk", Obje
   await demo.requestContact();
   await new Promise((r) => setTimeout(r, 40));
   globalThis.fetch = realFetch;
-  check("contact stand-in: not connected, and no reply outside demo mode", !quiet.connected && quietReplies === 0 && quiet.status() === "requested");
-  check("contact stand-in: a simulated reply in demo mode", reply === SIMULATED_REPLY && demo.status() === "replied");
+  check("contact stand-in: not connected, and no reply outside demo mode", !quiet.connected && quietReplies === 0 && quiet.status() === "not-connected");
+  check("contact stand-in: a simulated reply in demo mode, marked simulated", reply === SIMULATED_REPLY && demo.status() === "replied" && demo.simulated);
   check("contact stand-in: no network call", fetched === 0);
 }
 
