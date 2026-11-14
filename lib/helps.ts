@@ -21,6 +21,8 @@
 // activity library's own "Did that help?" (a FeedbackByItem, see below). Pure code, unit tested
 // in scripts/test-helps.mts. The brain (lib/brain.ts) gets the same history and may choose instead.
 
+import { activityHelpStats } from "./activities/feedback";
+import { activityForHelp } from "./activities/index";
 import { daysBetween } from "./dates";
 import { routinesOf } from "./settings";
 import type { AppData, DayKey, HelpItem, LadderState, RoutineId, SuggestionRecord } from "./types";
@@ -106,10 +108,15 @@ export type FeedbackByItem = Record<string, ItemFeedback>;
  * The activity library's answers to "Did that help?", per HelpItem. The library keeps them per
  * activity; this is where they are mapped onto the person's own list.
  */
-export function feedbackFromActivities(data: Pick<AppData, "helps" | "settings">): FeedbackByItem {
-  // activity feedback is wired here (lib/activities summary, mapped by activityForHelp)
-  void data;
-  return {};
+export function feedbackFromActivities(data: Pick<AppData, "helps" | "settings" | "activitiesDone">): FeedbackByItem {
+  const stats = activityHelpStats(data.activitiesDone ?? []);
+  const out: FeedbackByItem = {};
+  for (const h of helpsOf(data)) {
+    const a = activityForHelp(h.id, h.label);
+    const st = a ? stats[a] : undefined;
+    if (st && st.answered) out[h.id] = { yes: st.yes, aLittle: st.aLittle, notReally: st.no };
+  }
+  return out;
 }
 
 /** The weight of "the values came back" next to the person's own answer. */

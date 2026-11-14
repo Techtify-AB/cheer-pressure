@@ -149,6 +149,17 @@ check("4 days without values coming back: judged as not back", late.history.find
 check("only taken suggestions are judged", late.history.find((r) => r.id === "a")!.cameBack === undefined);
 check("next time, music comes first after it was followed by better days", orderByWhatHelped(list, back.history).order[0].id === "music");
 
+// The activity library's answers, mapped onto the person's own list
+{
+  const { feedbackFromActivities } = await import("../lib/helps.ts");
+  const done = (activity: string, feedback: "yes" | "a-little" | "no" | null) => ({ activity, feedback }) as never;
+  const fbA = feedbackFromActivities({ helps: list, settings: {} as never, activitiesDone: [done("song", "yes"), done("song", "yes"), done("song", "no"), done("daylight", null)] });
+  check("activity answers map onto the list (music is the song activity)", fbA.music?.yes === 2 && fbA.music.aLittle === 0 && fbA.music.notReally === 1, JSON.stringify(fbA));
+  check("an activity done without an answer adds nothing", !fbA.light);
+  const oA = orderByWhatHelped(list, [], [], fbA);
+  check("and they order the suggestions", oA.order[0].id === "music" && oA.reason === "You've said music helped 2 of 3 times, so I'm suggesting it first.", oA.reason ?? "");
+}
+
 if (failed) {
   console.log(`\n${failed} failed`);
   process.exit(1);
