@@ -224,25 +224,27 @@ the person's own answer is ever stated as how they feel. The ladder's "the measu
 back" uses the same test. After asking it waits **3 days**, unless a measure changes that was
 not part of the last check-in.
 
-**Measured, not guessed** (`npx tsx scripts/measure-rule.mts`): 400 made-up periods (weekday
-and weekend differences, days away, days with too little writing, day-to-day wobble, camera on
-some days, messages most days, daily answers on about two days in three), six steady weeks and
-then a one-week drift (sleep slips first, typing and movement follow, a few fewer messages,
-"Not so good" grows slowly). Asks by chance during the steady weeks (after learning), and finds
-the drift, with the rule (two different categories):
+**Measured, not guessed** (`npx tsx scripts/measure-rule.mts`): 400 made-up periods from the
+replay's generator (weekday and weekend differences, days away, days with too little writing,
+day-to-day wobble, the camera on most days, messages most days, daily answers on about two days
+in three), six steady weeks and then the replay's drift (sleep slips first, movement drops two
+days later, "Not so good" grows in the last days, typing drifts only a little, messages stay as
+usual). Asks by chance during the steady weeks (after learning), and finds the drift, with the
+rule (two different categories); re-run 14 November 2026 after the story changed:
 
 | "Changed" test | Asks by chance | Finds the drift in its first week | Day of the drift, on average |
 | --- | --- | --- | --- |
-| median of the week outside the widened band (chosen) | 8 of 400 (2.0 per 100) | 397 of 400 (400 within two weeks) | 5.2 |
-| at least 5 of the last 7 days outside the band | 3 of 400 | 323 of 400 (400 within two weeks) | 6.5 |
-| at least 4 of the last 7 days outside the band | 57 of 400 | 395 of 400 | 5.0 |
-| median of the week outside the 10 to 90 band | 170 of 400 | 400 of 400 | 4.2 |
+| median of the week outside the widened band (chosen) | 8 of 400 (2.0 per 100) | 253 of 400 (400 within two weeks) | 7.1 |
+| at least 5 of the last 7 days outside the band | 2 of 400 | 96 of 400 (377 within two weeks) | 9.0 |
+| at least 4 of the last 7 days outside the band | 65 of 400 | 280 of 400 (400 within two weeks) | 6.9 |
+| median of the week outside the 10 to 90 band | 182 of 400 | 372 of 400 (400 within two weeks) | 5.3 |
 
-For comparison, "any two measures" with the chosen test asks by chance in 15 of 400. The
-earlier rule with exceptions (Sleep alone in two measures, the own answers alone) asked in 13
-of 400. The script prints all of these.
+For comparison, "any two measures" with the chosen test asks by chance in 14 of 400. Because
+movement now drops two days after sleep, and the rule needs both, it finds the drift about two
+days later than with the earlier story, in which typing drifted strongly. The script prints all
+of these.
 
-The check-in explains in plain words which categories changed and what was observed over the
+Cheri explains in plain words which categories changed and what was observed over the
 last week compared with the four weeks before, and how many days that rests on, then asks one
 question with three answers. No percentages, no score, no diagnosis words.
 

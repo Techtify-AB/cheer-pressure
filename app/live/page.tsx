@@ -193,9 +193,24 @@ function metricOf(e: Evaluation, key: PassiveKey): PassiveMetric | undefined {
 }
 
 /** One observation row: a name, what it is now, and how it compares with the person's own usual. */
-function Row({ name, now, usual, children, data }: { name: string; now: string; usual?: string; children?: React.ReactNode; data?: string }) {
+function Row({
+  name,
+  now,
+  usual,
+  children,
+  data,
+  input,
+}: {
+  name: string;
+  now: string;
+  usual?: string;
+  children?: React.ReactNode;
+  data?: string;
+  /** The input it belongs to (SOURCES in lib/passive.ts). */
+  input: string;
+}) {
   return (
-    <div className="live-row" data-row={data}>
+    <div className="live-row" data-row={data} data-input={input}>
       <p className="live-row-head">
         <span className="live-row-name">{name}</span>
         <span className="live-row-now">{now}</span>
@@ -294,6 +309,12 @@ function LiveView({ data, e }: { data: AppData; e: Evaluation }) {
   else if (burst && (typingNow || !burst.counted)) typingLine = burst.counted ? `Typing: counting, ${typingUsual}` : `Typing: ${burst.short}`;
   else if (computer) typingLine = `Typing: ${typingUsual}`;
   else typingLine = `Typing: ${typingUsual}. In a browser, only in the box under Typing in detail`;
+
+  let paceNow: string;
+  if (micActive) paceNow = voice.live.segmentsPerMinute !== null ? `${Math.round(voice.live.segmentsPerMinute)} a minute` : "Waiting for a voice";
+  else if (voice.phase === "starting") paceNow = "Starting";
+  else if (MIC_FAILED.has(voice.phase)) paceNow = "Microphone not available";
+  else paceNow = "Microphone off";
 
   // Mood: the person's own answer first, then what the camera and microphone observe.
   const answerToday = (data.dailyAnswers ?? []).find((a) => a.date === today && a.answer);
@@ -471,15 +492,17 @@ function LiveView({ data, e }: { data: AppData; e: Evaluation }) {
         <section className="card live-panel" aria-labelledby="live-sleep" data-current={panel === 0 || undefined} data-category="sleep">
           <h2 id="live-sleep" className="live-panel-title">{PANEL_NAMES.sleep}</h2>
           <p className="live-panel-measure">Estimated from when this computer is used</p>
-          <Row name="First activity today" now={firstToday ?? (desktop ? "Not yet today" : "In the desktop app")} data="first-activity" />
-          <Row name="Last night" now={nightText} usual={againstUsual(metricOf(e, "quietNight"))} data="last-night" />
-          <p className="live-quiet">A watch or phone would give real sleep. Not connected yet.</p>
+          <Row name="First activity today" now={firstToday ?? (desktop ? "Not yet today" : "In the desktop app")} data="first-activity" input="computer-use" />
+          <Row name="Last night" now={nightText} usual={againstUsual(metricOf(e, "quietNight"))} data="last-night" input="computer-use" />
+          <p className="live-quiet" data-inputs="phone-app watch bedside">
+            A phone app, a watch or band, or a bedside device would give real sleep. Not connected yet.
+          </p>
         </section>
 
         <section className="card live-panel" aria-labelledby="live-energy" data-current={panel === 1 || undefined} data-category="energy">
           <h2 id="live-energy" className="live-panel-title">{PANEL_NAMES.energy}</h2>
-          <p className="live-panel-measure">Movement from the camera</p>
-          <Row name="Movement" now={movementNow} usual={againstUsual(metricOf(e, "movementLevel"))} data="movement">
+          <p className="live-panel-measure">Movement from the camera first, typing last</p>
+          <Row name="Movement" now={movementNow} usual={againstUsual(metricOf(e, "movementLevel"))} data="movement" input="movement">
             <Bar value={mv} label="Movement" words={cameraActive ? movementWords(mv) : "Off"} data="movement" />
           </Row>
           <Row
@@ -487,8 +510,10 @@ function LiveView({ data, e }: { data: AppData; e: Evaluation }) {
             now={cameraActive ? String(camera.live.shifts) : "Camera off"}
             usual={againstUsual(metricOf(e, "positionChanges"))}
             data="position-changes"
+            input="movement"
           />
-          <p className="live-typing" data-typing-line="" aria-live="polite">
+          <Row name="Pace of the voice" now={paceNow} usual={againstUsual(metricOf(e, "voicePace"))} data="pace" input="voice-pace" />
+          <p className="live-typing" data-typing-line="" data-input="typing" aria-live="polite">
             {typingLine}
           </p>
           <Link href="/demo/camera/" className="live-deeper">
@@ -503,19 +528,23 @@ function LiveView({ data, e }: { data: AppData; e: Evaluation }) {
             name="The person you trust"
             now={paired ? (trusted?.trustedName ? `Connected with ${trusted.trustedName}` : "Invite sent, not opened yet") : "Not connected"}
             data="trusted"
+            input="trusted-contact"
           />
           <Row
             name="Messages this week"
             now={paired || hasContactDays ? String(weekMessages) : "None yet"}
             usual={againstUsual(metricOf(e, "contact"))}
             data="messages"
+            input="trusted-contact"
           />
           {!paired && (
             <Link href="/settings/#trust" className="live-deeper">
               Invite someone under Someone you trust
             </Link>
           )}
-          <p className="live-quiet">Talking with someone, and at home or out: not connected yet.</p>
+          <p className="live-quiet" data-inputs="talking home-or-out">
+            Talking with someone, and at home or out: not connected yet.
+          </p>
         </section>
 
         <section className="card live-panel" aria-labelledby="live-mood" data-current={panel === 3 || undefined} data-category="mood">
@@ -526,12 +555,13 @@ function LiveView({ data, e }: { data: AppData; e: Evaluation }) {
             now={answerToday?.answer ? answerLabel(ANSWER_VALUE[answerToday.answer]) : "Not answered today"}
             usual={againstUsual(metricOf(e, "ownAnswer"))}
             data="answer"
+            input="daily-answer"
           />
-          <Row name="Face movement" now={faceNow} usual={againstUsual(metricOf(e, "faceMovement"))} data="face">
+          <Row name="Face movement" now={faceNow} usual={againstUsual(metricOf(e, "faceMovement"))} data="face" input="expression">
             <Bar value={cameraActive ? camera.expression.animationDisplay : 0} label="How much the face moves" words={cameraActive ? `${camera.expression.animationDisplay} of 100` : "Off"} data="face" />
           </Row>
-          <Row name="Posture" now={cameraActive ? postureWords(camera.posture) : "Camera off"} usual={againstUsual(metricOf(e, "posture"))} data="posture" />
-          <Row name="Tone of voice" now={toneNow} usual={againstUsual(metricOf(e, "pitchVariability"))} data="tone" />
+          <Row name="Posture" now={cameraActive ? postureWords(camera.posture) : "Camera off"} usual={againstUsual(metricOf(e, "posture"))} data="posture" input="posture" />
+          <Row name="Tone of voice" now={toneNow} usual={againstUsual(metricOf(e, "pitchVariability"))} data="tone" input="voice-tone" />
           <Link href="/demo/voice/" className="live-deeper">
             Voice, live: pace, pitch and loudness
           </Link>

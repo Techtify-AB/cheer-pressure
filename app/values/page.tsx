@@ -64,11 +64,11 @@ function stripState(m: PassiveMetric, today: DayKey): string {
   return "Within your usual";
 }
 
-function Measure({ m, today }: { m: PassiveMetric; today: DayKey }) {
+function Measure({ m, today, input }: { m: PassiveMetric; today: DayKey; input: string }) {
   const n = measureNumbers(m);
   const state = stripState(m, today);
   return (
-    <div className="value-measure" data-changed={m.status === "changed" || undefined}>
+    <div className="value-measure" data-input={input} data-state="values" data-changed={m.status === "changed" || undefined}>
       <p className="value-head">
         <span className="strip-label">{m.label}</span>
         <span className="value-num">
@@ -276,7 +276,7 @@ export default function ValuesPage() {
       <section className="card values-card" aria-label={cat.label} data-category={page.id}>
         {page.views.map((v) =>
           v.kind === "values" ? (
-            v.metrics.map((m) => <Measure key={m.key} m={m} today={today} />)
+            v.metrics.map((m) => <Measure key={m.key} m={m} today={today} input={v.input.id} />)
           ) : v.kind === "not-connected" ? null : (
             <InputLine key={v.input.id} v={v} />
           ),

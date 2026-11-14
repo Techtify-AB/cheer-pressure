@@ -3,8 +3,8 @@
 //
 // - by chance: how many of the steady periods make the companion ask at any point in five
 //   steady weeks after the 14-day learning period (days 15 to 42 of the steady stretch);
-// - drift: whether it notices a one-week drift (sleep slips first, typing follows), and on
-//   which day after the drift began.
+// - drift: whether it notices the replay's drift (sleep slips first, then movement drops, the
+//   daily answers lean towards "Not so good" last), and on which day after the drift began.
 //
 // It prints every candidate "changed" test (CHANGE_TESTS in lib/passive.ts), each with the
 // rule on the four categories (at least two different categories; no category alone).
