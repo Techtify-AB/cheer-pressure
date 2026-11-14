@@ -239,8 +239,10 @@ export function createMessagesContact(client: MessagesPort): Contact {
       };
     },
     answer(answer, text) {
-      const r = contactState(snap).reply;
-      if (!r?.id) return;
+      const st = contactState(snap);
+      const r = st.reply;
+      // One answer per message: a second tap does not send it twice.
+      if (!r?.id || st.answered) return;
       client.sendReply(r.id, answer, text);
       snap = client.snapshot();
       emit();

@@ -24,7 +24,7 @@ import { Disclosure, Says, Screen, StepCount } from "@/components/Screen";
 import { useCompanionStatus, useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import type { CompanionState } from "@/components/companion/Companion";
 import { SUGGESTIONS } from "@/lib/brain";
-import { GreetingScreen, who } from "@/components/Greeting";
+import { GreetingScreen, ReplyCrisisScreen, who } from "@/components/Greeting";
 import { chooseContact, CONTACT_REQUEST_TEXT, type Contact, type ContactState } from "@/lib/contact";
 import type { Answer } from "@/lib/events";
 import { newId } from "@/lib/dates";
@@ -99,6 +99,7 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
   const stopContact = useRef<(() => void) | null>(null);
   const [contactState, setContactState] = useState<ContactState | null>(null);
   const [replyAnswer, setReplyAnswer] = useState<{ answer: Answer | null; text?: string } | null>(null);
+  const [crisisFor, setCrisisFor] = useState<string | null>(null);
   useEffect(() => () => stopContact.current?.(), []);
 
   const record = (value: CheckInAnswer) =>
@@ -337,8 +338,18 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
       </span>
     );
 
+    if (reply && crisisFor) return <ReplyCrisisScreen name={crisisFor} onDone={() => router.push("/")} />;
+
     if (reply && !replyAnswer && !st?.answered) {
-      return <GreetingScreen key={reply.id ?? "simulated"} reply={reply} onAnswer={answerTheReply} note={simTag} />;
+      return (
+        <GreetingScreen
+          key={reply.id ?? "simulated"}
+          reply={reply}
+          onAnswer={answerTheReply}
+          onCrisis={() => setCrisisFor(who(reply))}
+          note={simTag}
+        />
+      );
     }
 
     if (reply) {

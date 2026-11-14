@@ -11,7 +11,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { GreetingScreen } from "@/components/Greeting";
+import { GreetingScreen, ReplyCrisisScreen, who } from "@/components/Greeting";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
 import { Disclosure, Screen } from "@/components/Screen";
@@ -47,7 +47,12 @@ export default function HomePage() {
     return () => window.clearTimeout(t);
   }, [sent]);
 
+  // Crisis words in a written answer: the help card stays until the person moves on.
+  const [crisisFor, setCrisisFor] = useState<string | null>(null);
+
   if (!data || !ready || !evaluation || !outcome || !reflection) return null;
+
+  if (crisisFor) return <ReplyCrisisScreen name={crisisFor} onDone={() => setCrisisFor(null)} />;
 
   if (pending?.id) {
     const id = pending.id;
@@ -55,7 +60,7 @@ export default function HomePage() {
       messagesClient().sendReply(id, a, text);
       setAnswered({ id, name: pending.fromName ?? "them" });
     };
-    return <GreetingScreen key={id} reply={pending} onAnswer={answer} hero />;
+    return <GreetingScreen key={id} reply={pending} onAnswer={answer} onCrisis={() => setCrisisFor(who(pending))} hero />;
   }
 
   const settings = data.settings;

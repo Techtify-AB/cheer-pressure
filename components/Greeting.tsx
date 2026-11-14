@@ -7,7 +7,6 @@
 // Used on home (when a greeting arrives at any time) and in the ladder's step two (the reply
 // to "get in touch"). Only the newest unanswered message is ever shown; no history.
 
-import Link from "next/link";
 import { useState } from "react";
 import { Companion } from "@/components/companion/Companion";
 import { CrisisCard } from "@/components/CrisisCard";
@@ -32,6 +31,7 @@ export function GreetingScreen({
   onAnswer,
   hero = false,
   note,
+  onCrisis,
 }: {
   reply: ContactReply;
   /** Called with the answer; the caller sends it and the screen moves on. */
@@ -40,33 +40,13 @@ export function GreetingScreen({
   hero?: boolean;
   /** A short line above the message, for example the stand-in's "Simulated" tag. */
   note?: React.ReactNode;
+  /** Called after a written answer with crisis words was sent: show ReplyCrisisScreen. */
+  onCrisis: () => void;
 }) {
   const [writing, setWriting] = useState(false);
   const [text, setText] = useState("");
-  const [crisis, setCrisis] = useState(false);
   const name = who(reply);
   const question = reply.kind === "question";
-
-  if (crisis) {
-    return (
-      <Screen
-        lead={
-          <Says state="concern" size={72}>
-            <p>Your words went to {name}.</p>
-          </Says>
-        }
-        actions={
-          <div className="links">
-            <Link href="/" className="btn btn-quiet">
-              Back to home
-            </Link>
-          </div>
-        }
-      >
-        <CrisisCard />
-      </Screen>
-    );
-  }
 
   if (writing) {
     const t = text.trim();
@@ -78,8 +58,9 @@ export function GreetingScreen({
       // person's own message to someone they chose to trust, and holding it back could keep
       // help away. The fixed help card (lib/crisis.ts, components/CrisisCard.tsx) is shown to
       // the person as everywhere else.
+      const crisis = containsCrisisWords(t);
       onAnswer(null, t);
-      if (containsCrisisWords(t)) setCrisis(true);
+      if (crisis) onCrisis();
     };
     return (
       <Screen
@@ -160,5 +141,31 @@ export function GreetingScreen({
         </>
       }
     />
+  );
+}
+
+/**
+ * After a written answer with crisis words: it was sent (see GreetingScreen), and the fixed
+ * help card is shown, as everywhere else in the app. The caller keeps this on screen until
+ * the person moves on, because the message itself is no longer waiting.
+ */
+export function ReplyCrisisScreen({ name, onDone }: { name: string; onDone: () => void }) {
+  return (
+    <Screen
+      lead={
+        <Says state="concern" size={72}>
+          <p>Your words went to {name}.</p>
+        </Says>
+      }
+      actions={
+        <div className="links">
+          <button type="button" className="btn btn-quiet" onClick={onDone}>
+            Back to home
+          </button>
+        </div>
+      }
+    >
+      <CrisisCard />
+    </Screen>
   );
 }
