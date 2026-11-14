@@ -30,7 +30,7 @@ observable in the browser or in the repo. UI language: English.
 - D5. Until 7 days of data exist the companion says it is still learning and does not ask.
 
 ## E. The companion asks only when values stand out
-- E1. A measure counts as changed only when all of its last 3 sessions or days lie on the same side outside the person's own typical range. The companion proposes a check-in when at least 2 measures have changed.
+- E1. A measure counts as changed only when all of its last 3 sessions or days lie on the same side outside the person's own typical range. The companion proposes a check-in when at least 2 measures have changed. A measure needs at least 7 earlier sessions or days before it can count as changed, and after any answered or declined check-in the companion waits 3 days unless a measure changes that was not part of that check-in (intended).
 - E2. The proposed check-in first explains in plain words which measures changed and how much data it is based on, then asks one question, "How are you doing?", with three tap answers ("I'm okay", "Not my best", "I'd like someone to check in on me") and a quiet way to decline.
 - E3. "I'm okay" ends with a short closing line. "Not my best" offers the weekly questions (the two PHQ-2 items on the 0 to 3 scale, sleep, feeling tense, one per personal early sign) and one small suggestion. "I'd like someone to check in on me" shows a clearly marked "not connected yet" screen.
 - E4. No percentages, no risk score, no diagnosis words in any of this.
