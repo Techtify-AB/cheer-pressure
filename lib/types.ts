@@ -508,3 +508,30 @@ export interface AppData {
   /** The one running activity timer, or null. */
   activityTimer?: ActivityTimer | null;
 }
+
+/** The answer to "Did that help?" after an activity. */
+export type ActivityFeedback = "yes" | "a-little" | "no";
+
+export interface ActivityDone {
+  /** "Did that help?": the answer, or null when skipped. Missing in records from before it was asked. */
+  feedback?: ActivityFeedback | null;
+}
+
+/** One quick reaction check (components/activities/ReactionCheck.tsx): five taps, the median. Experimental. */
+export interface ReactionCheckResult {
+  id: string;
+  date: DayKey;
+  at: string; // ISO
+  medianMs: number;
+  /** The five counted taps, ms. Too-early taps are not kept. */
+  trialsMs: number[];
+  /** Where it was done: after an activity, during the daily hello, or on its own. */
+  context: "after-activity" | "hello" | "own";
+}
+
+export interface AppData {
+  /** Quick reaction checks. Missing in older data. */
+  reactionChecks?: ReactionCheckResult[];
+  /** The last day a reaction check was offered after an activity (offered at most once a day). */
+  reactionOfferedOn?: DayKey;
+}

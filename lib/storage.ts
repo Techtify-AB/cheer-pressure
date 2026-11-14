@@ -445,3 +445,14 @@ export function saveActivityDone(entry: import("./types").ActivityDone) {
 export function saveActivityTimer(timer: import("./types").ActivityTimer | null) {
   commit({ ...readData(), activityTimer: timer });
 }
+
+/** One quick reaction check (experimental). */
+export function saveReactionCheck(entry: import("./types").ReactionCheckResult) {
+  const d = readData();
+  commit({ ...d, reactionChecks: [...(d.reactionChecks ?? []).filter((e) => e.id !== entry.id), entry] });
+}
+
+/** Remembers that a reaction check was offered after an activity today. */
+export function markReactionOffered(day: string) {
+  commit({ ...readData(), reactionOfferedOn: day });
+}
