@@ -22,4 +22,4 @@ export const ACTIVITY_VIEWS: Record<ActivityId, ActivityView> = {
   hobby: Hobby,
   ask: Ask,
   evening: Evening,
-} as Record<ActivityId, ActivityView>;
+};
