@@ -8,7 +8,7 @@ import Link from "next/link";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
 import { useCompanionVoice, usePassive, useRequireProfile, useToday } from "@/components/hooks";
-import { calmLine } from "@/lib/passive";
+import { calmLine, type PassiveMetric } from "@/lib/passive";
 import { useData } from "@/lib/storage";
 
 export default function HomePage() {
@@ -24,24 +24,24 @@ export default function HomePage() {
   const line = calmLine(passive);
   const todayActivity = data.activityDays.find((d) => d.date === today && d.source === "user");
   const measuring = desktop && status?.listener === "running";
+  const paused = measuring && !!status?.paused;
 
-  let typingState: string;
-  if (measuring && status?.paused) typingState = "Paused";
-  else if (measuring) typingState = "Whole computer";
-  else typingState = "Only in the box on Live view";
+  /** What each passive measure is doing right now, in plain words. */
+  const stateOf = (m: PassiveMetric): { state: string; on: boolean } => {
+    const learning = m.status === "learning" ? ", still learning" : "";
+    if (paused) return { state: "Paused", on: false };
+    if (m.unit === "session") {
+      if (measuring) return { state: `Measuring${learning}`, on: true };
+      return { state: `Only in the Live view box${learning}`, on: false };
+    }
+    if (measuring) {
+      const first = m.key === "firstActivity" && todayActivity ? `, today ${todayActivity.first}` : "";
+      return { state: `Measuring${first}${learning}`, on: true };
+    }
+    return { state: desktop ? "Needs permission, see Live view" : "Desktop app only", on: false };
+  };
 
-  let dayState: string;
-  if (measuring && status?.paused) dayState = "Paused";
-  else if (measuring) dayState = todayActivity ? `On. First activity today ${todayActivity.first}` : "On";
-  else dayState = desktop ? "Needs permission, see Live view" : "In the desktop app only";
-
-  const sources: { name: string; state: string; on: boolean }[] = [
-    { name: "Typing rhythm", state: typingState, on: measuring && !status?.paused },
-    { name: "Day rhythm (first and last activity)", state: dayState, on: measuring && !status?.paused },
-    { name: "Camera", state: "Not connected yet", on: false },
-    { name: "Microphone", state: "Not connected yet", on: false },
-    { name: "Bedside sensor", state: "Not connected yet", on: false },
-  ];
+  const label = (m: PassiveMetric) => (m.key === "quietNight" ? "Quiet night, an estimate of rest" : m.label);
 
   return (
     <div className="stack-lg">
@@ -66,16 +66,24 @@ export default function HomePage() {
           What I&apos;m noticing right now
         </h2>
         <ul className="source-list">
-          {sources.map((s) => (
-            <li key={s.name}>
-              <span className={s.on ? "source-dot on" : "source-dot"} aria-hidden="true" />
-              <span className="source-name">{s.name}</span>
-              <span className="source-state">{s.state}</span>
-            </li>
-          ))}
+          {passive.metrics.map((m) => {
+            const { state, on } = stateOf(m);
+            return (
+              <li key={m.key}>
+                <span className={on ? "source-dot on" : "source-dot"} aria-hidden="true" />
+                <span className="source-name">{label(m)}</span>
+                <span className="source-state">{state}</span>
+              </li>
+            );
+          })}
         </ul>
         <p className="small muted" style={{ marginBottom: 0 }}>
-          Only timings and times of day are kept, on this device. Never what you type.
+          Key timing is measured, never which keys you press or what you type in other apps. Notes and early signs you
+          write here are kept on this device only. Microphone: only if you choose to read a sentence aloud in a
+          check-in, and no sound is kept.
+        </p>
+        <p className="small muted" style={{ marginBottom: 0 }}>
+          Not connected yet: camera, microphone in the background, bedside sensor.
         </p>
       </section>
 
