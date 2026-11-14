@@ -122,6 +122,21 @@ const maxDisplay = (r: Run, from = 0, to = Infinity) =>
   check("lean held 2 s and back: no change", r.shifts === 0, `${r.shifts} changes`);
 }
 
+// 2c. A small settle, held: smaller than SHIFT_THRESHOLD, so not a new position.
+{
+  const settled = moved(SITTING, { dx: 0.03, dhx: 0.03 });
+  const keys: Key[] = [
+    { t: 0, pose: SITTING },
+    { t: 10000, pose: SITTING },
+    { t: 11000, pose: settled },
+    { t: 30000, pose: settled },
+  ];
+  const clean = synthesise(keys, 30000, { jitter: 0 });
+  const d = positionDistance(positionOfFrame(clean[0]), positionOfFrame(clean[clean.length - 1]));
+  const r = run(synthesise(keys, 30000, { seed: 14 }));
+  check("small settle held: no change", r.shifts === 0, `${r.shifts} changes, moved ${d.toFixed(2)} shoulder widths`);
+}
+
 // 3. A quick lean of 1 s that returns: none.
 {
   const keys: Key[] = [
