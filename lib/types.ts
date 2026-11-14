@@ -443,12 +443,12 @@ export interface ClinicSharedEntry {
 export interface HelloReading {
   date: DayKey;
   at: string; // ISO
-  /** Seconds the person held to talk. */
+  /** Seconds the person held to talk (0 with a tap). */
   seconds: number;
-  /** Face movement while talking (lib/camera), or null without a face or camera. */
-  face: { animation: number; smilingShare: number } | null;
-  /** Tone of voice while talking (lib/voice), or null without enough voice. */
-  tone: { pitchVariability: number | null; segmentsPerMinute: number | null } | null;
+  /** Face movement while the camera was on (lib/camera/faceModel.ts): named readings, 0 to 1 confidence, and which model. Null without a face or camera. */
+  face: { readings: Record<string, number>; confidence: number; model: string } | null;
+  /** Tone of voice while talking (lib/voice), or null when the microphone was refused or silent. */
+  tone: { readings: Record<string, number>; confidence: number } | null;
   source: Source;
 }
 
