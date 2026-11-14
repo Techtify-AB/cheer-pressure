@@ -192,3 +192,6 @@ if (failed) {
   process.exit(1);
 }
 console.log("all passed");
+
+// The ladder, the routines, the contact stand-in and the demo replay.
+await import("./test-ladder.mts");

@@ -11,6 +11,7 @@ import type {
   ActivityDay,
   AppData,
   DailyEntry,
+  LadderState,
   Profile,
   PromptedCheckIn,
   ReactionResult,
@@ -26,6 +27,7 @@ function empty(): AppData {
     activityDays: [],
     checkIns: [],
     settings: { muted: false },
+    ladder: null,
   };
 }
 
@@ -66,6 +68,7 @@ function load(): AppData {
       typingSessions: parsed.typingSessions ?? [],
       activityDays: parsed.activityDays ?? [],
       checkIns: parsed.checkIns ?? [],
+      ladder: parsed.ladder ?? null,
     };
   } catch {
     return empty();
@@ -174,6 +177,11 @@ export function saveCheckIn(entry: PromptedCheckIn) {
   });
 }
 
+/** Stores the ladder after "Not my best" (lib/ladder.ts), or clears it with null. */
+export function saveLadder(ladder: LadderState | null) {
+  commit({ ...readData(), ladder });
+}
+
 export function saveSettings(settings: Partial<Settings>) {
   const d = readData();
   commit({ ...d, settings: { ...d.settings, ...settings } });
@@ -210,6 +218,8 @@ function clearDemoFrom(d: AppData): AppData {
     typingSessions: d.typingSessions.filter((e) => e.source !== "demo"),
     activityDays: d.activityDays.filter((e) => e.source !== "demo"),
     settings: { ...d.settings, simulatedChangeAt: undefined },
+    // A ladder that started from made-up data goes with it.
+    ladder: d.ladder?.simulated ? null : (d.ladder ?? null),
   };
 }
 

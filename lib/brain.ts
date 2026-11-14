@@ -33,9 +33,10 @@ import {
   type PassiveMetric,
   type Range,
 } from "./passive";
-import type { DailyEntry, PassiveKey, Profile, WeeklyEntry } from "./types";
+import type { DailyEntry, PassiveKey, Profile, RoutineId, WeeklyEntry } from "./types";
 
-export type SuggestionId = "morning-light" | "walk" | "regular-bedtime" | "music";
+/** The small things the companion can suggest: the routines the person can switch on or off in Settings. */
+export type SuggestionId = RoutineId;
 
 export interface Suggestion {
   id: SuggestionId;
@@ -148,9 +149,10 @@ export interface Brain {
 
 export const SUGGESTIONS: Record<SuggestionId, string> = {
   "morning-light": "Get some daylight within an hour of waking, even ten minutes by a window counts.",
-  walk: "Take a short walk outside today, at whatever pace feels fine.",
+  walk: "Take a short walk outside in daylight today, at whatever pace feels fine.",
   "regular-bedtime": "Try going to bed around your usual time for the next few nights.",
   music: "Put on some music you like while you do something ordinary.",
+  "call-someone": "Call or message someone you like today, just to say hello.",
 };
 
 function find(levels: Levels, key: MetricLevel["key"]) {

@@ -12,6 +12,7 @@ export interface Profile {
   earlySigns: string[];
 }
 
+/** From the manual daily check-in, which is no longer in the app. Kept so older data still loads and shows. */
 export interface DailyEntry {
   id: string;
   date: DayKey;
@@ -49,6 +50,7 @@ export interface WeeklyEntry {
   savedAt: string;
 }
 
+/** From the reaction test, which is no longer in the app. Kept so older data still loads. */
 export interface ReactionResult {
   id: string;
   date: DayKey;
@@ -116,11 +118,53 @@ export interface PromptedCheckIn {
   simulated: boolean;
 }
 
+/** The small things the companion may suggest after "Not my best". */
+export type RoutineId = "walk" | "morning-light" | "regular-bedtime" | "music" | "call-someone";
+
+/** The sources the person can switch on or off. Camera, microphone and the bedside sensor are not connected yet. */
+export interface Sources {
+  /** Typing rhythm: key timing only. */
+  typing: boolean;
+  /** Day rhythm: first and last activity of the day. */
+  dayRhythm: boolean;
+}
+
 export interface Settings {
   /** Mutes the companion's read-aloud voice. */
   muted: boolean;
   /** Set by the demo control "Simulate a change": propose a check-in now, ignoring the 3-day pause. */
   simulatedChangeAt?: string;
+  /** Which sources are measured. Missing in older data: both on. */
+  sources?: Sources;
+  /** "Pause everything": nothing new is measured and the companion never speaks up. */
+  pausedAll?: boolean;
+  /** Which small things the companion may suggest. Missing in older data: all on. */
+  routines?: Partial<Record<RoutineId, boolean>>;
+  /** Quiet hours, "HH:MM": the companion never speaks up in between. Default 22:00 to 08:00. */
+  quietHours?: { from: string; to: string };
+}
+
+/**
+ * The ladder after "Not my best" (lib/ladder.ts): first one small thing, then someone
+ * the person trusts, then the clinic. Dates are local days.
+ */
+export interface LadderState {
+  /** The day "Not my best" (or "I'd like someone to check in on me") started it. */
+  startedOn: DayKey;
+  /** True when it started from a simulated change or made-up data. */
+  simulated: boolean;
+  /** Step 1: the one small thing offered, and the answer. `routine` is null when every routine was off. */
+  smallThing?: { routine: RoutineId | null; offeredOn: DayKey; answer?: "try" | "not-now" };
+  /** "I'd like someone to check in on me": step 2 is offered right away. */
+  someoneRequestedOn?: DayKey;
+  /** Step 2: someone you trust. `reply` is the answer to a (so far simulated) reply. */
+  someone?: { offeredOn: DayKey; answer?: "yes" | "not-now"; reply?: "yes" | "no" };
+  /** Step 3: a short summary for the clinic. */
+  clinic?: { offeredOn: DayKey; answer?: "approve" | "not-now" };
+  /** The last time the person said "Not now" at any step. Respected for 3 days. */
+  declinedOn?: DayKey;
+  /** Set when the measures came back to the usual range, or the ladder ended. */
+  closedOn?: DayKey;
 }
 
 export interface AppData {
@@ -133,4 +177,6 @@ export interface AppData {
   activityDays: ActivityDay[];
   checkIns: PromptedCheckIn[];
   settings: Settings;
+  /** The ladder after "Not my best", or null. Missing in older data. */
+  ladder?: LadderState | null;
 }
