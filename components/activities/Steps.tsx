@@ -41,7 +41,7 @@ export function OneStep({ children, label = "Your first step" }: { children: Rea
 }
 
 /** A checklist: tap a row to tick it. */
-export function Checklist({ items, label }: { items: string[]; label: string }) {
+export function Checklist({ items, label, onTick }: { items: string[]; label: string; onTick?: () => void }) {
   const [ticked, setTicked] = useState<boolean[]>(() => items.map(() => false));
   return (
     <ul className="act-checklist" aria-label={label}>
@@ -52,7 +52,10 @@ export function Checklist({ items, label }: { items: string[]; label: string }) 
             role="checkbox"
             aria-checked={ticked[i]}
             className="act-check"
-            onClick={() => setTicked((t) => t.map((v, j) => (j === i ? !v : v)))}
+            onClick={() => {
+              onTick?.();
+              setTicked((t) => t.map((v, j) => (j === i ? !v : v)));
+            }}
           >
             <span className="act-check-box" aria-hidden="true">
               {ticked[i] ? <Check /> : null}
