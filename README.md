@@ -70,7 +70,7 @@ groups.
 `lib/passive.ts` holds the one rule (unit tests in `scripts/test-passive.mts`):
 
 - A measure has **changed** when all of its last 3 sessions or days lie on the same side
-  outside the person's own typical range, the 25th to 75th percentile of their earlier sessions or
+  outside the person's own typical range, the 10th to 90th percentile of their earlier sessions or
   days. It needs at least 7 earlier ones, and the last 3 must include the past 7 days.
 - When **at least 2** measures have changed, the companion proposes a check-in: a gentle
   cue on the mascot (no sound), and on home. The check-in explains what changed in plain

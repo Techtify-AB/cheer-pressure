@@ -3,7 +3,7 @@
 //
 // THE RULE (keep it explainable):
 // - A measure counts as changed when ALL of its last 3 sessions or days lie on the
-//   same side outside the person's own typical range: the 25th to 75th percentile
+//   same side outside the person's own typical range: the 10th to 90th percentile
 //   of their earlier sessions or days. (Using only the median of the last 3 asked
 //   by chance about 7 times in 10 on random data; three in a row asks about 3 in 100.) It needs at least 7 earlier ones,
 //   and the last 3 must include something from the past 7 days.
@@ -19,6 +19,13 @@ import { addDays, clockToMinutes, daysBetween, minutesToClock } from "./dates";
 import type { SuggestionId } from "./brain";
 import type { AppData, DayKey, PassiveKey, PromptedCheckIn } from "./types";
 
+/**
+ * The person's own typical range, as percentiles of their earlier sessions or days.
+ * Measured with scripts/measure-rule.mts on 400 made-up five-week periods of steady data:
+ * 25 to 75 asked by chance in 253 of them, 10 to 90 in 18, 5 to 95 in 5. All three noticed
+ * the drift in week six every time (10 to 90 about one day later than 25 to 75).
+ */
+export const BAND = { low: 0.1, high: 0.9 };
 export const RECENT_POINTS = 3;
 export const MIN_USUAL_POINTS = 7;
 export const RECENT_MAX_AGE_DAYS = 7;
@@ -36,9 +43,9 @@ export interface Point {
 }
 
 export interface Range {
-  low: number; // 25th percentile
+  low: number; // 10th percentile (see BAND)
   median: number;
-  high: number; // 75th percentile
+  high: number; // 90th percentile (see BAND)
   n: number;
 }
 
@@ -103,9 +110,9 @@ export function judge(values: number[]): Judgement {
   const recentVals = values.slice(-RECENT_POINTS);
   const usualVals = [...values.slice(0, -RECENT_POINTS)].sort((a, b) => a - b);
   const usual: Range = {
-    low: quantile(usualVals, 0.25),
+    low: quantile(usualVals, BAND.low),
     median: quantile(usualVals, 0.5),
-    high: quantile(usualVals, 0.75),
+    high: quantile(usualVals, BAND.high),
     n: usualVals.length,
   };
   const m = median(recentVals);

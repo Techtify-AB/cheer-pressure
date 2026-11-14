@@ -57,7 +57,7 @@ export interface PassiveMeasureInput {
    * typing measures, minutes after 04:00 for first and last activity, hours for quiet night.
    */
   lastThree: number[] | null;
-  /** The person's own usual range (25th, 50th, 75th percentile of earlier values), same unit. */
+  /** The person's own usual range (10th, 50th, 90th percentile of earlier values), same unit. */
   usual: Range | null;
   /** How many sessions or days of this measure exist so far. */
   count: number;
