@@ -531,7 +531,7 @@ export const PASSIVE_DEFS: Def[] = [
     upWord: "slower",
     downWord: "quicker",
     is: "The middle time of five taps in the quick reaction check, the middle of the day's checks (experimental)",
-    isNot: "Not a test of how you are; one bad night's sleep slows reactions too",
+    isNot: "Not a test of how the person is; one bad night's sleep slows reactions too",
   },
   {
     key: "contact",
