@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { afterAnswer, DailyAnswers, useDailyQuestion } from "@/components/DailyQuestion";
 import { QUESTION } from "@/lib/daily";
+import { lookOf, mascotFur } from "@/lib/look";
 import { cameraHeartbeatFresh } from "@/components/CameraBridge";
 import { micHeartbeatFresh } from "@/components/MicrophoneBridge";
 import type { DailyAnswerValue } from "@/lib/types";
@@ -170,7 +171,7 @@ export default function MascotPage() {
             <span />
           </span>
         )}
-        <Companion state={bubble ? "attention" : state} size={bubble ? 96 : 140} />
+        <Companion state={bubble ? "attention" : state} size={bubble ? 96 : 140} fur={mascotFur(lookOf(data?.settings).fur)} />
       </button>
     </div>
   );

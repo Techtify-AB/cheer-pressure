@@ -271,6 +271,8 @@ export interface Settings {
   messagesUrl?: string;
   /** The daily question. Missing: every day, around midday. */
   dailyQuestion?: DailyQuestionSettings;
+  /** Cheri's look (lib/look.ts). Missing: soft, peach. */
+  look?: { fur: "soft" | "shaggy" | "smooth"; color: string };
 }
 
 /**

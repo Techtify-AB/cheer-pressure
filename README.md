@@ -389,6 +389,10 @@ the brain is asked anything.
 - Every screen fits one view with no page scrolling, at 390 by 844, 1366 by 768 and in the
   desktop window: one question or decision per screen, long content paged one item at a time,
   and details behind one "Show how this is worked out" style control.
+- Cheri's look: Settings, Cheri's look, shows Cheri large and live with three furs (soft,
+  shaggy, smooth; shaggy uses more graphics power) and six colours from `dot.js`. The choice is
+  kept in `settings.look` (`lib/look.ts`) and used wherever Cheri appears; the small mascot
+  window always uses soft instead of shaggy, since it runs all day.
 - The character: replace `components/companion/Companion.tsx` (and its CSS module) with any
   component that takes `{ state: "idle" | "speaking" | "listening"; size?: number }`.
   The check-in logic does not import anything else from it.

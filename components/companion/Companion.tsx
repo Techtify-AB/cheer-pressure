@@ -7,6 +7,8 @@
 // If WebGL is not available, a plain drawn stand-in is shown instead.
 
 import { useEffect, useRef, useState } from "react";
+import { lookOf } from "@/lib/look";
+import { useData } from "@/lib/storage";
 import styles from "./Companion.module.css";
 import type { DotFur, DotHandle } from "./dot";
 
@@ -46,7 +48,12 @@ const STATE_LABEL: Record<CompanionState, string> = {
 /** Below this size the extra effects (rings, sparkles) do not fit, so only the dot is drawn. */
 const COMPACT_BELOW_PX = 200;
 
-export function Companion({ state, size = 160, color = "peach", fur = "soft" }: CompanionProps) {
+export function Companion({ state, size = 160, color: colorProp, fur: furProp }: CompanionProps) {
+  // Cheri's look as chosen in Settings, unless the caller sets one (the preview, the mascot).
+  const data = useData();
+  const look = lookOf(data?.settings);
+  const color = colorProp ?? look.color;
+  const fur = furProp ?? look.fur;
   const holder = useRef<HTMLDivElement>(null);
   const dot = useRef<DotHandle | null>(null);
   const [failed, setFailed] = useState(false);

@@ -12,6 +12,8 @@ import { Disclosure, Screen } from "@/components/Screen";
 import { SwitchRow } from "@/components/Switch";
 import { forgetDesktopData, setTypingPaused } from "@/lib/platform";
 import { LinkCode } from "@/components/LinkCode";
+import { Companion } from "@/components/companion/Companion";
+import { COLOURS, FURS, lookOf } from "@/lib/look";
 import { useCamera } from "@/components/camera/useCamera";
 import { useVoice } from "@/components/voice/useVoice";
 import { isLocalOnly, messagesUrlOf, quietHoursOf, ROUTINES, routinesOf, sourcesOf } from "@/lib/settings";
@@ -22,8 +24,8 @@ import { stopSpeaking } from "@/lib/voice";
 import { dailyQuestionOf, FREQUENCIES, questionTime, TIMES } from "@/lib/daily";
 import type { AppData } from "@/lib/types";
 
-type View = "list" | "measure" | "routines" | "voice" | "daily" | "trust" | "data" | "delete";
-const VIEWS: View[] = ["measure", "routines", "voice", "daily", "trust", "data", "delete"];
+type View = "list" | "measure" | "routines" | "voice" | "daily" | "look" | "trust" | "data" | "delete";
+const VIEWS: View[] = ["measure", "routines", "voice", "daily", "look", "trust", "data", "delete"];
 
 function readHash(): View {
   const h = typeof window === "undefined" ? "" : window.location.hash.slice(1);
@@ -63,6 +65,7 @@ export default function SettingsPage() {
   if (view === "routines") return <Routines data={data} back={back} />;
   if (view === "voice") return <Voice data={data} back={back} />;
   if (view === "daily") return <DailyQuestionSettings data={data} back={back} />;
+  if (view === "look") return <CheriLook data={data} back={back} />;
   if (view === "trust") return <Trust data={data} back={back} />;
   if (view === "data") return <YourData data={data} back={back} onDelete={() => go("delete")} />;
   if (view === "delete") return <ConfirmDelete onKeep={() => go("data")} />;
@@ -98,6 +101,7 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
     },
     { key: "voice", label: "Voice", value: s.muted ? "Off" : "On", onClick: () => go("voice") },
     { key: "daily", label: "Daily question", value: dailySummary(s), onClick: () => go("daily") },
+    { key: "look", label: "Cheri's look", value: lookSummary(s), onClick: () => go("look") },
     { key: "trust", label: "Someone you trust", value: trusted, onClick: () => go("trust") },
     { key: "values", label: "My values", value: "Each source, and a report for your clinic", href: "/values/" },
     { key: "data", label: "Your data", value: "On this device unless you share a report", onClick: () => go("data") },
@@ -413,6 +417,53 @@ function DailyQuestionSettings({ data, back }: { data: AppData; back: React.Reac
             ? "Off. Cheri asks nothing day to day."
             : `Around ${questionTime(data.settings)}. If the computer is off then, it comes once when you are next here that day.`}
         </p>
+      </section>
+    </Screen>
+  );
+}
+
+function lookSummary(s: AppData["settings"]): string {
+  const l = lookOf(s);
+  return `${FURS.find((f) => f.value === l.fur)!.label}, ${COLOURS.find((c) => c.value === l.color)!.label.toLowerCase()}`;
+}
+
+/** Cheri's look: fur and colour, shown live at once and kept with the other settings. */
+function CheriLook({ data, back }: { data: AppData; back: React.ReactNode }) {
+  const look = lookOf(data.settings);
+  const set = (next: Partial<typeof look>) => saveSettings({ look: { ...look, ...next } });
+  return (
+    <Screen
+      lead={
+        <div className="look-lead">
+          <Companion state="joy" size={200} fur={look.fur} color={look.color} />
+          <h1 className="item-title">Cheri&apos;s look</h1>
+        </div>
+      }
+      actions={back}
+    >
+      <section className="card stack-sm look-card" aria-label="Cheri's look">
+        <fieldset className="bare-fieldset">
+          <legend className="switch-label">Fur</legend>
+          <div className="chips">
+            {FURS.map((f) => (
+              <button key={f.value} type="button" className="chip" aria-pressed={look.fur === f.value} onClick={() => set({ fur: f.value })}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <p className="small muted look-note">The shaggy one uses more of the computer&apos;s graphics power. The small mascot window stays soft, since it runs all day.</p>
+        </fieldset>
+        <fieldset className="bare-fieldset">
+          <legend className="switch-label">Colour</legend>
+          <div className="swatches">
+            {COLOURS.map((c) => (
+              <button key={c.value} type="button" className="swatch" aria-pressed={look.color === c.value} onClick={() => set({ color: c.value })}>
+                <span className="swatch-dot" style={{ background: c.swatch }} aria-hidden="true" />
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
       </section>
     </Screen>
   );

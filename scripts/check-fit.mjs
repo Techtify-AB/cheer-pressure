@@ -175,6 +175,20 @@ async function run(size) {
     await go(`/settings/${h}`);
     await measure(page, `settings${h.replace("#", "-")}`);
   }
+  // Cheri's look: chosen at once, kept with the settings.
+  await go("/settings/#look");
+  await measure(page, "settings-look");
+  await page.getByRole("button", { name: "Shaggy", exact: true }).click();
+  await page.getByRole("button", { name: "Sky", exact: true }).click();
+  await page.waitForTimeout(300);
+  const look = await page.evaluate(() => JSON.parse(localStorage.getItem("companion.v1")).settings.look);
+  results.push({ ok: look?.fur === "shaggy" && look?.color === "sky", name: "Cheri's look: stored at once", vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
+  await measure(page, "settings-look-shaggy-sky");
+  await page.evaluate(() => {
+    const v = JSON.parse(localStorage.getItem("companion.v1"));
+    delete v.settings.look;
+    localStorage.setItem("companion.v1", JSON.stringify(v));
+  });
   await go("/settings/#measure");
   for (const c of ["Sleep", "Energy", "Social", "Mood"]) {
     await click(c);
