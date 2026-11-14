@@ -34,7 +34,8 @@ That adds six weeks of made-up measurements where the last days drift (more unev
 the whole day shifted later, plus later bedtime, lower form, slower reading and higher
 weekly answers in the manual entries). **Simulate a change** loads the same data and makes
 the companion ask right away, for showing it live. **Clear demo data** removes only those.
-Screens with made-up data say so.
+While any made-up data is stored, a calm banner in the header says so on every screen, with a
+link that clears it. The manual check-in never pre-fills from made-up entries.
 
 ## When the companion asks
 
