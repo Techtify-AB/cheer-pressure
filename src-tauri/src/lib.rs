@@ -365,6 +365,9 @@ pub fn run() {
         .title("Cheer Pressure")
         .inner_size(520.0, 820.0)
         .min_inner_size(380.0, 560.0)
+        // The main window keeps polling for messages from someone you trust while it is
+        // hidden to the menu bar; the default policy would pause its timers (macOS 14+).
+        .background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled)
         .build()?;
 
       let mascot = WebviewWindowBuilder::new(app, MASCOT, WebviewUrl::App("mascot/index.html".into()))

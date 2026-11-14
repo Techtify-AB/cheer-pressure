@@ -6,5 +6,7 @@
   <string>Cheer Pressure uses the camera to notice movement and posture. It is processed on this computer and not stored.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Cheer Pressure uses the microphone to time how fast you read a sentence. It is processed on this computer and not stored.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Cheer Pressure connects to the messages service on your local network, so someone you trust can send you a few words. Measurements never leave this computer.</string>
 </dict>
 </plist>
