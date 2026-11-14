@@ -217,7 +217,7 @@
 }
 .act-card-back {
   background: var(--color-primary);
-  background-image: radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--color-primary-ink) 18%, transparent) 0 18%, transparent 19%);
+  background-image: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--color-primary-ink) 16%, transparent) 0 16%, transparent 17%);
   border: 2px solid var(--color-primary-hover);
 }
 .act-card-front {

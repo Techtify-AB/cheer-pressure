@@ -5,6 +5,7 @@ import type { ActivityView } from "./ActivityHost";
 import { Ask } from "./Ask";
 import { Daylight } from "./Daylight";
 import { Eat } from "./Eat";
+import { Game } from "./Game";
 import { Hobby } from "./Hobby";
 import { Evening } from "./Evening";
 import { Outside } from "./Outside";
@@ -15,6 +16,7 @@ export const ACTIVITY_VIEWS: Record<ActivityId, ActivityView> = {
   song: Song,
   daylight: Daylight,
   eat: Eat,
+  game: Game,
   hobby: Hobby,
   ask: Ask,
   evening: Evening,
