@@ -7,14 +7,19 @@
     "dev": "next dev -p 3470",
     "build": "next build",
     "start": "next start -p 3470",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build --debug"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
     "next": "16.3.5",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",

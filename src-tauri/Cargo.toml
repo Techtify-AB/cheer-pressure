@@ -1,0 +1,33 @@
+[package]
+name = "cheer-pressure"
+version = "0.1.0"
+description = "Cheer Pressure desktop app: the web UI in a window, a mascot, and typing rhythm measured on this computer"
+authors = ["the Cheer Pressure team"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "cheer_pressure_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# tray-icon: the menu bar icon. image-png: the tray icon file. macos-private-api: the
+# mascot window has a transparent background on macOS.
+tauri = { version = "2.12", features = ["tray-icon", "image-png", "macos-private-api"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The local calendar day and clock time for "first activity" and "last activity".
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# The system-wide key listener: a listen-only CGEventTap (needs Input Monitoring).
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEvent", "CGEventTypes"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFMachPort", "CFRunLoop"] }
+
+[profile.dev]
+# Keep debug builds smaller on disk.
+debug = "line-tables-only"

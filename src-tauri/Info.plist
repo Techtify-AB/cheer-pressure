@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCameraUsageDescription</key>
+  <string>Cheer Pressure uses the camera to notice movement and posture. It is processed on this computer and not stored.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Cheer Pressure uses the microphone to time how fast you read a sentence. It is processed on this computer and not stored.</string>
+</dict>
+</plist>
