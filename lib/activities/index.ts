@@ -15,19 +15,21 @@ export interface Activity {
   line: string;
   /** Roughly how long, said plainly. */
   takes: string;
+  /** How it reads inside a sentence ("You've said a short walk helped..."). */
+  phrase: string;
 }
 
 /** In library order: away from the screen first, then sound and light, then people. */
 export const ACTIVITIES: Activity[] = [
-  { id: "outside", title: "Five minutes outside", line: "Shoes on, out the door, whichever way is easiest.", takes: "5 minutes" },
-  { id: "daylight", title: "Let the daylight in", line: "Open the curtains, then sit by the window for a while.", takes: "A few minutes" },
-  { id: "song", title: "One song, one first step", line: "Listen for a while, then do the first step you chose.", takes: "1 minute" },
-  { id: "attention", title: "Move your attention for a moment", line: "A short, calm guide to what is around you.", takes: "Under a minute" },
-  { id: "eat", title: "Get something to eat ready", line: "Your simple meal, one step at a time.", takes: "A few minutes" },
-  { id: "game", title: "Play a short round", line: "Find three pairs of cards.", takes: "1 minute" },
-  { id: "hobby", title: "Pick your hobby back up", line: "Just the first step of something you like doing.", takes: "2 minutes" },
-  { id: "ask", title: "Ask someone to get in touch", line: "A short message to someone you like.", takes: "1 minute" },
-  { id: "evening", title: "Wind down the evening", line: "A calm sound, then your first evening step.", takes: "1 minute" },
+  { id: "outside", title: "Five minutes outside", line: "Shoes on, out the door, whichever way is easiest.", takes: "5 minutes", phrase: "a short walk" },
+  { id: "daylight", title: "Let the daylight in", line: "Open the curtains, then sit by the window for a while.", takes: "A few minutes", phrase: "letting the daylight in" },
+  { id: "song", title: "One song, one first step", line: "Listen for a while, then do the first step you chose.", takes: "1 minute", phrase: "a song and a first step" },
+  { id: "attention", title: "Move your attention for a moment", line: "A short, calm guide to what is around you.", takes: "Under a minute", phrase: "moving your attention" },
+  { id: "eat", title: "Get something to eat ready", line: "Your simple meal, one step at a time.", takes: "A few minutes", phrase: "getting something to eat ready" },
+  { id: "game", title: "Play a short round", line: "Find three pairs of cards.", takes: "1 minute", phrase: "a short round" },
+  { id: "hobby", title: "Pick your hobby back up", line: "Just the first step of something you like doing.", takes: "2 minutes", phrase: "your hobby" },
+  { id: "ask", title: "Ask someone to get in touch", line: "A short message to someone you like.", takes: "1 minute", phrase: "asking someone" },
+  { id: "evening", title: "Wind down the evening", line: "A calm sound, then your first evening step.", takes: "1 minute", phrase: "winding down" },
 ];
 
 export function activityById(id: string | null | undefined): Activity | undefined {

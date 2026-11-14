@@ -290,3 +290,51 @@
   .act-listen[data-phase="listening"] .act-listen-dot,
   .act-guide-line { animation: none; }
 }
+
+/* After an activity: "Did that help?", the close, the reaction check offer */
+.act-history { margin: var(--space-1) 0 0; font-size: var(--font-size-sm); color: var(--color-primary); font-weight: var(--font-weight-medium); }
+.act-feedback-pre { margin: 0 0 var(--space-1); }
+.act-feedback { display: flex; flex-direction: column; gap: var(--space-2); }
+.act-feedback-option { width: 100%; justify-content: center; text-align: center; font-size: var(--font-size-lg); }
+.act-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-line);
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-sm);
+}
+.act-offer-buttons { display: flex; }
+.act-offer .btn-quiet { min-height: 40px; padding: 0 var(--space-2); }
+
+/* A quick reaction check */
+.act-reaction { display: flex; flex-direction: column; gap: var(--space-3); }
+.act-reaction-head { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); }
+.act-reaction-head .badge { font-size: var(--font-size-xs); }
+.act-reaction-how,
+.act-reaction-count { margin: 0; }
+.act-reaction-count { text-align: center; font-variant-numeric: tabular-nums; }
+.act-reaction-pad {
+  align-self: center;
+  width: min(240px, 60vw, 34vh);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--color-line);
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+  padding: var(--space-4);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.act-reaction-pad-text { font-size: var(--font-size-lg); font-weight: var(--font-weight-medium); }
+.act-reaction-pad[data-phase="go"] { background: var(--color-done); border-color: var(--color-done); color: var(--color-primary-ink); }
+.act-reaction-pad[data-phase="early"] { background: var(--color-help-bg); }
+.act-reaction-pad[data-phase="between"] { background: var(--color-surface); }
+.act-reaction-result p { margin: 0; }
+.act-reaction-line { font-size: var(--font-size-lg); font-weight: var(--font-weight-medium); margin-bottom: var(--space-2) !important; }

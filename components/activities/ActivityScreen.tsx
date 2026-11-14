@@ -4,10 +4,10 @@
 // first thing to do, the activity itself, then one primary button and the quiet links
 // "Make it easier" and "End". At most four groups, no page scrolling.
 
-import Link from "next/link";
-import { Says, Screen } from "@/components/Screen";
+import { Screen } from "@/components/Screen";
+import { activityHelpSentence, activityHelpStats } from "@/lib/activities/feedback";
+import { useData } from "@/lib/storage";
 import type { ActivityRun } from "./useActivity";
-import { LIBRARY_HREF } from "./useActivity";
 
 export function ActivityScreen({
   run,
@@ -35,6 +35,9 @@ export function ActivityScreen({
   hideEasier?: boolean;
   children?: React.ReactNode;
 }) {
+  const data = useData();
+  // What the person said before, on the opening screen only.
+  const history = !run.started && !run.easier ? activityHelpSentence(activityHelpStats(data?.activitiesDone ?? [])[run.id]) : null;
   return (
     <Screen
       lead={
@@ -42,6 +45,11 @@ export function ActivityScreen({
           <p className="act-eyebrow">{eyebrow ?? (run.easier ? "A smaller step" : "Something for you")}</p>
           <h1 className="act-title">{title}</h1>
           {text ? <div className="act-text">{text}</div> : null}
+          {history ? (
+            <p className="act-history" data-act="history">
+              {history}
+            </p>
+          ) : null}
         </div>
       }
       actions={
@@ -63,33 +71,6 @@ export function ActivityScreen({
       }
     >
       {children}
-    </Screen>
-  );
-}
-
-/** After "Done": what was recorded, said briefly, and the way back. */
-export function DoneView({ message }: { message?: string }) {
-  return (
-    <Screen
-      lead={
-        <Says state="joy" size={80}>
-          <h1 className="act-done-title">{message ?? "Good. That was one thing for you."}</h1>
-        </Says>
-      }
-      actions={
-        <>
-          <Link href="/" className="btn btn-primary" data-act="home">
-            Back to home
-          </Link>
-          <div className="links">
-            <Link href={LIBRARY_HREF} className="btn btn-quiet">
-              Something else
-            </Link>
-          </div>
-        </>
-      }
-    >
-      <p className="muted act-done-note">Noted on this device. Only you see it.</p>
     </Screen>
   );
 }

@@ -74,14 +74,21 @@ export function useActivityTimer(run: ActivityRun, durationMs: number): TimerCon
     };
   }, [phase]);
 
+  // A timer already running (or run out) when the view opens: the person had started.
+  const { markStarted } = run;
+  useEffect(() => {
+    if (phase !== "idle") markStarted();
+  }, [phase, markStarted]);
+
   const start = useCallback(() => {
+    markStarted();
     chime.unlock();
     const t = Date.now();
     const next = startTimer(run.id, durationMs, t);
     watched.current = next.endsAt;
     setNow(t);
     saveActivityTimer(next);
-  }, [run.id, durationMs]);
+  }, [run.id, durationMs, markStarted]);
 
   const clear = useCallback(() => {
     watched.current = null;

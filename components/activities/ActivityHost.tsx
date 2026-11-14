@@ -8,7 +8,7 @@ import { activityById, type ActivityId } from "@/lib/activities";
 import { planOf, type Plan } from "@/lib/plan";
 import { useData } from "@/lib/storage";
 import { messagesClient } from "@/lib/trusted";
-import { DoneView } from "./ActivityScreen";
+import { AfterView, FeedbackView } from "./Feedback";
 import { ACTIVITY_VIEWS } from "./views";
 import { useActivity, type ActivityRun } from "./useActivity";
 
@@ -28,7 +28,7 @@ export function ActivityHost({ id }: { id: ActivityId }) {
   const run = useActivity(id);
   const [trusted] = useState(trustedName);
   if (!data || !activityById(id)) return null;
-  if (run.done) return <DoneView message={run.done.message} />;
+  if (run.done) return run.done.stage === "feedback" ? <FeedbackView run={run} /> : <AfterView run={run} />;
   const View = ACTIVITY_VIEWS[id];
   return <View run={run} plan={planOf(data, trusted)} />;
 }

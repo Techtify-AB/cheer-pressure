@@ -31,6 +31,7 @@ export interface Listen {
 export function useListen(run: ActivityRun, opts: { maxMs: number; fadeMs: number }): Listen {
   const { maxMs, fadeMs } = opts;
   const player = useAudioPlayer();
+  const { markStarted } = run;
   const [phase, setPhase] = useState<ListenPhase>("ready");
   const [sound, setSoundState] = useState(true);
   const [light, setLight] = useState(true);
@@ -48,17 +49,19 @@ export function useListen(run: ActivityRun, opts: { maxMs: number; fadeMs: numbe
 
   /** "Go straight to the step", from before or during the listening. */
   const skip = useCallback(() => {
+    markStarted();
     player.stop();
     setPhase("after");
-  }, [player]);
+  }, [player, markStarted]);
 
   const start = useCallback(() => {
+    markStarted();
     const t = Date.now();
     setStartedAt(t);
     setNow(t);
     setPhase("listening");
     if (sound) player.play({ maxMs, fadeMs, onEnd: finish });
-  }, [sound, player, maxMs, fadeMs, finish]);
+  }, [markStarted, sound, player, maxMs, fadeMs, finish]);
 
   const setSound = useCallback(
     (on: boolean) => {
