@@ -26,11 +26,15 @@ export function buildSummary(data: AppData, levels: Levels, companionSays: strin
   lines.push("Last 7 days compared with my usual level:");
   for (const m of levels.metrics) {
     const label = m.experimental ? `${m.label} (experiment)` : m.label;
-    if (!m.recent && !m.usual) {
-      lines.push(`- ${label}: no entries yet`);
+    if (!m.recent && !m.usual && !m.recentValues.length) {
+      lines.push(`- ${label}: nothing in the last 7 days`);
       continue;
     }
-    const recent = m.recent ? m.format(m.recent.median) : "not enough entries";
+    const recent = m.recent
+      ? m.format(m.recent.median)
+      : m.recentValues.length
+        ? `${m.recentValues.map(m.format).join(", ")} (${m.recentValues.length} ${m.recentValues.length === 1 ? "day" : "days"}, too few to compare)`
+        : "nothing in the last 7 days";
     const usual = m.usual ? m.format(m.usual.median) : "not enough earlier entries";
     lines.push(`- ${label}: last 7 days ${recent}, usual ${usual}`);
   }

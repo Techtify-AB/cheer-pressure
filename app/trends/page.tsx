@@ -10,9 +10,20 @@ import { addDemo, clearDemo, hasDemo, useData } from "@/lib/storage";
 
 const SCALE_WORDS = ["not at all", "several days", "more than half the days", "nearly every day"];
 
+function soFar(n: number): string {
+  return `${n} ${n === 1 ? "day" : "days"} so far. A comparison needs a few more days.`;
+}
+
+/** What to show as "Last 7 days": the middle value, or the few values there are. */
+function recentText(m: MetricLevel): { value: string; note: string } {
+  if (m.recent) return { value: m.format(m.recent.median), note: "the middle value of the last week" };
+  if (m.recentValues.length) return { value: m.recentValues.map(m.format).join(", "), note: soFar(m.recentValues.length) };
+  return { value: "None", note: "nothing in the last 7 days" };
+}
+
 function changeText(m: MetricLevel): string {
   if (!m.usual) return "Your usual level shows up after about a week of entries.";
-  if (!m.recent) return "Not enough entries in the last 7 days to compare.";
+  if (!m.recent) return m.recentValues.length ? soFar(m.recentValues.length) : "Nothing in the last 7 days to compare.";
   if (m.direction === "steady" || m.delta === null) return "Close to your usual.";
   const up = m.direction === "up";
   switch (m.key) {
@@ -136,8 +147,8 @@ export default function TrendsPage() {
               <dl className="numbers">
                 <div>
                   <dt>Last 7 days</dt>
-                  <dd>{m.recent ? m.format(m.recent.median) : "No entries"}</dd>
-                  <dd className="small muted">the middle value of the last week</dd>
+                  <dd>{recentText(m).value}</dd>
+                  <dd className="small muted">{recentText(m).note}</dd>
                 </div>
                 <div>
                   <dt>Your usual</dt>

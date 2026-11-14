@@ -8,10 +8,11 @@ import { addDays, clockToMinutes, clockToNightMinutes, minutesToClock, nightMinu
 import type { AppData, DayKey, Scale03, WeeklyEntry } from "./types";
 
 export const RECENT_DAYS = 7;
+/** Fewest entries in the last 7 days before they are compared with the usual level. */
+export const MIN_RECENT_ENTRIES = 3;
 export const CHART_DAYS = 14;
 const BASELINE_DAYS = 56;
 const MIN_BASELINE = 5;
-const MIN_RECENT = 3;
 
 export type MetricKey = "bedtime" | "wake" | "sleep" | "form" | "speech" | "reaction";
 export type Direction = "up" | "down" | "steady";
@@ -32,6 +33,8 @@ export interface MetricLevel {
   series: { date: DayKey; value: number | null }[];
   usual: Summary | null;
   recent: Summary | null;
+  /** Every value from the last 7 days, oldest first, also when there are too few to compare. */
+  recentValues: number[];
   /** recent median minus usual median, in the metric's own unit. */
   delta: number | null;
   /** Whether the change is big enough to mention. */
@@ -154,22 +157,27 @@ function valuesByDay(data: AppData, key: MetricKey): Map<DayKey, number> {
   return map;
 }
 
+export function minRecentFor(key: MetricKey): number {
+  return key === "reaction" ? 1 : MIN_RECENT_ENTRIES;
+}
+
 function metricLevel(data: AppData, def: MetricDef, today: DayKey): MetricLevel {
   const byDay = valuesByDay(data, def.key);
   const recentStart = addDays(today, -(RECENT_DAYS - 1));
   const baselineStart = addDays(recentStart, -BASELINE_DAYS);
-  const recentVals: number[] = [];
+  const recentDated: [DayKey, number][] = [];
   const usualVals: number[] = [];
   for (const [date, v] of byDay) {
-    if (date >= recentStart && date <= today) recentVals.push(v);
+    if (date >= recentStart && date <= today) recentDated.push([date, v]);
     else if (date >= baselineStart && date < recentStart) usualVals.push(v);
   }
+  const recentVals = recentDated.sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
   const series = Array.from({ length: CHART_DAYS }, (_, i) => {
     const date = addDays(today, i - (CHART_DAYS - 1));
     return { date, value: byDay.get(date) ?? null };
   });
   const minBase = def.key === "reaction" ? 2 : MIN_BASELINE;
-  const minRecent = def.key === "reaction" ? 1 : MIN_RECENT;
+  const minRecent = minRecentFor(def.key);
   const usual = usualVals.length >= minBase ? summarise(usualVals) : null;
   const recent = recentVals.length >= minRecent ? summarise(recentVals) : null;
   let delta: number | null = null;
@@ -187,6 +195,7 @@ function metricLevel(data: AppData, def: MetricDef, today: DayKey): MetricLevel 
     series,
     usual,
     recent,
+    recentValues: recentVals,
     delta,
     direction,
     experimental: def.experimental,
