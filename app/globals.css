@@ -336,7 +336,7 @@ button {
   padding: var(--space-2) var(--space-1);
 }
 .scale-btn strong { font-size: var(--font-size-xl); line-height: 1; }
-.scale-btn span { font-size: 0.75rem; color: var(--color-ink-soft); }
+.scale-btn span { font-size: var(--font-size-xs); color: var(--color-ink-soft); }
 .scale-btn:hover { border-color: var(--color-ink-faint); }
 .scale-btn[aria-pressed="true"] {
   background: var(--color-primary);
@@ -466,7 +466,7 @@ input[type="time"] { cursor: text; }
 }
 .placeholder-tag {
   display: inline-block;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;

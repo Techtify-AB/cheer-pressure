@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/AppShell";
+import { cssToken } from "@/lib/cssToken";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Cheer Pressure",
-  description: "Short daily check-ins that compare you only with your own earlier days. Stays on this device.",
+  description: "A companion that notices changes in your own rhythm and asks how you are only when something stands out. Stays on this device.",
   applicationName: "Cheer Pressure",
   appleWebApp: { capable: true, title: "Cheer Pressure", statusBarStyle: "default" },
   icons: { apple: "/icons/icon-192.png" },
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#f6f2ea",
+  themeColor: cssToken("--color-bg"), // from styles/tokens.css
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
