@@ -18,7 +18,7 @@ export const ROUTINES: { id: RoutineId; label: string }[] = [
 export const DEFAULT_QUIET_HOURS = { from: "22:00", to: "08:00" };
 
 export function sourcesOf(s: Settings): Sources {
-  return { typing: s.sources?.typing ?? true, dayRhythm: s.sources?.dayRhythm ?? true, camera: s.sources?.camera ?? false, contact: s.sources?.contact ?? true };
+  return { typing: s.sources?.typing ?? true, dayRhythm: s.sources?.dayRhythm ?? true, camera: s.sources?.camera ?? false, microphone: s.sources?.microphone ?? false, contact: s.sources?.contact ?? true };
 }
 
 export function routinesOf(s: Settings): Record<RoutineId, boolean> {
@@ -49,7 +49,7 @@ export function pickSmallThing(preferred: RoutineId, on: Record<RoutineId, boole
 /** The data the rule may use: sources the person switched off are left out. */
 export function forRule(data: AppData): AppData {
   const src = sourcesOf(data.settings);
-  if (src.typing && src.dayRhythm && src.camera && src.contact) return data;
+  if (src.typing && src.dayRhythm && src.camera && src.microphone && src.contact) return data;
   return {
     ...data,
     typingSessions: src.typing ? data.typingSessions : [],
@@ -58,6 +58,7 @@ export function forRule(data: AppData): AppData {
     // Made-up movement days stay, so the demo tells its story with the camera off.
     movementSessions: src.camera ? data.movementSessions : (data.movementSessions ?? []).filter((m) => m.source === "demo"),
     contactDays: src.contact ? data.contactDays : [],
+    toneSessions: src.microphone ? data.toneSessions : (data.toneSessions ?? []).filter((t) => t.source === "demo"),
   };
 }
 

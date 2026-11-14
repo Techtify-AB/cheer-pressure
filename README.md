@@ -154,10 +154,10 @@ measuring, off, or "not connected yet" (`lib/categories.ts`).
 
 | Category | Inputs today | Not connected yet |
 | --- | --- | --- |
-| Sleep | estimated from when this computer is used: first activity, last activity, estimated rest | phone app, watch or band (Fitbit, Apple Health, Health Connect), the companion at the bedside |
-| Energy | typing rhythm (evenness, hold time), body movement from the camera (movement, position changes) | pace of the voice |
+| Sleep | an estimate from the first and last key press each day (first activity, last activity, estimated rest); a watch or phone would give real sleep | phone app, watch or band (Fitbit, Apple Health, Health Connect), the companion at the bedside |
+| Energy | typing rhythm (evenness, hold time), the camera (movement, position changes), the microphone (pace of the voice) | |
 | Social | messages with the person you trust, per day (how many, never what they say) | talking with someone, at home or out |
-| Mood | the person's own daily answer (Good, Okay, Not so good), its anchor | facial expression, posture, tone of voice |
+| Mood | the person's own daily answer (Good, Okay, Not so good), its anchor; with the camera, face movement and raised mouth corners, posture; with the microphone, how much the pitch moves | |
 
 **One value per measure per day.** Typing is pooled over the day's counted bursts of real
 writing (below), only on days with at least 300 counted presses; movement on days with at least
@@ -291,8 +291,14 @@ The person's own data is in `localStorage` under `companion.v1`, as one JSON obj
   longer reads it.
 - `activityDays[]`: first and last key press per day (`"HH:MM"`), from the desktop app.
 - `movementSessions[]`: one per stretch with the camera on (`lib/camera`): date, minutes in
-  frame, average movement (shoulder widths per second), position changes per hour. Numbers
-  only; no picture is ever kept.
+  frame, average movement (shoulder widths per second), position changes per hour, and the
+  face (movement, raised mouth corners, lowered brows) and posture (head height above the
+  shoulders, the session's own usual) numbers. No picture is ever kept.
+- `postureUsual`: the person's usual posture across sessions (the median head height of the
+  last 28 days), since the camera's own usual is only the first minutes of each session.
+- `toneSessions[]`: one per stretch with the microphone on (`lib/voice/tone.ts`): minutes,
+  minutes of talking, voiced stretches per minute, pitch movement, loudness. No sound, no words.
+- `contactDays[]`: messages with the person they trust per day, while a pair existed.
 - `dailyAnswers[]`: one per day the daily question came up: the date, the answer (`good`,
   `okay`, `not-so-good`) or null when it was dismissed, and when.
 - `checkIns[]`: each proposed check-in and its answer, which measures triggered it, how
@@ -398,11 +404,18 @@ the brain is asked anything.
   measurements, check-in or weekly answers, the clinic text, the person's name or anything
   about health. Until a pair exists, the app requests nothing from any other origin.
 - QR codes are made on the device; the links are not sent to any other service to draw them.
-- The camera is off by default (Settings, What I measure). Turned on, it is asked for only then
-  and runs only while the app's window is open and showing; Pause everything stops it, and
-  "Camera on" shows on every screen and in the mascot window while it runs. The picture is
-  worked out on this computer by MediaPipe, vendored under `public/vendor/mediapipe`, and never
-  stored or sent; only three numbers per stretch are kept. "Movement, live" is under the demo.
+- The camera and the microphone are separate switches, both off by default (Settings, What I
+  measure, Energy). Each is asked for only when turned on and runs only while the app's window
+  is open and showing; Pause everything stops both, and "Camera on" or "Microphone on" shows on
+  every screen and in the mascot window while they run. The picture and the sound are worked
+  out on this computer (MediaPipe and Web Audio, vendored or built in) and never stored or sent;
+  no words are recognised. Only numbers per stretch are kept: movement, face movement, raised
+  mouth corners and posture from the camera (lowered brows are kept but never shown or used),
+  pace and pitch movement from the microphone. "Camera, live" and "Voice, live" are under the
+  demo.
+- Face and posture are experimental and never used on their own: the face model's own card says
+  it is made for AR and avatars and not intended for human life-critical decisions. Under Mood
+  they may only support another category, and never outweigh the person's own answer.
 - Read-aloud uses only voices the browser reports as on-device (`localService`). If there is
   none, the companion stays silent and shows its text.
 - Measurements stay on this device unless the person chooses to save or print a report for
@@ -510,6 +523,8 @@ the menu bar icon.
 - The character's final look.
 - Translations. The UI is English only.
 - Clinical validation of any threshold. The change thresholds in `lib/levels.ts` are first guesses.
+- Face and posture measures beyond an experiment: the face model is made for AR and avatars, not
+  for decisions about people, so they never count on their own.
 
 ## Notes
 

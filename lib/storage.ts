@@ -14,6 +14,7 @@ import type {
   DailyAnswer,
   StoredMovementSession,
   ContactDay,
+  StoredToneSession,
   DailyEntry,
   LadderState,
   Profile,
@@ -34,6 +35,8 @@ function empty(): AppData {
     dailyAnswers: [],
     movementSessions: [],
     contactDays: [],
+    toneSessions: [],
+    postureUsual: null,
     checkIns: [],
     settings: { muted: false },
     ladder: null,
@@ -80,6 +83,8 @@ function load(): AppData {
       dailyAnswers: Array.isArray(parsed.dailyAnswers) ? parsed.dailyAnswers : [],
       movementSessions: Array.isArray(parsed.movementSessions) ? parsed.movementSessions : [],
       contactDays: Array.isArray(parsed.contactDays) ? parsed.contactDays : [],
+      toneSessions: Array.isArray(parsed.toneSessions) ? parsed.toneSessions : [],
+      postureUsual: parsed.postureUsual ?? null,
       checkIns: parsed.checkIns ?? [],
       ladder: parsed.ladder ?? null,
     };
@@ -104,6 +109,7 @@ function commit(next: AppData) {
     dailyAnswers: sortByDate(next.dailyAnswers ?? []),
     movementSessions: sortByDate(next.movementSessions ?? []),
     contactDays: sortByDate(next.contactDays ?? []),
+    toneSessions: sortByDate(next.toneSessions ?? []),
     checkIns: sortByDate(next.checkIns),
   };
   cache = tidy;
@@ -221,10 +227,29 @@ export function saveContactDays(days: ContactDay[]) {
   if (changed) commit({ ...d, contactDays: [...byDate.values()] });
 }
 
-/** Stores one stretch with the camera on (numbers only). */
+/**
+ * Stores one stretch with the camera on (numbers only), and keeps the usual posture across
+ * sessions: the median head height of the last 28 days' sessions, so days can be compared
+ * (the camera's own posture usual is only the first minutes of each session).
+ */
 export function saveMovementSession(entry: StoredMovementSession) {
   const d = readData();
-  commit({ ...d, movementSessions: [...(d.movementSessions ?? []), entry] });
+  const sessions = [...(d.movementSessions ?? []), entry];
+  const cutoff = new Date(Date.now() - 28 * 86_400_000).toISOString().slice(0, 10);
+  const heights = sessions
+    .filter((s) => s.date >= cutoff && s.posture && Number.isFinite(s.posture.uprightMean))
+    .map((s) => s.posture!.uprightMean)
+    .sort((a, b) => a - b);
+  const postureUsual = heights.length
+    ? { uprightMedian: heights[Math.floor((heights.length - 1) / 2)], sessions: heights.length, updatedAt: new Date().toISOString() }
+    : (d.postureUsual ?? null);
+  commit({ ...d, movementSessions: sessions, postureUsual });
+}
+
+/** Stores one stretch with the microphone on (numbers only; no audio, no words). */
+export function saveToneSession(entry: StoredToneSession) {
+  const d = readData();
+  commit({ ...d, toneSessions: [...(d.toneSessions ?? []), entry] });
 }
 
 /** Stores today's answer to the daily question, or that it was dismissed. One per day. */
@@ -264,6 +289,7 @@ export function addDemo(demo: {
   dailyAnswers?: DailyAnswer[];
   movementSessions?: StoredMovementSession[];
   contactDays?: ContactDay[];
+  toneSessions?: StoredToneSession[];
 }) {
   const d = clearDemoFrom(readData());
   const realDaily = new Set(d.daily.map((e) => e.date));
@@ -276,6 +302,7 @@ export function addDemo(demo: {
     reaction: [...d.reaction, ...demo.reaction],
     typingSessions: [...d.typingSessions, ...demo.typingSessions],
     movementSessions: [...(d.movementSessions ?? []), ...(demo.movementSessions ?? [])],
+    toneSessions: [...(d.toneSessions ?? []), ...(demo.toneSessions ?? [])],
     contactDays: [...(d.contactDays ?? []), ...(demo.contactDays ?? []).filter((c) => !(d.contactDays ?? []).some((u) => u.date === c.date))],
     dailyAnswers: [
       ...(d.dailyAnswers ?? []),
@@ -300,6 +327,7 @@ function clearDemoFrom(d: AppData): AppData {
     dailyAnswers: (d.dailyAnswers ?? []).filter((e) => e.source !== "demo"),
     movementSessions: (d.movementSessions ?? []).filter((e) => e.source !== "demo"),
     contactDays: (d.contactDays ?? []).filter((e) => e.source !== "demo"),
+    toneSessions: (d.toneSessions ?? []).filter((e) => e.source !== "demo"),
     activityDays: d.activityDays.filter((e) => e.source !== "demo"),
     settings: { ...d.settings, simulatedChangeAt: undefined },
     // A ladder that started from made-up data goes with it.
@@ -312,7 +340,7 @@ export function clearDemo() {
 }
 
 export function hasDemo(d: AppData): boolean {
-  return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions, ...(d.typingDays ?? []), ...(d.dailyAnswers ?? []), ...(d.movementSessions ?? []), ...(d.contactDays ?? []), ...d.activityDays].some(
+  return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions, ...(d.typingDays ?? []), ...(d.dailyAnswers ?? []), ...(d.movementSessions ?? []), ...(d.contactDays ?? []), ...(d.toneSessions ?? []), ...d.activityDays].some(
     (e) => e.source === "demo",
   );
 }

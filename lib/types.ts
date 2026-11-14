@@ -114,7 +114,12 @@ export type PassiveKey =
   | "ownAnswer"
   | "movementLevel"
   | "positionChanges"
-  | "contact";
+  | "contact"
+  | "voicePace"
+  | "faceMovement"
+  | "raisedMouth"
+  | "posture"
+  | "pitchVariability";
 
 /** Messages with the person the person trusts on one day, both ways, while a pair existed. */
 export interface ContactDay {
@@ -133,8 +138,40 @@ export interface StoredMovementSession {
   /** Average movement while in frame, in shoulder widths per second. */
   movementMean: number;
   shiftsPerHour: number;
+  /** How the face moved (lib/camera/expression.ts), or null. Missing in older data. */
+  expression?: {
+    minutesWithFace: number;
+    smilingShare: number;
+    smilesPerHour: number;
+    animationMean: number;
+    /** Kept, but not shown and not used (not checked on real faces). */
+    browLoweredShare: number;
+  } | null;
+  /** How the person sat (lib/camera/posture.ts), or null. Missing in older data. */
+  posture?: { minutes: number; uprightMean: number; usual: number | null; slumpedShare: number; uprightShare: number } | null;
   source: Source;
   savedAt: string;
+}
+
+/** One stretch with the microphone on (lib/voice/tone.ts): numbers only, no audio, no words. */
+export interface StoredToneSession {
+  date: DayKey;
+  minutes: number;
+  speakingMinutes: number;
+  /** Voiced stretches per minute of talking: a stand-in for pace. */
+  segmentsPerMinute: number;
+  /** How much the pitch moved, in semitones. */
+  pitchVariability: number;
+  loudnessMean: number;
+  source: Source;
+  savedAt: string;
+}
+
+/** The person's usual posture across sessions: the median head height over the last 28 days. */
+export interface PostureUsual {
+  uprightMedian: number;
+  sessions: number;
+  updatedAt: string;
 }
 
 /** The three answers to the daily question "How are you today?". */
@@ -206,8 +243,10 @@ export interface Sources {
   typing: boolean;
   /** Day rhythm: first and last activity of the day. */
   dayRhythm: boolean;
-  /** Movement in front of the computer, from the camera. Off unless the person turns it on. */
+  /** The camera: movement (Energy), face and posture (Mood). Off unless the person turns it on. */
   camera: boolean;
+  /** The microphone: pace (Energy) and tone of voice (Mood); no words. Off unless turned on. */
+  microphone: boolean;
   /** How many messages pass with the person they trust each day (never what they say). */
   contact: boolean;
 }
@@ -273,6 +312,10 @@ export interface AppData {
   movementSessions?: StoredMovementSession[];
   /** Messages with the person they trust, per day. Missing in older data. */
   contactDays?: ContactDay[];
+  /** Stretches with the microphone on. Missing in older data. */
+  toneSessions?: StoredToneSession[];
+  /** The usual posture across sessions. Missing in older data. */
+  postureUsual?: PostureUsual | null;
   activityDays: ActivityDay[];
   checkIns: PromptedCheckIn[];
   settings: Settings;

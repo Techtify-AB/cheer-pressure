@@ -175,6 +175,12 @@ async function run(size) {
     await go(`/settings/${h}`);
     await measure(page, `settings${h.replace("#", "-")}`);
   }
+  await go("/settings/#measure");
+  for (const c of ["Sleep", "Energy", "Social", "Mood"]) {
+    await click(c);
+    await measure(page, `settings-measure-${c.toLowerCase()}`);
+    await click("Back to What I measure");
+  }
   await go("/help/");
   await measure(page, "help");
   await go("/demo/");

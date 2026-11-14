@@ -30,6 +30,7 @@ import { useData } from "@/lib/storage";
 import type { DayKey } from "@/lib/types";
 
 const COUNT = ["None", "One", "Two", "Three"];
+const SLEEP_ESTIMATE = "An estimate from your first and last key press each day. Connect a watch or phone for real sleep.";
 
 /** Short plain meanings, next to every number. */
 const SHORT: Record<string, string> = {
@@ -201,6 +202,7 @@ export default function ValuesPage() {
           <Measure key={m.key} m={m} today={today} />
         ))}
         {!shown.length && <p className="small muted value-numbers">Nothing is measured here yet.</p>}
+        {source.id === "sleep" && <p className="small muted value-numbers">{SLEEP_ESTIMATE}</p>}
         {quiet.length > 0 && (
           <p className="small muted value-numbers">
             {quiet

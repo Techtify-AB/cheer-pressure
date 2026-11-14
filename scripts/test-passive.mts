@@ -16,6 +16,8 @@ import {
   weeklyInsight,
   enoughToAsk,
   movementPoints,
+  cameraMoodPoints,
+  tonePoints,
   PASSIVE_DEFS,
   sourceOf,
   SOURCES,
@@ -155,6 +157,30 @@ check("judge: just outside the band is not clearly outside", judgeDays(pts([...s
   changed.settings.sources = { typing: true, dayRhythm: true, camera: true };
   const e = evaluatePassive(forRule(changed), TODAY);
   check("movement and typing together are one category, Energy, so Cheri does not ask", !e.askNow && e.changed.some((m) => m.key === "movementLevel") && e.changed.some((m) => m.key === "spread"), e.changed.map((m) => m.key).join());
+}
+
+// Mood from the camera and the microphone: observations that never outweigh the person's answer
+{
+  check("face movement with Energy may support a change (two categories)", enoughToAsk([{ key: "faceMovement" }, { key: "spread" }]));
+  check("but not when the person's own answers have been steady", !enoughToAsk([{ key: "faceMovement" }, { key: "spread" }], { answerSteady: true }));
+  check("Mood sensors alone never ask", !enoughToAsk([{ key: "faceMovement" }, { key: "posture" }, { key: "pitchVariability" }]));
+  const d = empty();
+  d.movementSessions = [
+    { date: TODAY, minutes: 30, movementMean: 0.05, shiftsPerHour: 8, expression: { minutesWithFace: 6, smilingShare: 0.2, smilesPerHour: 3, animationMean: 0.5, browLoweredShare: 0.9 }, posture: { minutes: 30, uprightMean: 1.2, usual: 1.1, slumpedShare: 0.1, uprightShare: 0.2 }, source: "user", savedAt: "" },
+    { date: TODAY, minutes: 10, movementMean: 0.05, shiftsPerHour: 8, expression: { minutesWithFace: 6, smilingShare: 0.4, smilesPerHour: 3, animationMean: 0.3, browLoweredShare: 0.9 }, posture: null, source: "user", savedAt: "" },
+  ];
+  const face = cameraMoodPoints(d, "faceMovement", TODAY);
+  const smile = cameraMoodPoints(d, "raisedMouth", TODAY);
+  const sit = cameraMoodPoints(d, "posture", TODAY);
+  check("face and posture: one value per day, weighted by minutes, from 10 minutes", Math.abs(face[0].value - 0.4) < 1e-9 && Math.abs(smile[0].value - 0.3) < 1e-9 && Math.abs(sit[0].value - 1.2) < 1e-9);
+  check("lowered brows are stored but never a measure", !PASSIVE_DEFS.some((x) => /brow/i.test(x.key + x.label)));
+  d.toneSessions = [
+    { date: TODAY, minutes: 10, speakingMinutes: 2, segmentsPerMinute: 30, pitchVariability: 2, loudnessMean: -30, source: "user", savedAt: "" },
+    { date: addDays(TODAY, -1), minutes: 10, speakingMinutes: 4, segmentsPerMinute: 20, pitchVariability: 3, loudnessMean: -30, source: "user", savedAt: "" },
+  ];
+  check("voice: pace and tone per day from 3 minutes of talking", tonePoints(d, "voicePace", TODAY).length === 1 && tonePoints(d, "pitchVariability", TODAY)[0].value === 3);
+  const sensorWords = PASSIVE_DEFS.filter((x) => ["faceMovement", "raisedMouth", "posture", "pitchVariability", "voicePace", "movementLevel"].includes(x.key)).flatMap((x) => [x.up, x.down, x.label, x.meaning]).join(" ");
+  check("sensor wording names an observation, never a feeling", !/\b(sad|happy|mood|low|depress|anxious|upset|angry|feel)\b/i.test(sensorWords), (sensorWords.match(/\b(sad|happy|mood|low|depress|anxious|upset|angry|feel)\w*/i) ?? [""])[0]);
 }
 
 // Older data must not crash, and old sessions are ignored by the rule

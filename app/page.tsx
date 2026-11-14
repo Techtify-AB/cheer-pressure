@@ -143,7 +143,7 @@ export default function HomePage() {
     <Screen
       lead={
         <div className="home-hero">
-          <Companion state={mood} size={260} />
+          <Companion state={mood} size={232} />
           <p className="calm-line" aria-live="polite">
             {line}
           </p>

@@ -111,7 +111,7 @@ export type CategoryId = "sleep" | "energy" | "social" | "mood";
 export type SourceId = CategoryId;
 
 /** Which switch in Settings turns an input on, or null for one that is not connected yet. */
-export type InputSetting = "dayRhythm" | "typing" | "camera" | "contact" | "dailyQuestion" | null;
+export type InputSetting = "dayRhythm" | "typing" | "camera" | "microphone" | "contact" | "dailyQuestion" | null;
 
 export interface Input {
   id: string;
@@ -159,7 +159,7 @@ export const SOURCES: {
     inputs: [
       { id: "typing", label: "Typing rhythm", measures: ["spread", "hold"], setting: "typing", sensor: true },
       { id: "movement", label: "Body movement (camera)", measures: ["movementLevel", "positionChanges"], setting: "camera", sensor: true },
-      { id: "voice-pace", label: "Pace of the voice", measures: [], setting: null },
+      { id: "voice-pace", label: "Pace of the voice (microphone)", measures: ["voicePace"], setting: "microphone", sensor: true },
     ],
   },
   {
@@ -180,9 +180,9 @@ export const SOURCES: {
     words: "mood",
     inputs: [
       { id: "daily-answer", label: "Your daily answer", measures: ["ownAnswer"], setting: "dailyQuestion" },
-      { id: "expression", label: "Facial expression (camera)", measures: [], setting: null, sensor: true },
-      { id: "posture", label: "Posture (camera)", measures: [], setting: null, sensor: true },
-      { id: "voice-tone", label: "Tone of voice", measures: [], setting: null, sensor: true },
+      { id: "expression", label: "Face movement (camera)", measures: ["faceMovement", "raisedMouth"], setting: "camera", sensor: true },
+      { id: "posture", label: "Posture (camera)", measures: ["posture"], setting: "camera", sensor: true },
+      { id: "voice-tone", label: "Tone of voice (microphone)", measures: ["pitchVariability"], setting: "microphone", sensor: true },
     ],
   },
 ];
@@ -231,6 +231,10 @@ export const MIN_SOURCES_TO_ASK = 2;
 
 /** Minutes in frame a day needs before its movement counts. */
 export const MIN_MOVEMENT_MINUTES = 20;
+/** Minutes with a face in view, or in frame for posture, a day needs before those count. */
+export const MIN_FACE_MINUTES = 10;
+/** Minutes of talking a day needs before pace and tone count. */
+export const MIN_SPEAKING_MINUTES_DAY = 3;
 
 /** For the daily question: at least this many "Not so good" among the last week's answers. */
 export const MIN_NOT_SO_GOOD = 4;
@@ -452,6 +456,18 @@ export const PASSIVE_DEFS: Def[] = [
     isNot: "No picture is kept; not posture, expression or mood",
   },
   {
+    key: "voicePace",
+    label: "Pace of the voice",
+    meaning: "Voiced stretches a minute while you talk, a stand-in for pace; no words are recognised",
+    format: (v) => `${v.toFixed(1)}/min`,
+    up: "your voice has had more stretches a minute",
+    down: "your voice has had fewer stretches a minute",
+    upWord: "quicker",
+    downWord: "slower",
+    is: "How many voiced stretches a minute while talking, a stand-in for pace",
+    isNot: "No sound is kept, no words are recognised",
+  },
+  {
     key: "contact",
     label: "Messages with a trusted person",
     meaning: "Messages sent and answered with the person you trust, per day",
@@ -475,7 +491,56 @@ export const PASSIVE_DEFS: Def[] = [
     is: "Own answers to \"How are you today?\" (Good, Okay, Not so good)",
     isNot: "A day without an answer never counts as low",
   },
+  {
+    key: "faceMovement",
+    label: "Face movement",
+    meaning: "How much your face moved while in view of the camera",
+    format: (v) => v.toFixed(2),
+    up: "your face has been more animated",
+    down: "your face has been less animated",
+    upWord: "more animated",
+    downWord: "less animated",
+    is: "How much the face moved in front of the computer (experimental; never used on its own)",
+    isNot: "No picture is kept; not a feeling",
+  },
+  {
+    key: "raisedMouth",
+    label: "Raised mouth corners",
+    meaning: "Share of the time your mouth corners were raised while in view",
+    format: (v) => `${Math.round(v * 100)} in 100`,
+    up: "your mouth corners have been raised more of the time",
+    down: "your mouth corners have been raised less of the time",
+    upWord: "more of the time",
+    downWord: "less of the time",
+    is: "Share of the time with raised mouth corners (experimental; never used on its own)",
+    isNot: "No picture is kept; not a feeling",
+  },
+  {
+    key: "posture",
+    label: "Posture",
+    meaning: "How upright you sit: head height above the shoulders; lower is more slumped",
+    format: (v) => v.toFixed(2),
+    up: "you have been sitting more upright",
+    down: "you have been sitting more slumped",
+    upWord: "more upright",
+    downWord: "more slumped",
+    is: "Head height above the shoulder line, in shoulder widths (experimental; never used on its own)",
+    isNot: "No picture is kept; not a feeling",
+  },
+  {
+    key: "pitchVariability",
+    label: "Tone of voice",
+    meaning: "How much the pitch of your voice moves while you talk",
+    format: (v) => `${v.toFixed(1)} st`,
+    up: "your voice has moved more",
+    down: "your voice has moved less",
+    upWord: "moving more",
+    downWord: "moving less",
+    is: "How much the pitch moves while talking, in semitones",
+    isNot: "No sound is kept, no words are recognised; not a feeling",
+  },
 ];
+
 
 /**
  * The daily question's own test: at least 4 "Not so good" among the last week's answers, and
@@ -561,9 +626,50 @@ export function movementPoints(data: AppData, key: "movementLevel" | "positionCh
     .map(([date, d]) => ({ date, value: key === "movementLevel" ? d.level / d.minutes : (d.shifts * 60) / d.minutes }));
 }
 
+/** Weighted daily means: [date, weight, value] rows to one point per day with enough weight. */
+function pooled(rows: [DayKey, number, number][], minWeight: number): Point[] {
+  const byDate = new Map<DayKey, { w: number; v: number }>();
+  for (const [date, w, v] of rows) {
+    if (!(w > 0) || !Number.isFinite(v)) continue;
+    const d = byDate.get(date) ?? { w: 0, v: 0 };
+    d.w += w;
+    d.v += v * w;
+    byDate.set(date, d);
+  }
+  return [...byDate.entries()]
+    .filter(([, d]) => d.w >= minWeight)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, d]) => ({ date, value: d.v / d.w }));
+}
+
+/** Face movement, raised mouth corners and posture per day (lowered brows are kept but never used). */
+export function cameraMoodPoints(data: AppData, key: "faceMovement" | "raisedMouth" | "posture", today: DayKey): Point[] {
+  const rows: [DayKey, number, number][] = [];
+  for (const s of data.movementSessions ?? []) {
+    if (s.date > today) continue;
+    if (key === "posture" && s.posture) rows.push([s.date, s.posture.minutes, s.posture.uprightMean]);
+    if (key !== "posture" && s.expression) {
+      rows.push([s.date, s.expression.minutesWithFace, key === "faceMovement" ? s.expression.animationMean : s.expression.smilingShare]);
+    }
+  }
+  return pooled(rows, MIN_FACE_MINUTES);
+}
+
+/** Pace and tone of voice per day, weighted by minutes of talking. */
+export function tonePoints(data: AppData, key: "voicePace" | "pitchVariability", today: DayKey): Point[] {
+  return pooled(
+    (data.toneSessions ?? [])
+      .filter((t) => t.date <= today)
+      .map((t) => [t.date, t.speakingMinutes, key === "voicePace" ? t.segmentsPerMinute : t.pitchVariability] as [DayKey, number, number]),
+    MIN_SPEAKING_MINUTES_DAY,
+  );
+}
+
 function seriesFor(data: AppData, key: PassiveKey, today: DayKey, kind: TypingKind): Point[] {
   if (key === "spread" || key === "hold") return typingPoints(data.typingDays ?? [], key, kind, today);
   if (key === "movementLevel" || key === "positionChanges") return movementPoints(data, key, today);
+  if (key === "faceMovement" || key === "raisedMouth" || key === "posture") return cameraMoodPoints(data, key, today);
+  if (key === "voicePace" || key === "pitchVariability") return tonePoints(data, key, today);
   if (key === "contact") {
     return (data.contactDays ?? []).filter((c) => c.date <= today).map((c) => ({ date: c.date, value: c.exchanged }));
   }

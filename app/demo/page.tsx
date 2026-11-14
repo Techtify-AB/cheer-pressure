@@ -100,16 +100,16 @@ export default function DemoPage() {
           <span className="menu-value">{messagesUrlOf(data.settings)}</span>
         </button>
         <Link href="/demo/camera/" className="menu-row">
-          <span className="menu-label">Movement, live</span>
-          <span className="menu-value">The camera, worked out on this computer</span>
+          <span className="menu-label">Camera, live</span>
+          <span className="menu-value">Movement, face and posture, on this computer</span>
+        </Link>
+        <Link href="/demo/voice/" className="menu-row">
+          <span className="menu-label">Voice, live</span>
+          <span className="menu-value">Pace and tone, no words recognised</span>
         </Link>
         <Link href="/live/" className="menu-row">
           <span className="menu-label">Live view</span>
           <span className="menu-value">Typing numbers as you type</span>
-        </Link>
-        <Link href="/values/" className="menu-row">
-          <span className="menu-label">My values</span>
-          <span className="menu-value">Each source against your usual range</span>
         </Link>
         <Link href="/demo/clinic/" className="menu-row">
           <span className="menu-label">What a clinic could see</span>

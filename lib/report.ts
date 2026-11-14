@@ -219,7 +219,16 @@ export function clinicReport(data: AppData, today: DayKey, evaluation?: Evaluati
     answers,
     weekly,
     ladder,
-    legend: PASSIVE_DEFS.map((d) => ({ label: d.label, is: d.is, isNot: d.isNot })),
+    legend: [
+      ...PASSIVE_DEFS.map((d) => ({ label: d.label, is: d.is, isNot: d.isNot })),
+      {
+        label: "Sleep",
+        is: "An estimate from my first and last key press each day",
+        isNot: "Not measured sleep; a watch or phone would give real sleep (not connected yet)",
+      },
+      // The face model's own card: made for AR and avatars, "not intended for human life-critical decisions".
+      { label: "Face and posture", is: "Experimental measures", isNot: "Never used on their own" },
+    ],
     disclaimer: DISCLAIMER,
     simulated: e.simulated,
   };

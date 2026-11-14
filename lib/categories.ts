@@ -24,6 +24,8 @@ export function inputState(input: Input, data: AppData, paired: boolean): InputS
       return src.typing ? "measuring" : "off";
     case "camera":
       return src.camera ? "measuring" : "off";
+    case "microphone":
+      return src.microphone ? "measuring" : "off";
     case "contact":
       if (!src.contact) return "off";
       return paired ? "measuring" : "not-connected";
@@ -34,9 +36,13 @@ export function inputState(input: Input, data: AppData, paired: boolean): InputS
 
 /** Short words for an input in a category's line. */
 const SHORT: Record<string, string> = {
-  "computer-use": "estimated from this computer",
+  "computer-use": "an estimate from your first and last key press each day",
   typing: "typing rhythm",
   movement: "movement from the camera",
+  "voice-pace": "pace of the voice",
+  expression: "face movement",
+  posture: "posture",
+  "voice-tone": "tone of voice",
   "trusted-contact": "messages with someone you trust",
   "daily-answer": "your daily answer",
 };

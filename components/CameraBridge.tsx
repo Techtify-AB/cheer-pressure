@@ -4,7 +4,7 @@
 //
 // - The camera runs only while the person has it on in Settings (off by default), nothing is
 //   paused, and the Cheer Pressure window is open and showing. It is asked for only then.
-// - It hands the camera to "Movement, live" (/demo/camera/) while that screen is open, which
+// - It hands the camera to "Camera, live" (/demo/camera/) while that screen is open, which
 //   runs the same controller with its own picture.
 // - Every finished stretch (numbers only) is stored once, here: lib/storage.ts.
 // - While it runs, a small key in local storage says so, so the mascot window, which has no
@@ -13,7 +13,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useCamera } from "@/components/camera/useCamera";
-import { onSession, resetCamera, startCamera, stopCamera } from "@/lib/camera";
+import { onCameraSession, resetCamera, startCamera, stopCamera } from "@/lib/camera";
 import { sourcesOf } from "@/lib/settings";
 import { readData, saveMovementSession, useData } from "@/lib/storage";
 
@@ -45,17 +45,27 @@ export function CameraBridge() {
   const onCameraScreen = !!pathname?.startsWith("/demo/camera");
   const wanted = !!data?.profile && sourcesOf(data.settings).camera && !data.settings.pausedAll && visible;
 
-  // Finished stretches go into storage, once, while the person has the camera on.
+  // Finished stretches go into storage, once, while the person has the camera on: movement
+  // (Energy), and face movement and posture (Mood). Numbers only.
   useEffect(
     () =>
-      onSession((s) => {
+      onCameraSession((s) => {
         if (s.source !== "computer" || !sourcesOf(readData().settings).camera) return;
-        saveMovementSession({ date: s.date, minutes: s.minutes, movementMean: s.movementMean, shiftsPerHour: s.shiftsPerHour, source: "user", savedAt: new Date().toISOString() });
+        saveMovementSession({
+          date: s.date,
+          minutes: s.minutes,
+          movementMean: s.movement.movementMean,
+          shiftsPerHour: s.movement.shiftsPerHour,
+          expression: s.expression ? { ...s.expression } : null,
+          posture: s.posture ? { ...s.posture } : null,
+          source: "user",
+          savedAt: new Date().toISOString(),
+        });
       }),
     [],
   );
 
-  // Whether the camera running now was started here (not by "Movement, live").
+  // Whether the camera running now was started here (not by "Camera, live").
   const ours = useRef(false);
   useEffect(() => {
     const phase = view.phase;
@@ -102,10 +112,11 @@ export function CameraBridge() {
   return <video ref={video} className="camera-feed" muted playsInline aria-hidden="true" tabIndex={-1} />;
 }
 
-/** The "Camera on" sign, on every screen of the main window while the camera runs. */
+/** The "Camera on" sign, on every screen of the main window while the camera runs ("Camera, live" shows its own). */
 export function CameraOnSign() {
   const view = useCamera();
-  if (view.phase !== "on") return null;
+  const pathname = usePathname();
+  if (view.phase !== "on" || pathname?.startsWith("/demo/camera")) return null;
   return (
     <span className="camera-on" role="status">
       <span className="camera-on-dot" aria-hidden="true" />

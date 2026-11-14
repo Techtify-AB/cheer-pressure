@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
   <key>NSCameraUsageDescription</key>
-  <string>Cheer Pressure uses the camera to measure how much you move. The picture is worked out on this computer and never stored or sent.</string>
+  <string>Cheer Pressure uses the camera to measure how much you move and how you sit. The picture is worked out on this computer and never stored or sent.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Cheer Pressure uses the microphone to time how fast you read a sentence. It is processed on this computer and not stored.</string>
+  <string>Cheer Pressure uses the microphone to measure the pace and tone of your voice. No words are recognised. Nothing is recorded or sent.</string>
   <key>NSLocalNetworkUsageDescription</key>
   <string>Cheer Pressure connects to the messages service on your local network, so someone you trust can send you a few words. Measurements never leave this computer.</string>
 </dict>

@@ -4,9 +4,10 @@
 //   node scripts/check-camera-wiring.mjs [base-url]      (default http://localhost:3472, a static build)
 //
 // 1. Off by default: nothing asks for the camera and no "Camera on" sign.
-// 2. Settings, What I measure: turning Movement (camera) on starts it; "Camera on" shows on
+// 2. Settings, What I measure: turning Camera on starts it; "Camera on" shows on
 //    every screen, and in the mascot window (which reads the main window's heartbeat).
 // 3. Pause everything stops it and the sign goes; turning it off stops it too.
+// 4. The microphone the same way, with "Microphone on".
 import { createRequire } from "node:module";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -60,7 +61,8 @@ try {
   check("off by default: the camera is never asked for", mediaRequests === 0 && (await page.locator(".camera-on").count()) === 0);
 
   await page.goto(`${BASE}/settings/#measure`, { waitUntil: "networkidle" });
-  await page.getByRole("switch", { name: /Movement \(camera\)/ }).click();
+  await page.getByRole("button", { name: /^Energy/ }).click();
+  await page.getByRole("switch", { name: /^Camera/ }).click();
   const on = await page.locator(".shell-header .camera-on").waitFor({ timeout: 90_000 }).then(() => true, () => false);
   check("turned on: the camera is asked for once, and \"Camera on\" shows", on && mediaRequests === 1, `${mediaRequests} request(s)`);
   let everywhere = true;
@@ -88,9 +90,23 @@ try {
   check("and the mascot's sign goes", mascotOff);
   await page.getByRole("button", { name: "Resume measuring" }).click();
   await page.locator(".shell-header .camera-on").waitFor({ timeout: 90_000 }).catch(() => {});
-  await page.getByRole("switch", { name: /Movement \(camera\)/ }).click();
+  await page.getByRole("button", { name: /^Energy/ }).click();
+  await page.getByRole("switch", { name: /^Camera/ }).click();
   const offAgain = await page.locator(".shell-header .camera-on").waitFor({ state: "detached", timeout: 10_000 }).then(() => true, () => false);
   check("turning it off stops it", offAgain);
+  // The microphone: the same, with its own switch and sign.
+  await ctx.grantPermissions(["camera", "microphone"], { origin });
+  await page.getByRole("switch", { name: /^Voice \(microphone\)/ }).click();
+  const micOn = await page.locator(".shell-header .camera-on", { hasText: "Microphone on" }).waitFor({ timeout: 30_000 }).then(() => true, () => false);
+  check("microphone on: \"Microphone on\" shows", micOn);
+  const mascotMic = await mascot.locator(".mascot-camera", { hasText: "Microphone on" }).waitFor({ timeout: 8_000 }).then(() => true, () => false);
+  check("and in the mascot window", mascotMic);
+  await page.getByRole("button", { name: "Back to What I measure" }).click();
+  await page.getByRole("button", { name: "Pause everything" }).click();
+  check("Pause everything stops the microphone", await page.locator(".shell-header .camera-on").waitFor({ state: "detached", timeout: 10_000 }).then(() => true, () => false));
+  await page.getByRole("button", { name: "Resume measuring" }).click();
+  await page.getByRole("button", { name: /^Energy/ }).click();
+  await page.getByRole("switch", { name: /^Voice \(microphone\)/ }).click();
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("companion.v1")).movementSessions ?? []);
   check("nothing but numbers would be stored (a short stretch with no one in frame stores nothing)", Array.isArray(stored) && stored.length === 0);
 } finally {

@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { afterAnswer, DailyAnswers, useDailyQuestion } from "@/components/DailyQuestion";
 import { QUESTION } from "@/lib/daily";
 import { cameraHeartbeatFresh } from "@/components/CameraBridge";
+import { micHeartbeatFresh } from "@/components/MicrophoneBridge";
 import type { DailyAnswerValue } from "@/lib/types";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
@@ -42,8 +43,12 @@ export default function MascotPage() {
   const [thanks, setThanks] = useState<DailyAnswerValue | null>(null);
   // "Camera on" when the main window's camera runs (it says so in local storage every 2 s).
   const [cameraOn, setCameraOn] = useState(false);
+  const [micOn, setMicOn] = useState(false);
   useEffect(() => {
-    const id = window.setInterval(() => setCameraOn(cameraHeartbeatFresh()), 1000);
+    const id = window.setInterval(() => {
+      setCameraOn(cameraHeartbeatFresh());
+      setMicOn(micHeartbeatFresh());
+    }, 1000);
     return () => window.clearInterval(id);
   }, []);
   const bubble = (daily.due && !greeting) || !!thanks;
@@ -75,10 +80,10 @@ export default function MascotPage() {
 
   return (
     <div className="mascot-page" data-cue={cue || undefined} data-greeting={greeting ? "" : undefined} data-bubble={bubble || undefined}>
-      {cameraOn && (
+      {(cameraOn || micOn) && (
         <span className="camera-on mascot-camera" role="status">
           <span className="camera-on-dot" aria-hidden="true" />
-          Camera on
+          {cameraOn && micOn ? "Camera, mic on" : cameraOn ? "Camera on" : "Microphone on"}
         </span>
       )}
       {bubble && (

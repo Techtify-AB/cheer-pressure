@@ -13,8 +13,9 @@ import { SwitchRow } from "@/components/Switch";
 import { forgetDesktopData, setTypingPaused } from "@/lib/platform";
 import { LinkCode } from "@/components/LinkCode";
 import { useCamera } from "@/components/camera/useCamera";
+import { useVoice } from "@/components/voice/useVoice";
 import { isLocalOnly, messagesUrlOf, quietHoursOf, ROUTINES, routinesOf, sourcesOf } from "@/lib/settings";
-import { notConnectedInputs } from "@/lib/passive";
+import { notConnectedInputs, SOURCES, type CategoryId } from "@/lib/passive";
 import { disconnect, invite, useTrusted } from "@/lib/trusted";
 import { deleteEverything, saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
@@ -145,6 +146,14 @@ function List({ data, go }: { data: AppData; go: (v: View) => void }) {
   );
 }
 
+const MIC_PROBLEMS: Record<string, string> = {
+  denied: "The microphone was not allowed. You can allow it in System Settings, Privacy & Security, Microphone.",
+  "no-mic": "No microphone was found on this computer.",
+  "in-use": "Another app is using the microphone right now.",
+  unsupported: "This window cannot use the microphone.",
+  failed: "The microphone did not start. Turn it off and on to try again.",
+};
+
 const CAMERA_PROBLEMS: Record<string, string> = {
   denied: "The camera was not allowed. You can allow it in System Settings, Privacy & Security, Camera.",
   "no-camera": "No camera was found on this computer.",
@@ -153,12 +162,120 @@ const CAMERA_PROBLEMS: Record<string, string> = {
   failed: "The camera did not start. Turn it off and on to try again.",
 };
 
+/** What I measure: the four categories; each opens its own screen with one switch per input. */
 function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
   const src = sourcesOf(data.settings);
   const camera = useCamera();
   const cameraProblem = src.camera ? (CAMERA_PROBLEMS[camera.phase] ?? null) : null;
+  const voice = useVoice();
+  const micProblem = src.microphone ? (MIC_PROBLEMS[voice.phase] ?? null) : null;
   const paused = !!data.settings.pausedAll;
+  const paired = !!useTrusted()?.pairing;
+  const [category, setCategory] = useState<CategoryId | null>(null);
   const set = (next: Partial<typeof src>) => saveSettings({ sources: { ...src, ...next } });
+  const dailyOn = dailyQuestionOf(data.settings).every !== "off";
+
+  if (category) {
+    const cat = SOURCES.find((c) => c.id === category)!;
+    const missing = notConnectedInputs(category);
+    return (
+      <Screen
+        lead={
+          <>
+            <p className="small muted">What I measure</p>
+            <h1 className="item-title">{cat.label}</h1>
+          </>
+        }
+        actions={
+          <div className="links">
+            <button type="button" className="btn btn-quiet" onClick={() => setCategory(null)}>
+              Back to What I measure
+            </button>
+          </div>
+        }
+      >
+        <section className="card switches measure-switches" aria-label={cat.label}>
+          {paused && <p className="small switch-note">Everything is paused. Nothing new is measured and I stay quiet.</p>}
+          {category === "sleep" && (
+            <SwitchRow
+              label="Estimated from when this computer is used"
+              hint="An estimate from your first and last key press each day. Connect a watch or phone for real sleep."
+              keepHint
+              on={src.dayRhythm}
+              onChange={(v) => set({ dayRhythm: v })}
+            />
+          )}
+          {category === "energy" && (
+            <>
+              <SwitchRow label="Typing rhythm" hint="The timing between key presses, never which keys" keepHint on={src.typing} onChange={(v) => set({ typing: v })} />
+              <SwitchRow
+                label="Camera"
+                hint="Movement, face and posture, worked out on this computer. Nothing is stored or sent. Only while this window is open."
+                keepHint
+                on={src.camera}
+                onChange={(v) => set({ camera: v })}
+              />
+              {cameraProblem && <p className="small switch-note problem-text">{cameraProblem}</p>}
+              <SwitchRow
+                label="Voice (microphone)"
+                hint="Pace and tone, worked out on this computer. No words are recognised. Nothing is stored or sent. Only while this window is open."
+                keepHint
+                on={src.microphone}
+                onChange={(v) => set({ microphone: v })}
+              />
+              {micProblem && <p className="small switch-note problem-text">{micProblem}</p>}
+            </>
+          )}
+          {category === "social" && (
+            <SwitchRow
+              label="Messages with someone you trust"
+              hint={paired ? "How many, never what they say" : "How many, never what they say. Invite someone under Someone you trust."}
+              keepHint
+              on={src.contact}
+              onChange={(v) => set({ contact: v })}
+            />
+          )}
+          {category === "mood" && (
+            <>
+              <SwitchRow
+                label="Your daily answer"
+                hint={'"How are you today?" Set how often under Daily question. It is how you say you feel.'}
+                keepHint
+                on={dailyOn}
+                onChange={(v) => saveSettings({ dailyQuestion: { ...dailyQuestionOf(data.settings), every: v ? "day" : "off" } })}
+              />
+              <p className="small switch-note">
+                Face movement and posture come with the camera ({src.camera ? "on" : "off"}), tone of voice with the
+                microphone ({src.microphone ? "on" : "off"}), under Energy. They are observations only and never outweigh
+                your own answer.
+              </p>
+            </>
+          )}
+          {missing.length > 0 && (
+            <p className="small switch-note">Not connected yet: {missing.map((i) => i.label.toLowerCase()).join(", ")}.</p>
+          )}
+        </section>
+      </Screen>
+    );
+  }
+
+  const on = (c: CategoryId) => {
+    const ids: string[] = [];
+    if (c === "sleep" && src.dayRhythm) ids.push("estimated from this computer");
+    if (c === "energy") {
+      if (src.typing) ids.push("typing");
+      if (src.camera) ids.push("camera");
+      if (src.microphone) ids.push("voice");
+    }
+    if (c === "social" && src.contact) ids.push(paired ? "messages with someone you trust" : "needs someone you trust");
+    if (c === "mood") {
+      if (dailyOn) ids.push("your daily answer");
+      if (src.camera) ids.push("face and posture");
+      if (src.microphone) ids.push("tone");
+    }
+    return ids.length ? ids.join(", ").replace(/^./, (x) => x.toUpperCase()) : "Off";
+  };
+
   return (
     <Screen
       lead={
@@ -183,43 +300,15 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
         </>
       }
     >
-      <section className="card switches measure-switches" aria-label="What I measure, by category">
+      <nav className="card menu category-menu" aria-label="Categories">
         {paused && <p className="small switch-note">Everything is paused. Nothing new is measured and I stay quiet.</p>}
-        <p className="switch-group">Sleep</p>
-        <SwitchRow
-          label="Estimated from when this computer is used"
-          hint="Your first and last key press each day; not measured sleep"
-          on={src.dayRhythm}
-          onChange={(v) => set({ dayRhythm: v })}
-        />
-        <p className="switch-group">Energy</p>
-        <SwitchRow label="Typing rhythm" hint="The timing between key presses, never which keys" on={src.typing} onChange={(v) => set({ typing: v })} />
-        <SwitchRow
-          label="Body movement (camera)"
-          hint="The picture is worked out on this computer. Nothing is stored or sent. Only while this window is open."
-          keepHint
-          on={src.camera}
-          onChange={(v) => set({ camera: v })}
-        />
-        {cameraProblem && <p className="small switch-note problem-text">{cameraProblem}</p>}
-        <p className="switch-group">Social</p>
-        <SwitchRow
-          label="Messages with someone you trust"
-          hint="How many, never what they say"
-          on={src.contact}
-          onChange={(v) => set({ contact: v })}
-        />
-        <p className="switch-group">Mood</p>
-        <SwitchRow
-          label="Your daily answer"
-          hint={'"How are you today?" Set how often under Daily question'}
-          on={dailyQuestionOf(data.settings).every !== "off"}
-          onChange={(v) => saveSettings({ dailyQuestion: { ...dailyQuestionOf(data.settings), every: v ? "day" : "off" } })}
-        />
-        <p className="small switch-note">
-          Not connected yet: {notConnectedInputs().map((i) => i.label.replace(/ \(.*\)$/, "").toLowerCase()).join(", ")}.
-        </p>
-      </section>
+        {SOURCES.map((c) => (
+          <button key={c.id} type="button" className="menu-row" onClick={() => setCategory(c.id)}>
+            <span className="menu-label">{c.label}</span>
+            <span className="menu-value">{on(c.id)}</span>
+          </button>
+        ))}
+      </nav>
     </Screen>
   );
 }

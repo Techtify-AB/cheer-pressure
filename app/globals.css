@@ -1324,7 +1324,7 @@ textarea.typing-box { min-height: 72px; }
   .settings-menu .menu-row:nth-child(n + 3) { border-top: 1px solid var(--glass-line); }
 }
 
-/* The camera: its picture is never shown outside "Movement, live", and a sign while it runs */
+/* The camera: its picture is never shown outside "Camera, live", and a sign while it runs */
 .camera-feed { position: fixed; left: 0; top: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
 .camera-on {
   display: inline-flex;
