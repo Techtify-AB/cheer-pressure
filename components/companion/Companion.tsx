@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./Companion.module.css";
-import type { DotHandle } from "./dot";
+import type { DotFur, DotHandle } from "./dot";
 
 export type CompanionState =
   | "idle"
@@ -27,6 +27,8 @@ export interface CompanionProps {
   size?: number;
   /** A palette name from dot.js (peach, butter, mint, sky, lilac, offwhite) or any CSS colour. */
   color?: string;
+  /** Fur style from dot.js: soft (light), shaggy (72 layers, heavier on the graphics card) or smooth. */
+  fur?: DotFur;
 }
 
 const STATE_LABEL: Record<CompanionState, string> = {
@@ -44,7 +46,7 @@ const STATE_LABEL: Record<CompanionState, string> = {
 /** Below this size the extra effects (rings, sparkles) do not fit, so only the dot is drawn. */
 const COMPACT_BELOW_PX = 200;
 
-export function Companion({ state, size = 160, color = "peach" }: CompanionProps) {
+export function Companion({ state, size = 160, color = "peach", fur = "soft" }: CompanionProps) {
   const holder = useRef<HTMLDivElement>(null);
   const dot = useRef<DotHandle | null>(null);
   const [failed, setFailed] = useState(false);
@@ -61,6 +63,7 @@ export function Companion({ state, size = 160, color = "peach" }: CompanionProps
           dot.current = createCompanion(el, {
             mood: state,
             color,
+            fur,
             rings: !compact,
             effects: !compact,
             zoom: compact ? 1.6 : 1,
@@ -86,6 +89,10 @@ export function Companion({ state, size = 160, color = "peach" }: CompanionProps
   useEffect(() => {
     dot.current?.setColor(color);
   }, [color]);
+
+  useEffect(() => {
+    dot.current?.setFur(fur);
+  }, [fur]);
 
   useEffect(() => {
     dot.current?.setOptions({ rings: !compact, effects: !compact, zoom: compact ? 1.6 : 1 });

@@ -1,7 +1,7 @@
-// Dot — wellbeing companion (soft fur). Requires three.js r160+ resolvable as 'three'.
+// Dot — wellbeing companion (soft or shaggy fur). Requires three.js r160+ resolvable as 'three'.
 //   import { createCompanion } from './companion.js';
 //   const dot = createCompanion(containerEl, { mood: 'idle', color: 'peach' });
-//   dot.setMood('joy'); dot.setColor('mint'); dot.setColor('#ffd0e0'); dot.destroy();
+//   dot.setMood('joy'); dot.setFur('shaggy'); dot.setColor('mint'); dot.setColor('#ffd0e0'); dot.destroy();
 import * as THREE from 'three';
 
 export const COLORS = { peach:'#ffc2ad', butter:'#ffe3a1', mint:'#b5e6d3', sky:'#b9d9f7', lilac:'#d6c6f5', offwhite:'#f6f1e7' };
@@ -19,7 +19,10 @@ const STATES = {
 };
 export const MOODS = Object.keys(STATES);
 const ALIAS = { celebrating:'celebrate', empathy:'concern', sleep:'sleeping', happy:'joy', talk:'speaking', listen:'listening', think:'thinking', wantingattention:'attention' };
-const FUR = { S:64, seed:11, pow:.75, RU:5, N:22, len:.17, lean:2.6, droop:.9, dark:.78, light:1.04, eyeOut:.15 };
+const FURS = {
+  soft:   { S:64, seed:11, pow:.75, RU:5, N:22, len:.17, lean:2.6, swirl:1, droop:.9, dark:.78, light:1.04, cPow:1, taper:1, tip:.9, eyeOut:.15 },
+  shaggy: { S:96, seed:5, pow:1.1, RU:3, N:72, len:.42, lean:9, swirl:1.6, droop:1.2, dark:.8, light:1.14, cPow:1.1, taper:.9, tip:.93, map:.86, fall:true, hang:.3, cutZ:1.17, cuts:[[.3,.12,.15,.2],[-.3,.12,.15,.2],[0,-.05,.12,.07]], eyeOut:.22 },
+};
 const DIMS = { top:2.0, side:1.15, foot:1.25 };
 
 const resolveColor = (c) => COLORS[String(c).toLowerCase().replace(/[^a-z]/g, '')] || c;
@@ -40,33 +43,52 @@ function buildRig(color) {
   const inHead = (o) => { o.position.y -= head.position.y; head.add(o); return o; };
   inHead(sph('body', mat.body, 1, [1.04,.96,1], [0,.98,0]));
 
-  // Shell fur: stacked alpha-tested layers over the body.
-  const furMats = [], fur = new THREE.Group(); fur.name = 'fur';
-  { const o = FUR, S = o.S, cv = document.createElement('canvas'); cv.width = cv.height = S; const cx = cv.getContext('2d'), im = cx.createImageData(S, S);
+  // Shell fur: stacked alpha-tested layers over the body. Built on demand per style.
+  const furMats = [], furs = {};
+  const makeFur = (name, col) => {
+    const o = FURS[name], grp = new THREE.Group(); grp.name = 'fur_' + name;
+    const S = o.S, cv = document.createElement('canvas'); cv.width = cv.height = S; const cx = cv.getContext('2d'), im = cx.createImageData(S, S);
     let seed = o.seed; const rnd = () => (seed = (seed*16807) % 2147483647) / 2147483647;
     for (let i = 0; i < S*S; i++) { const v = Math.pow(rnd(), o.pow)*255; im.data[i*4] = im.data[i*4+1] = im.data[i*4+2] = v; im.data[i*4+3] = 255; }
     cx.putImageData(im, 0, 0);
+    let cmap = null; if (o.map) { const c2 = document.createElement('canvas'); c2.width = c2.height = S; const x2 = c2.getContext('2d'), i2 = x2.createImageData(S, S);
+      for (let i = 0; i < S*S; i++) { const v = 255*(o.map + (1-o.map)*rnd()); i2.data[i*4] = i2.data[i*4+1] = i2.data[i*4+2] = v; i2.data[i*4+3] = 255; }
+      x2.putImageData(i2, 0, 0); cmap = new THREE.CanvasTexture(c2); cmap.wrapS = cmap.wrapT = THREE.RepeatWrapping; cmap.repeat.set(o.RU, o.RU/2); cmap.colorSpace = THREE.SRGBColorSpace; }
     const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.repeat.set(o.RU, o.RU/2);
     const baseG = new THREE.SphereGeometry(1, 72, 48), bp = baseG.attributes.position, bu = baseG.attributes.uv;
     for (let s = 0; s < o.N; s++) {
-      const hh = (s+1)/o.N, g = baseG.clone(), uv = g.attributes.uv, k = hh*hh*o.lean;
-      for (let i = 0; i < uv.count; i++) { const x = bp.getX(i), y = bp.getY(i), z = bp.getZ(i);
-        const du = Math.sin(3.1*y+1.3) + Math.cos(2.3*z) + Math.sin(2.9*x+2.1), dv = o.droop + .8*Math.cos(3.3*x) + .8*Math.sin(2.7*z+.7);
+      const hh = (s+1)/o.N, g = baseG.clone(), uv = g.attributes.uv, k = hh*hh*o.lean, q = o.swirl;
+      for (let i = 0; i < uv.count; i++) { const x = bp.getX(i), y = bp.getY(i), z = bp.getZ(i), st = Math.sqrt(Math.max(0, 1-y*y));
+        const du = o.fall ? (.3*(Math.sin(3.1*q*y+1.3) + Math.cos(2.3*q*z)) + .25*Math.sin(2.9*q*x+2.1)) / Math.max(st, .35) : Math.sin(3.1*q*y+1.3) + Math.cos(2.3*q*z) + Math.sin(2.9*q*x+2.1);
+        const dv = o.fall ? o.droop*(.2 + .8*st)*(1 + .2*Math.sin(2.7*q*z+.7)) : o.droop + .8*Math.cos(3.3*q*x) + .8*Math.sin(2.7*q*z+.7);
         uv.setXY(i, bu.getX(i) + du*k/(S*o.RU), bu.getY(i) + dv*k/(S*o.RU/2)); }
-      const f = o.dark + (o.light-o.dark)*hh, m = new THREE.MeshStandardMaterial({ color:new THREE.Color(color).multiplyScalar(f), roughness:1, metalness:0, alphaMap:tex, alphaTest:.04 + hh*.9 });
-      m.name = 'fur_' + (s+1); m.userData.f = f; furMats.push(m);
-      const sh = new THREE.Mesh(g, m); sh.name = 'fur_shell_' + (s+1); const e = 1 + hh*o.len; sh.scale.set(1.04*e, .96*e, e); fur.add(sh);
+      const f = o.dark + (o.light-o.dark)*Math.pow(hh, o.cPow), m = new THREE.MeshStandardMaterial({ color:new THREE.Color(col).multiplyScalar(f), roughness:1, metalness:0, map:cmap, alphaMap:tex, alphaTest:.04 + Math.pow(hh, o.taper)*o.tip });
+      m.name = grp.name + '_' + (s+1); m.userData.f = f; furMats.push(m);
+      const sh = new THREE.Mesh(g, m); sh.name = grp.name + '_shell_' + (s+1); const e = 1 + hh*o.len, gp = g.attributes.position;
+      for (let i = 0; i < gp.count; i++) { const x = bp.getX(i), y = bp.getY(i), z = bp.getZ(i), w = Math.pow(Math.min(1, Math.max(0, (.1-y)/.8)), 1.5);
+        gp.setXYZ(i, x*1.04*e, y*.96*e - (o.hang || 0)*hh*w, z*e); }
+      if (o.cuts) { const ix = g.index.array, out = [];
+        for (let t = 0; t < ix.length; t += 3) { const a = ix[t], b = ix[t+1], c = ix[t+2];
+          const px = (gp.getX(a)+gp.getX(b)+gp.getX(c))/3, py = (gp.getY(a)+gp.getY(b)+gp.getY(c))/3, pz = (gp.getZ(a)+gp.getZ(b)+gp.getZ(c))/3;
+          const g0 = o.cutZ - .06, tt = 1 + .7*Math.min(1, Math.max(0, (pz-g0)/.3));
+          if (pz > g0 && o.cuts.some(c2 => ((px-c2[0])/(c2[2]*tt))**2 + ((py-c2[1])/(c2[3]*tt))**2 < 1)) continue; out.push(a, b, c); }
+        g.setIndex(out); }
+      grp.add(sh);
     }
-    fur.position.set(0,.98,0); inHead(fur); }
+    grp.position.set(0,.98,0); inHead(grp); return grp;
+  };
+  const setFur = (name, col) => { if (name !== 'smooth' && !furs[name]) furs[name] = makeFur(name, col);
+    for (const k in furs) furs[k].visible = k === name; const off = name === 'smooth' ? 0 : FURS[name].eyeOut;
+    for (const e of eyes) e.base.z = .95 + off; mouth.position.z = .985 + off; };
 
-  const eyeAt = [.3, 1.1, .95 + FUR.eyeOut], arcG = new THREE.TorusGeometry(.12, .03, 12, 28, Math.PI);
+  const eyeAt = [.3, 1.1, .95], arcG = new THREE.TorusGeometry(.12, .03, 12, 28, Math.PI);
   const eyes = [-1,1].map(s => {
     const n = s<0?'l':'r', g = new THREE.Group(); g.name = 'eye_'+n; g.position.set(s*eyeAt[0], eyeAt[1], eyeAt[2]); g.rotation.y = s*Math.atan2(eyeAt[0], eyeAt[2])*.8; inHead(g);
     const open = new THREE.Group(); open.name = 'eye_open_'+n; open.add(sph('pupil_'+n, mat.eye, .12, [1,1.4,.35]));
     const arc = new THREE.Mesh(arcG, mat.eye); arc.name = 'eye_arc_'+n;
     return { g, open, arc, s, base:g.position.clone() };
   });
-  const mouth = new THREE.Mesh(new THREE.TorusGeometry(.075, .024, 10, 24, Math.PI), mat.eye); mouth.name = 'mouth'; mouth.rotation.set(.1, 0, Math.PI); mouth.position.set(0, .93, .985 + FUR.eyeOut); inHead(mouth); head.remove(mouth);
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(.075, .024, 10, 24, Math.PI), mat.eye); mouth.name = 'mouth'; mouth.rotation.set(.1, 0, Math.PI); mouth.position.set(0, .93, .985); inHead(mouth); head.remove(mouth);
 
   const ringG = new THREE.RingGeometry(1, 1.07, 72);
   const rings = [0,1,2].map(i => {
@@ -74,7 +96,7 @@ function buildRig(color) {
     const r = new THREE.Mesh(ringG, m); r.name = m.name; r.rotation.x = -Math.PI/2; r.position.y = .04 + i*.004; r.renderOrder = 2; root.add(r); return r;
   });
   const props = new THREE.Group(); props.name = 'props'; root.add(props);
-  return { root, bob, head, eyes, mouth, rings, props, mat, furMats, sph, sphG, cur:{...BASE}, tgt:{...BASE}, state:'idle', blink:2 };
+  return { setFur, root, bob, head, eyes, mouth, rings, props, mat, furMats, sph, sphG, cur:{...BASE}, tgt:{...BASE}, state:'idle', blink:2 };
 }
 
 function applyMood(rig, key) {
@@ -142,13 +164,13 @@ function animate(rig, t, dt) {
 
 /**
  * @param {HTMLElement} container  element to fill (the canvas is transparent)
- * @param {{mood?:string, color?:string, rings?:boolean, effects?:boolean, zoom?:number}} [opts]
+ * @param {{mood?:string, color?:string, fur?:'soft'|'shaggy'|'smooth', rings?:boolean, effects?:boolean, zoom?:number}} [opts]
  *   rings   – mood ring on the ground (default true)
  *   effects – thought cloud, sparkles, confetti… (default true)
  *   zoom    – 1 leaves room for every effect; ~1.6 frames just the dot (pair with effects:false)
  */
 export function createCompanion(container, opts = {}) {
-  const o = { mood:'idle', color:'peach', rings:true, effects:true, zoom:1, ...opts };
+  const o = { mood:'idle', color:'peach', fur:'soft', rings:true, effects:true, zoom:1, ...opts };
   const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
   Object.assign(renderer.domElement.style, { width:'100%', height:'100%', display:'block' });
@@ -158,7 +180,8 @@ export function createCompanion(container, opts = {}) {
   const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(2.5, 7, 6); scene.add(key);
   const fill = new THREE.DirectionalLight(0xfff4e6, .5); fill.position.set(-5, 3, -4); scene.add(fill);
   const rig = buildRig(resolveColor(o.color)); scene.add(rig.root);
-  let mood = resolveMood(o.mood) || 'idle', color = o.color;
+  let mood = resolveMood(o.mood) || 'idle', color = o.color, fur = FURS[o.fur] || o.fur === 'smooth' ? o.fur : 'soft';
+  rig.setFur(fur, resolveColor(color));
   const sync = () => { rig.props.visible = o.effects; rig.rings.forEach(r => { r.material.visible = o.rings; }); };
   applyMood(rig, mood); rig.cur = { ...rig.tgt }; sync();
 
@@ -178,6 +201,8 @@ export function createCompanion(container, opts = {}) {
     getMood: () => mood, getColor: () => color,
     setMood(m) { const k = resolveMood(m); if (!k) { console.warn('[companion] unknown mood:', m); return false; } if (k !== mood) { mood = k; applyMood(rig, k); } return true; },
     setColor(c) { color = c; const v = resolveColor(c); rig.mat.body.color.set(v); rig.furMats.forEach(m => m.color.set(v).multiplyScalar(m.userData.f)); },
+    furs: [...Object.keys(FURS), 'smooth'], getFur: () => fur,
+    setFur(f) { f = String(f).toLowerCase(); if (!FURS[f] && f !== 'smooth') { console.warn('[companion] unknown fur:', f); return false; } fur = f; rig.setFur(f, resolveColor(color)); return true; },
     setOptions(p) { Object.assign(o, p); sync(); resize(); },
     destroy() { dead = true; cancelAnimationFrame(raf); ro.disconnect(); scene.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.material) { x.material.alphaMap && x.material.alphaMap.dispose(); x.material.dispose(); } }); renderer.dispose(); renderer.domElement.remove(); },
   };
