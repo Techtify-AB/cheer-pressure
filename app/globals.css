@@ -1472,3 +1472,24 @@ textarea.typing-box { min-height: 72px; }
 .value-input-name { font-weight: var(--font-weight-medium); color: var(--color-ink); }
 .value-input-name::after { content: ":"; }
 .value-input-link { color: inherit; cursor: pointer; }
+
+/* The phone flow: onboarding, step one from the person's own list, people, clinic, the hello */
+.option-hint { font-size: var(--font-size-sm); color: var(--color-ink-soft); text-align: right; }
+.option[aria-pressed="true"] .option-hint { color: var(--color-primary-ink); opacity: 0.85; }
+.clinic-options .option { min-height: 48px; padding: var(--space-2) var(--space-4); }
+.permission-result { margin: 0; }
+.learned-line { margin: var(--space-2) 0 0 !important; font-size: var(--font-size-sm); color: var(--color-ink-soft); }
+.people-list .menu-row { min-height: 52px; }
+.shared-list .menu-row { min-height: 48px; }
+.hello-hero { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; }
+.hello-hero .calm-line { margin: 0; }
+.hold-button {
+  min-height: 72px;
+  border-radius: var(--radius-pill);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hold-button[data-holding] { transform: scale(0.98); }
+.hello-feed { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; left: -10px; top: -10px; }
+.home-offer { margin: 0; text-align: center; }

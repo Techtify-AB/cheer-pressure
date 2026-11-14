@@ -7,6 +7,7 @@
 import { useCallback } from "react";
 import { useClockMinutes, useToday } from "@/components/hooks";
 import { ANSWERS, QUESTION, questionDue } from "@/lib/daily";
+import { startedOnOf } from "@/lib/hello";
 import { saveDailyAnswer } from "@/lib/storage";
 import type { AppData, DailyAnswerValue } from "@/lib/types";
 
@@ -16,7 +17,7 @@ export function useDailyQuestion(data: AppData | null) {
   const minutes = useClockMinutes();
   const due =
     !!data?.profile &&
-    questionDue({ today, minutesNow: minutes, settings: data.settings, answers: data.dailyAnswers ?? [] }).due;
+    questionDue({ today, minutesNow: minutes, settings: data.settings, answers: data.dailyAnswers ?? [], startedOn: startedOnOf(data) }).due;
   const answer = useCallback(
     (value: DailyAnswerValue) => saveDailyAnswer({ date: today, answer: value, dismissed: false, at: new Date().toISOString(), source: "user" }),
     [today],

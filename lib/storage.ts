@@ -24,6 +24,13 @@ import type {
   TypingDay,
   TypingSession,
   WeeklyEntry,
+  HelpItem,
+  SuggestionRecord,
+  ClinicSharedEntry,
+  HelloReading,
+  OnboardingState,
+  PermissionKind,
+  PermissionState,
 } from "./types";
 
 import type { HealthNight, StepsDay } from "./types";
@@ -365,6 +372,8 @@ function clearDemoFrom(d: AppData): AppData {
     settings: { ...d.settings, simulatedChangeAt: undefined },
     // A ladder that started from made-up data goes with it.
     ladder: d.ladder?.simulated ? null : (d.ladder ?? null),
+    suggestions: (d.suggestions ?? []).filter((s) => !s.simulated),
+    clinicShared: (d.clinicShared ?? []).filter((c) => !c.simulated),
   };
 }
 
@@ -384,4 +393,37 @@ export function deleteEverything() {
   memoryFallback = null;
   cache = empty();
   listeners.forEach((l) => l());
+}
+
+// --- The phone flow (docs/MOBILE_SPEC.md) --------------------------------------------------
+
+/** The person's own "What helps you?" list. */
+export function saveHelps(helps: HelpItem[]) {
+  commit({ ...readData(), helps });
+}
+
+/** Every step-one suggestion and what followed it (lib/helps.ts). */
+export function saveSuggestions(suggestions: SuggestionRecord[]) {
+  commit({ ...readData(), suggestions });
+}
+
+/** Adds one entry to "Shared with my clinic" (a demo recipient: nothing is sent). */
+export function addClinicShared(entry: ClinicSharedEntry) {
+  const d = readData();
+  commit({ ...d, clinicShared: [...(d.clinicShared ?? []).filter((e) => e.id !== entry.id), entry] });
+}
+
+/** One short reading from the daily hello (numbers only). */
+export function saveHelloReading(entry: HelloReading) {
+  const d = readData();
+  commit({ ...d, helloReadings: [...(d.helloReadings ?? []), entry] });
+}
+
+export function saveOnboarding(onboarding: OnboardingState) {
+  commit({ ...readData(), onboarding });
+}
+
+export function savePermission(kind: PermissionKind, state: PermissionState) {
+  const d = readData();
+  commit({ ...d, permissions: { ...(d.permissions ?? {}), [kind]: state } });
 }

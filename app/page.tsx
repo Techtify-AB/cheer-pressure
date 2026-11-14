@@ -26,7 +26,7 @@ import { SOURCES } from "@/lib/passive";
 import { isActive } from "@/lib/ladder";
 import { moodFor } from "@/lib/mood";
 import { quietHoursOf, sourcesOf } from "@/lib/settings";
-import { useData } from "@/lib/storage";
+import { readData, saveOnboarding, useData } from "@/lib/storage";
 import { answerTo, pendingMessage } from "@/lib/contact";
 import type { Answer } from "@/lib/events";
 import { messagesClient, useTrusted } from "@/lib/trusted";
@@ -64,6 +64,15 @@ export default function HomePage() {
     const t = window.setTimeout(() => setAnsweredToday(null), SENT_LINE_MS);
     return () => window.clearTimeout(t);
   }, [answeredToday]);
+
+  // People who set up before the phone flow's onboarding: the new questions, offered once,
+  // quietly, on the first day home is seen, as a quiet link and never the primary action.
+  const offerNew = !!data?.profile && (data.onboarding?.version ?? 0) < 2 && (!data.onboarding?.offeredOn || data.onboarding.offeredOn === today);
+  useEffect(() => {
+    if (!offerNew) return;
+    const o = readData().onboarding;
+    if (!o?.offeredOn) saveOnboarding({ version: o?.version ?? 1, ...o, offeredOn: today });
+  }, [offerNew, today]);
 
   if (!data || !ready || !evaluation || !outcome || !reflection) return null;
 
@@ -159,6 +168,11 @@ export default function HomePage() {
             <Link href="/prompt/" className="btn btn-quiet">
               Talk to me
             </Link>
+            {offerNew && (
+              <Link href="/setup/" className="btn btn-quiet">
+                A few new questions, if you like
+              </Link>
+            )}
           </div>
         )
       }

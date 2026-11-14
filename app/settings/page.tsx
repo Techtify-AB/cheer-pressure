@@ -12,7 +12,7 @@ import { Disclosure, Screen } from "@/components/Screen";
 import { SwitchRow } from "@/components/Switch";
 import { forgetDesktopData, setTypingPaused } from "@/lib/platform";
 import { LinkCode } from "@/components/LinkCode";
-import { Companion } from "@/components/companion/Companion";
+import { CheriLook } from "@/components/CheriLook";
 import { COLOURS, FURS, lookOf } from "@/lib/look";
 import { useCamera } from "@/components/camera/useCamera";
 import { useVoice } from "@/components/voice/useVoice";
@@ -74,7 +74,7 @@ export default function SettingsPage() {
   if (view === "routines") return <Routines data={data} back={back} />;
   if (view === "voice") return <Voice data={data} back={back} />;
   if (view === "daily") return <DailyQuestionSettings data={data} back={back} />;
-  if (view === "look") return <CheriLook data={data} back={back} />;
+  if (view === "look") return <CheriLookSettings data={data} back={back} />;
   if (view === "trust") return <Trust data={data} back={back} />;
   if (view === "data") return <YourData data={data} back={back} onDelete={() => go("delete")} />;
   if (view === "delete") return <ConfirmDelete onKeep={() => go("data")} />;
@@ -452,45 +452,8 @@ function lookSummary(s: AppData["settings"]): string {
 }
 
 /** Cheri's look: fur and colour, shown live at once and kept with the other settings. */
-function CheriLook({ data, back }: { data: AppData; back: React.ReactNode }) {
-  const look = lookOf(data.settings);
-  const set = (next: Partial<typeof look>) => saveSettings({ look: { ...look, ...next } });
-  return (
-    <Screen
-      lead={
-        <div className="look-lead">
-          <Companion state="joy" size={200} fur={look.fur} color={look.color} />
-          <h1 className="item-title">Cheri&apos;s look</h1>
-        </div>
-      }
-      actions={back}
-    >
-      <section className="card stack-sm look-card" aria-label="Cheri's look">
-        <fieldset className="bare-fieldset">
-          <legend className="switch-label">Fur</legend>
-          <div className="chips">
-            {FURS.map((f) => (
-              <button key={f.value} type="button" className="chip" aria-pressed={look.fur === f.value} onClick={() => set({ fur: f.value })}>
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <p className="small muted look-note">The shaggy one uses more of the computer&apos;s graphics power. The small mascot window stays soft, since it runs all day.</p>
-        </fieldset>
-        <fieldset className="bare-fieldset">
-          <legend className="switch-label">Colour</legend>
-          <div className="swatches">
-            {COLOURS.map((c) => (
-              <button key={c.value} type="button" className="swatch" aria-pressed={look.color === c.value} onClick={() => set({ color: c.value })}>
-                <span className="swatch-dot" style={{ background: c.swatch }} aria-hidden="true" />
-                {c.label}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-      </section>
-    </Screen>
-  );
+function CheriLookSettings({ data, back }: { data: AppData; back: React.ReactNode }) {
+  return <CheriLook data={data} actions={back} />;
 }
 
 function Voice({ data, back }: { data: AppData; back: React.ReactNode }) {

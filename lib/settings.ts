@@ -4,7 +4,7 @@
 
 import { clockToMinutes } from "./dates";
 import { defaultBaseUrl } from "./messages";
-import type { AppData, RoutineId, Settings, Sources } from "./types";
+import type { AppData, ClinicSettings, RoutineId, Settings, Sources } from "./types";
 
 export const ROUTINES: { id: RoutineId; label: string }[] = [
   { id: "walk", label: "A walk in daylight" },
@@ -101,3 +101,18 @@ export function isLocalOnly(url: string): boolean {
     return false;
   }
 }
+
+/** What the clinic is told, when the person has not chosen: only when I say, no automatic step. */
+export const DEFAULT_CLINIC: ClinicSettings = { share: "when-i-say", tellAfterDays: false };
+
+/** The clinic choice. "Never" never tells the clinic automatically either. */
+export function clinicOf(s: Settings): ClinicSettings {
+  const c = { ...DEFAULT_CLINIC, ...(s.clinic ?? {}) };
+  return c.share === "never" ? { ...c, tellAfterDays: false } : c;
+}
+
+export const CLINIC_CHOICES: { value: ClinicSettings["share"]; label: string; hint: string }[] = [
+  { value: "always", label: "Always", hint: "A short weekly summary" },
+  { value: "when-i-say", label: "Only when I say", hint: "Nothing unless you approve it" },
+  { value: "never", label: "Never", hint: "Nothing, ever" },
+];

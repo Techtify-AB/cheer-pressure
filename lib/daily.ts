@@ -52,21 +52,32 @@ export interface DueInput {
   minutesNow: number;
   settings: Settings;
   answers: DailyAnswer[];
+  /** The day the person started (onboarding). With firstTwoWeeksDaily it asks every day until LEARNING_HELLO_DAYS have passed. */
+  startedOn?: DayKey;
+}
+
+/** The daily hello comes every day for this many days from the start, when the person chose it. */
+export const LEARNING_HELLO_DAYS = 14;
+
+/** Days between two hellos today: every day in the first two weeks (when chosen), then as set. Null: off. */
+export function gapDaysOn(settings: Settings, today: DayKey, startedOn?: DayKey): number | null {
+  const d = dailyQuestionOf(settings);
+  if (d.firstTwoWeeksDaily && startedOn && daysBetween(startedOn, today) < LEARNING_HELLO_DAYS) return 1;
+  return FREQUENCIES.find((f) => f.value === d.every)?.gapDays ?? null;
 }
 
 export type DueReason = "due" | "off" | "paused" | "done-today" | "quiet-hours" | "not-yet" | "not-this-day";
 
 /** Whether the question comes up now, and if not, why. */
 export function questionDue(i: DueInput): { due: boolean; reason: DueReason } {
-  const d = dailyQuestionOf(i.settings);
-  const freq = FREQUENCIES.find((f) => f.value === d.every);
-  if (!freq?.gapDays) return { due: false, reason: "off" };
+  const gapDays = gapDaysOn(i.settings, i.today, i.startedOn);
+  if (!gapDays) return { due: false, reason: "off" };
   if (i.settings.pausedAll) return { due: false, reason: "paused" };
   if (i.answers.some((a) => a.date === i.today)) return { due: false, reason: "done-today" };
   if (inQuietHours(i.minutesNow, quietHoursOf(i.settings))) return { due: false, reason: "quiet-hours" };
   if (i.minutesNow < clockToMinutes(questionTime(i.settings))) return { due: false, reason: "not-yet" };
   const last = i.answers.filter((a) => a.date < i.today).map((a) => a.date).sort().pop();
-  if (last && daysBetween(last, i.today) < freq.gapDays) return { due: false, reason: "not-this-day" };
+  if (last && daysBetween(last, i.today) < gapDays) return { due: false, reason: "not-this-day" };
   return { due: true, reason: "due" };
 }
 

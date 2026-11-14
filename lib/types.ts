@@ -223,6 +223,8 @@ export interface DailyAnswer {
 export interface DailyQuestionSettings {
   every: "off" | "day" | "other-day" | "twice-week" | "week";
   when: "morning" | "midday" | "evening";
+  /** Every day for the first two weeks (the learning period), then `every`. Set by onboarding; missing in older data: no. */
+  firstTwoWeeksDaily?: boolean;
 }
 
 /** The kind of app typed in, never its name: "all" pools every kind except games, which never count. */
@@ -306,6 +308,10 @@ export interface Settings {
   dailyQuestion?: DailyQuestionSettings;
   /** Cheri's look (lib/look.ts). Missing: soft, peach. */
   look?: { fur: "soft" | "shaggy" | "smooth"; color: string };
+  /** What the clinic is told (onboarding, Settings, My clinic). Missing: only when I say, and no automatic step. */
+  clinic?: ClinicSettings;
+  /** The camera and microphone may be used during the daily hello, after a tap. Missing: no. */
+  helloSensors?: boolean;
 }
 
 /**
@@ -318,13 +324,13 @@ export interface LadderState {
   /** True when it started from a simulated change or made-up data. */
   simulated: boolean;
   /** Step 1: the one small thing offered, and the answer. `routine` is null when every routine was off. */
-  smallThing?: { routine: RoutineId | null; offeredOn: DayKey; answer?: "try" | "not-now" };
+  smallThing?: { routine: RoutineId | null; offeredOn: DayKey; answer?: "try" | "not-now"; item?: string; label?: string; learned?: boolean };
   /** "I'd like someone to check in on me": step 2 is offered right away. */
   someoneRequestedOn?: DayKey;
   /** Step 2: someone you trust. `reply` is the person's yes or no to the trusted person's reply. */
-  someone?: { offeredOn: DayKey; answer?: "yes" | "not-now"; reply?: "yes" | "no" };
+  someone?: { offeredOn: DayKey; answer?: "yes" | "not-now"; reply?: "yes" | "no"; personId?: string; asked?: string[] };
   /** Step 3: a short summary for the clinic. */
-  clinic?: { offeredOn: DayKey; answer?: "approve" | "not-now" };
+  clinic?: { offeredOn: DayKey; answer?: "approve" | "not-now"; auto?: boolean; seenOn?: DayKey; sharedId?: string };
   /** The last time the person said "Not now" at any step. Respected for 3 days. */
   declinedOn?: DayKey;
   /** Set when the measures came back to the usual range, or the ladder ended. */
@@ -367,4 +373,93 @@ export interface AppData {
   settings: Settings;
   /** The ladder after "Not my best", or null. Missing in older data. */
   ladder?: LadderState | null;
+  /** The person's own "What helps you?" list. Missing in older data: made from the routines (lib/helps.ts). */
+  helps?: HelpItem[];
+  /** Every step-one suggestion, and what followed it. Missing in older data. */
+  suggestions?: SuggestionRecord[];
+  /** "Shared with my clinic": what was shared and when. Demo recipient only; nothing is sent. */
+  clinicShared?: ClinicSharedEntry[];
+  /** Short readings from the daily hello (numbers only). Missing in older data. */
+  helloReadings?: HelloReading[];
+  /** Which onboarding the person has been through. Missing: the earlier two-step setup. */
+  onboarding?: OnboardingState;
+  /** What the person said on "What may I look at?", per permission. */
+  permissions?: Partial<Record<PermissionKind, PermissionState>>;
 }
+
+// --- The phone flow (docs/MOBILE_SPEC.md) --------------------------------------------------
+
+/** One thing on the person's own "What helps you?" list (lib/helps.ts). */
+export interface HelpItem {
+  /** A starting item's id ("outdoors", "music", ...) or "own-..." for one the person typed. */
+  id: string;
+  label: string;
+  /** Off: never suggested. A removed own item is simply not in the list. */
+  on: boolean;
+  own: boolean;
+}
+
+/** One suggestion at step one: what was offered, whether it was taken, and what followed. */
+export interface SuggestionRecord {
+  id: string;
+  /** The ladder it belongs to (its startedOn). */
+  ladderStartedOn: DayKey;
+  offeredOn: DayKey;
+  /** The HelpItem id, and its label then. */
+  item: string;
+  label: string;
+  /** "other" is "Something else": the next one was offered instead. Null until answered. */
+  answer: "try" | "other" | "not-now" | null;
+  /** Offered first because of what was followed by values coming back before. */
+  learned: boolean;
+  /** Judged after it was taken: did the categories come back within the following days? */
+  cameBack?: boolean;
+  judgedOn?: DayKey;
+  simulated: boolean;
+}
+
+export type ClinicShare = "always" | "when-i-say" | "never";
+
+export interface ClinicSettings {
+  share: ClinicShare;
+  /** "If my values have not come back after 7 days, tell my clinic for me." */
+  tellAfterDays: boolean;
+}
+
+/** One entry on "Shared with my clinic". In this version a demo recipient: nothing is sent. */
+export interface ClinicSharedEntry {
+  id: string;
+  date: DayKey;
+  at: string; // ISO
+  /** weekly: the "Always" summary; automatic: the ladder's step three as asked; approved: the person approved it. */
+  kind: "weekly" | "automatic" | "approved";
+  demoRecipient: true;
+  /** Exactly what was shared: the report as it was that day (lib/report.ts). */
+  report: import("./report").Report;
+  simulated: boolean;
+}
+
+/** A short reading from the daily hello: numbers only, no picture, no sound, no words. */
+export interface HelloReading {
+  date: DayKey;
+  at: string; // ISO
+  /** Seconds the person held to talk. */
+  seconds: number;
+  /** Face movement while talking (lib/camera), or null without a face or camera. */
+  face: { animation: number; smilingShare: number } | null;
+  /** Tone of voice while talking (lib/voice), or null without enough voice. */
+  tone: { pitchVariability: number | null; segmentsPerMinute: number | null } | null;
+  source: Source;
+}
+
+export interface OnboardingState {
+  /** 2: the phone flow's onboarding (one question per screen). */
+  version: number;
+  doneAt?: string;
+  /** The day an existing person was quietly offered the new questions (offered once). */
+  offeredOn?: DayKey;
+}
+
+export type PermissionKind = "health" | "location" | "notifications" | "camera-microphone";
+/** granted / denied: the phone's answer; yes: said yes where the system asks later; skipped; not-here: not available on this device. */
+export type PermissionState = "granted" | "denied" | "yes" | "skipped" | "not-here";
