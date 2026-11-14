@@ -223,7 +223,7 @@ export default function HomePage() {
             <li key={id}>
               <Link href={`/values/?c=${id}`} className="noticing-row">
                 <span className="noticing-name">{SOURCES.find((c) => c.id === id)!.label}</span>
-                <span className="noticing-value">{categoryLine(id, data, evaluation, today, paired)}</span>
+                <span className="noticing-value" data-changed={(!evaluation.learning && evaluation.metrics.some((m) => m.source === id && m.status === "changed")) || undefined}>{categoryLine(id, data, evaluation, today, paired)}</span>
               </Link>
             </li>
           ))}

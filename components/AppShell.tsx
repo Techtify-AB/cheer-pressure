@@ -25,7 +25,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <a href="#main" className="sr-only skip-link">
         Skip to content
       </a>
-      <header className="shell-header">
+      {/* In the desktop app the header's empty parts drag the window (its title bar is glass) */}
+      <header className="shell-header" data-tauri-drag-region="deep">
         <div className="shell-header-inner">
           <Link href="/" className="brand">
             Cheer Pressure

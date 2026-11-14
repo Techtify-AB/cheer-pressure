@@ -135,6 +135,7 @@
 }
 .panelLabel {
   margin: 0;
+  font-family: var(--font-body);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   letter-spacing: 0;

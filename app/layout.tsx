@@ -19,7 +19,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* In the desktop app the window is frosted glass: mark it before the first paint (globals.css). */}
+        <script dangerouslySetInnerHTML={{ __html: `if("__TAURI_INTERNALS__" in window)document.documentElement.dataset.shell="desktop"` }} />
+      </head>
       <body>
         <AppShell>{children}</AppShell>
       </body>

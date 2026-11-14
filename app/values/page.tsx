@@ -68,7 +68,7 @@ function Measure({ m, today, input }: { m: PassiveMetric; today: DayKey; input: 
   const n = measureNumbers(m);
   const state = stripState(m, today);
   return (
-    <div className="value-measure" data-input={input} data-state="values" data-changed={m.status === "changed" || undefined}>
+    <div className="value-measure" data-input={input} data-state="values" data-status={m.status} data-changed={m.status === "changed" || undefined}>
       <p className="value-head">
         <span className="strip-label">{m.label}</span>
         <span className="value-num">
@@ -235,7 +235,7 @@ export default function ValuesPage() {
           {sources.map((s) => (
             <button key={s.id} type="button" className="menu-row" onClick={() => setView(pages.findIndex((p) => p.id === s.id))}>
               <span className="menu-label">{s.label}</span>
-              <span className="menu-value">{categoryLine(s.id, data, passive, today, paired)}</span>
+              <span className="menu-value" data-changed={(!passive.learning && passive.metrics.some((m) => m.source === s.id && m.status === "changed")) || undefined}>{categoryLine(s.id, data, passive, today, paired)}</span>
             </button>
           ))}
         </nav>

@@ -43,7 +43,7 @@ function CategoryStrip({ e, id }: { e: Evaluation; id: CategoryId }) {
   else state = "Within your usual";
   const label = SOURCES.find((c) => c.id === id)!.label;
   return (
-    <div className="replay-strip" data-category={id} data-changed={changed || undefined}>
+    <div className="replay-strip" data-category={id} data-status={m.status} data-changed={changed || undefined}>
       <p className="replay-strip-head">
         <span className="strip-label">{label}</span>
         <span className="replay-strip-state">{state}</span>
