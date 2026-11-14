@@ -288,6 +288,10 @@ async function run(size) {
   await measure(page, "ask-question");
   await click("Not my best");
   await measure(page, "step1-small-thing");
+  // The made-up weeks: daylight was followed by better days twice and the person said yes both
+  // times, so step one suggests it first and says what that rests on, both signals apart.
+  const learnedText = (await page.locator(".learned-line").count()) ? await page.locator(".learned-line").innerText() : "";
+  results.push(note(/^After morning light, your days moved back towards your usual 2 of 2 times, and you said it helped twice/.test(learnedText), `step 1: learned first, "${learnedText.slice(0, 60)}"`, size));
   await click("Something else");
   await measure(page, "step1-something-else");
   await click("I'll try that");
