@@ -160,3 +160,18 @@ its own box.
 All code is written during the event. The submission needs a public repository under the
 MIT licence, a demo, a video of at most two minutes and a deck. No new features after
 Saturday 22:00; final submission Sunday 10:00 Finnish time.
+
+## Measurement checks on real faces (Filip, Saturday evening)
+
+The app's own `face_landmarker.task` was run on 4,500 labelled test faces (FERPlus, ExpW,
+AffectNet; still photos, not desk video):
+
+| Measure | How well it separates | Verdict |
+|---|---|---|
+| Smile (`mouthSmile`) | happy vs rest AUROC 0.89 to 0.95 | Sound. `SMILE_ON` lowered 0.5 → 0.35 (counts 69 to 93% of happy faces, 0.5 to 3.5% of neutral) |
+| Brows lowered (`browDown`) | anger vs rest AUROC 0.62 to 0.73 | Weak, keep it off screen |
+| Sad vs neutral (frown, inner brow, less smile) | AUROC 0.33 to 0.65 | Blendshapes do not see sadness; a learned face model does (0.96 sad vs rest on FERPlus) |
+| Animation | needs video | Not checked yet |
+
+Next: check animation on real video, and decide whether a learned face model (8 MB, runs
+on the device) adds a "how positive the face looks" measure next to smiling.
