@@ -60,6 +60,20 @@
   --radius-lg: 22px;
   --radius-pill: 999px;
 
+  /* Glass: a calm backdrop of soft colour shapes behind frosted surfaces.
+     Surfaces stay mostly opaque so body text keeps at least 4.5:1 contrast. */
+  --backdrop-shape-1: color-mix(in srgb, var(--color-band) 85%, transparent);
+  --backdrop-shape-2: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --backdrop-shape-3: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  --backdrop-blur: 70px;
+  --glass-surface: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  --glass-surface-strong: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  --glass-header: color-mix(in srgb, var(--color-bg) 78%, transparent);
+  --glass-line: color-mix(in srgb, var(--color-line) 80%, transparent);
+  --glass-blur: 18px;
+  --glass-saturate: 140%;
+  --sheet-scrim: rgba(36, 48, 44, 0.32);
+
   /* Layout and motion */
   --content-width: 560px;
   --tap-size: 48px;

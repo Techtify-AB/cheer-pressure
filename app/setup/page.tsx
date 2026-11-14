@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Companion } from "@/components/companion/Companion";
 import { CrisisCard } from "@/components/CrisisCard";
+import { Says, Screen, StepCount } from "@/components/Screen";
 import { useCompanionVoice, useCrisisCheck } from "@/components/hooks";
 import { containsCrisisWords } from "@/lib/crisis";
 import { saveProfile, useData } from "@/lib/storage";
@@ -89,34 +89,41 @@ export default function SetupPage() {
 
   if (step === "intro") {
     return (
-      <div className="stack-lg">
-        <div className="companion-row">
-          <Companion state={voice.state} size={150} />
-          <div className="bubble" aria-live="polite">
-            <p>{INTRO}</p>
-          </div>
-        </div>
-        <div className="card stack">
+      <Screen
+        lead={
+          <>
+            <Says state={voice.state} size={88}>
+              <p>{INTRO}</p>
+            </Says>
+            <StepCount index={0} total={2} />
+          </>
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setStep("signs");
+                voice.say(QUESTION);
+              }}
+            >
+              Get started
+            </button>
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={() => voice.say(INTRO)}>
+                Read this aloud
+              </button>
+            </div>
+          </>
+        }
+      >
+        <div className="card">
           <p style={{ marginBottom: 0 }}>
             Your answers stay in this browser. There is no account, and nothing is sent anywhere.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => {
-            setStep("signs");
-            voice.say(QUESTION);
-          }}
-        >
-          Get started
-        </button>
-        <div className="notice">
-          <button type="button" className="btn btn-quiet" onClick={() => voice.say(INTRO)}>
-            Read this aloud
-          </button>
-        </div>
-      </div>
+      </Screen>
     );
   }
 
@@ -124,18 +131,32 @@ export default function SetupPage() {
   const customOnly = signs.filter((s) => !COMMON_SIGNS.includes(s));
 
   return (
-    <div className="stack-lg">
-      <div className="companion-row">
-        <Companion state={voice.state} size={110} />
-        <div className="bubble" aria-live="polite">
-          <p>{QUESTION}</p>
-          <p className="small muted">
-            Before things got harder last time, what changed first? Pick or type up to three. I&apos;ll keep
-            these in mind and ask about them only when something seems to have changed.
-          </p>
-        </div>
-      </div>
-
+    <Screen
+      lead={
+        <>
+          <Says state={voice.state}>
+            <h1>{QUESTION}</h1>
+            <p className="small muted" hidden={crisis}>
+              Pick or type up to three. I&apos;ll keep them in mind and ask about them only when something seems to
+              have changed.
+            </p>
+          </Says>
+          <StepCount index={1} total={2} />
+        </>
+      }
+      actions={
+        <>
+          <button type="button" className="btn btn-primary" onClick={finish}>
+            {signs.length || (!crisis && tidy(custom)) ? "Save and continue" : "Skip for now"}
+          </button>
+          <div className="links">
+            <button type="button" className="btn btn-quiet" onClick={() => setStep("intro")}>
+              Back
+            </button>
+          </div>
+        </>
+      }
+    >
       {crisis ? (
         <CrisisCard />
       ) : (
@@ -190,17 +211,13 @@ export default function SetupPage() {
             </div>
           </div>
 
-          <p className="small muted" aria-live="polite">
+          <p className="small muted" aria-live="polite" style={{ marginBottom: 0 }}>
             {signs.length === 0
-              ? "Nothing picked yet. You can also skip this and add nothing."
+              ? "Nothing picked yet. You can also skip this."
               : `${signs.length} of ${MAX_SIGNS} picked${full ? ". Tap one to unpick it." : "."}`}
           </p>
         </>
       )}
-
-      <button type="button" className="btn btn-primary" onClick={finish}>
-        {signs.length || (!crisis && tidy(custom)) ? "Save and continue" : "Skip for now"}
-      </button>
-    </div>
+    </Screen>
   );
 }

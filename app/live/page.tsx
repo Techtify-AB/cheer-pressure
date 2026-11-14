@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDesktopTyping } from "@/components/desktop";
 import { useRequireProfile } from "@/components/hooks";
+import { Disclosure, Screen } from "@/components/Screen";
 import { dayKey, formatDay, newId, todayKey } from "@/lib/dates";
 import {
   dayRhythm,
@@ -26,27 +27,27 @@ function Numbers({ stats }: { stats: TypingStats | null }) {
     {
       label: "Key presses",
       value: s ? String(s.presses) : "0",
-      meaning: "How many keys were pressed in the last minute.",
+      meaning: "in the last minute",
     },
     {
       label: "Time between presses",
       value: ms(s?.medianIntervalMs ?? null),
-      meaning: "The usual time from one key press to the next.",
+      meaning: "the usual gap between two presses",
     },
     {
       label: "Spread",
       value: ms(s?.spreadMs ?? null),
-      meaning: "How uneven that time is. Higher means more uneven.",
+      meaning: "how uneven those gaps are",
     },
     {
       label: "Longer pauses",
       value: ms(s?.p95PauseMs ?? null),
-      meaning: "1 in 20 gaps is this long or longer. Breaks over 5 seconds are left out.",
+      meaning: "1 in 20 gaps is this long or longer",
     },
     {
       label: "Hold time",
       value: ms(s?.medianHoldMs ?? null),
-      meaning: "How long a key is usually held down.",
+      meaning: "how long a key is usually held down",
     },
   ];
   return (
@@ -55,7 +56,7 @@ function Numbers({ stats }: { stats: TypingStats | null }) {
         <div key={r.label}>
           <dt>{r.label}</dt>
           <dd className="live-value">{r.value}</dd>
-          <dd className="small muted">{r.meaning}</dd>
+          <dd className="small muted live-meaning">{r.meaning}</dd>
         </div>
       ))}
     </dl>
@@ -173,166 +174,153 @@ function LiveView({ sessionsSaved }: { sessionsSaved: number }) {
   const stats = computer ? (live?.stats ?? null) : box.stats;
   const typingNow = computer ? !!live?.typing : box.typing;
   const today = todayKey();
-  const todayRow = days.find((d) => d.date === today);
 
   let sourceText: string;
   if (paused) sourceText = "Paused. Nothing is being measured.";
   else if (computer) sourceText = "Measuring across the whole computer";
   else sourceText = "Measuring only in this box";
 
+  const permissionNeeded = desktop && status?.listener === "permission-needed";
+  const notice =
+    desktop && status && (status.listener === "unsupported" || status.listener === "error")
+      ? status.listener === "unsupported"
+        ? "Measuring across the whole computer works on macOS only for now. The box below works everywhere."
+        : "Measuring across the whole computer did not start. The box below still works."
+      : null;
+
+  const pauseButton = (
+    <button
+      type="button"
+      className={permissionNeeded ? "btn btn-quiet" : "btn btn-primary"}
+      onClick={togglePause}
+      aria-pressed={paused}
+    >
+      {paused ? "Resume measuring" : "Pause measuring"}
+    </button>
+  );
+
   return (
-    <div className="stack-lg">
-      <div>
-        <h1>Live view</h1>
-        <p className="muted" style={{ marginBottom: 0 }}>
-          Your typing rhythm right now. Only the timing of key presses is used, never which keys or what you write.
-        </p>
-      </div>
-
-      <div className="live-source">
-        <span className={paused ? "status" : "status status-done"} role="status">
-          <span className="status-dot" aria-hidden="true" />
-          {sourceText}
-        </span>
-        <button type="button" className="btn btn-secondary" onClick={togglePause} aria-pressed={paused}>
-          {paused ? "Resume measuring" : "Pause measuring"}
-        </button>
-      </div>
-
-      {desktop && status?.listener === "permission-needed" && (
-        <section className="card stack" aria-labelledby="perm-title">
-          <h2 id="perm-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-            Permission needed
-          </h2>
-          <p style={{ marginBottom: 0 }}>
-            To measure typing rhythm across the whole computer, macOS needs you to allow Cheer Pressure under{" "}
-            <strong>Privacy &amp; Security, Input Monitoring</strong>. It still only sees when a key goes down and up,
-            never which key. Until then, the box below measures only what you type in it.
+    <Screen
+      lead={
+        <>
+          <h1 className="live-status" role="status">
+            <span className={paused ? "status-dot" : "status-dot on"} aria-hidden="true" />
+            <span className="sr-only">Live view: </span>
+            {permissionNeeded ? "Permission needed. Measuring only in this box for now" : sourceText}
+          </h1>
+          <p className="muted">
+            {notice ?? "Only the timing of key presses is used, never which keys or what you write."}
           </p>
-          <div className="btn-row">
-            <button type="button" className="btn btn-secondary" onClick={() => void openInputMonitoringSettings()}>
+        </>
+      }
+      actions={
+        <>
+          {permissionNeeded && (
+            <button type="button" className="btn btn-primary" onClick={() => void openInputMonitoringSettings()}>
               Open System Settings
             </button>
-            <button
-              type="button"
-              className="btn btn-quiet"
-              disabled={checking}
-              onClick={async () => {
-                setChecking(true);
-                const next = await retryTyping();
-                if (next) setStatus(next);
-                setChecking(false);
-              }}
-            >
-              {checking ? "Checking" : "Check again"}
-            </button>
+          )}
+          {!permissionNeeded && pauseButton}
+          <div className="links">
+            {permissionNeeded && pauseButton}
+            {permissionNeeded && (
+              <button
+                type="button"
+                className="btn btn-quiet"
+                disabled={checking}
+                onClick={async () => {
+                  setChecking(true);
+                  const next = await retryTyping();
+                  if (next) setStatus(next);
+                  setChecking(false);
+                }}
+              >
+                {checking ? "Checking" : "Check again"}
+              </button>
+            )}
+            <Disclosure label="Your day, saved sessions and more" title="Your day, saved sessions and more">
+              {permissionNeeded && (
+                <p>
+                  To measure typing rhythm across the whole computer, macOS needs you to allow Cheer Pressure under{" "}
+                  <strong>Privacy &amp; Security, Input Monitoring</strong>. It still only sees when a key goes down and
+                  up, never which key. If it still says this after you allowed it, quit Cheer Pressure from the menu bar
+                  and open it again.
+                </p>
+              )}
+              <p>Gaps between key presses longer than 5 seconds are left out of the numbers.</p>
+              <p>
+                When typing stops for 5 minutes, the numbers for that stretch are saved as one session (only the
+                numbers). {sessionsSaved > 0 ? `${sessionsSaved} saved so far. ` : ""}Their spread shows up in{" "}
+                <Link href="/trends/">Your own level</Link>.
+              </p>
+              {!desktop ? (
+                <p>First and last activity of the day are measured in the desktop app.</p>
+              ) : days.length === 0 ? (
+                <p>Your day: nothing yet. After your first key press today, the time shows up here.</p>
+              ) : (
+                <table className="day-table">
+                  <caption className="sr-only">First and last key press, recent days</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Day</th>
+                      <th scope="col">First key press</th>
+                      <th scope="col">Last key press</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {days.slice(0, 7).map((d) => (
+                      <tr key={d.date}>
+                        <th scope="row">{d.date === today ? "Today" : formatDay(d.date)}</th>
+                        <td>{d.first}</td>
+                        <td>{d.last}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <RobotConnect />
+            </Disclosure>
+            <Link href="/" className="btn btn-quiet">
+              Back to home
+            </Link>
           </div>
-          <p className="small muted" style={{ marginBottom: 0 }}>
-            If it still says this after you allowed it, quit Cheer Pressure from the menu bar and open it again.
-          </p>
-        </section>
-      )}
-
-      {desktop && status && (status.listener === "unsupported" || status.listener === "error") && (
-        <p className="notice">
-          {status.listener === "unsupported"
-            ? "Measuring across the whole computer works on macOS only for now. The box below works everywhere."
-            : "Measuring across the whole computer did not start. The box below still works."}
-        </p>
-      )}
-
-      {!computer && (
-        <div className="field">
-          <label htmlFor="typing-box">Type anything here</label>
-          <textarea
-            id="typing-box"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            placeholder="For example, what you did this morning. Only the timing is used, and the text is never stored."
-            onKeyDown={box.onKeyDown}
-            onKeyUp={box.onKeyUp}
-          />
-        </div>
-      )}
-
-      <section className="card stack" aria-labelledby="numbers-title">
-        <div>
-          <h2 id="numbers-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
-            The last minute
-          </h2>
-          <p className="small muted" style={{ marginBottom: 0 }} aria-live="polite">
-            {paused
-              ? "Measuring is paused."
-              : typingNow
-                ? "Typing now. The numbers update every second."
-                : stats && stats.presses > 0
-                  ? "Not typing right now. The numbers show the last minute."
-                  : computer
-                    ? "Start typing anywhere and the numbers appear here."
-                    : "Start typing in the box and the numbers appear here."}
-          </p>
-        </div>
-        <Numbers stats={stats} />
-        <p className="small muted" style={{ marginBottom: 0 }}>
-          When typing stops for 5 minutes, the numbers for that stretch are saved as one session (only the numbers).{" "}
-          {sessionsSaved > 0 ? `${sessionsSaved} saved so far. ` : ""}
-          Their spread shows up in <Link href="/trends/">Your own level</Link>.
-        </p>
-      </section>
-
-      <section className="card stack" aria-labelledby="day-title">
-        <h2 id="day-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-          Your day
-        </h2>
-        {!desktop ? (
-          <p className="muted" style={{ marginBottom: 0 }}>
-            First and last activity of the day are measured in the desktop app.
-          </p>
-        ) : days.length === 0 ? (
-          <p className="muted" style={{ marginBottom: 0 }}>
-            Nothing yet. After your first key press today, the time shows up here.
-          </p>
-        ) : (
-          <>
-            <dl className="numbers">
-              <div>
-                <dt>First activity today</dt>
-                <dd>{todayRow?.first ?? "Not yet"}</dd>
-                <dd className="small muted">your first key press</dd>
-              </div>
-              <div>
-                <dt>Last activity today</dt>
-                <dd>{todayRow?.last ?? "Not yet"}</dd>
-                <dd className="small muted">your latest key press</dd>
-              </div>
-            </dl>
-            <table className="day-table">
-              <caption className="sr-only">First and last activity, recent days</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Day</th>
-                  <th scope="col">First</th>
-                  <th scope="col">Last</th>
-                </tr>
-              </thead>
-              <tbody>
-                {days.slice(0, 7).map((d) => (
-                  <tr key={d.date}>
-                    <th scope="row">{formatDay(d.date)}</th>
-                    <td>{d.first}</td>
-                    <td>{d.last}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
+        </>
+      }
+    >
+      <section className="card stack-sm" aria-labelledby="numbers-title">
+        {!computer && (
+          <div className="field">
+            <label htmlFor="typing-box" className="typing-label">
+              Type anything here
+            </label>
+            <textarea
+              id="typing-box"
+              className="typing-box"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              placeholder="For example, what you did this morning. The text is never stored."
+              onKeyDown={box.onKeyDown}
+              onKeyUp={box.onKeyUp}
+            />
+          </div>
         )}
+        <h2 id="numbers-title">The last minute</h2>
+        <p className="small muted" aria-live="polite">
+          {paused
+            ? "Measuring is paused."
+            : typingNow
+              ? "Typing now. The numbers update every second."
+              : stats && stats.presses > 0
+                ? "Not typing right now. The numbers show the last minute."
+                : computer
+                  ? "Start typing anywhere and the numbers appear here."
+                  : "Type in the box and the numbers appear."}
+        </p>
+        <Numbers stats={stats} />
       </section>
-
-      <RobotConnect />
-    </div>
+    </Screen>
   );
 }
 
@@ -345,10 +333,10 @@ function RobotConnect() {
 
   if (!support) return null;
   return (
-    <section className="stack" aria-labelledby="robot-title">
-      <h2 id="robot-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
+    <section className="stack-sm" aria-labelledby="robot-title">
+      <h3 id="robot-title" style={{ fontSize: "var(--font-size-md)", margin: 0 }}>
         Robot
-      </h2>
+      </h3>
       <div className="btn-row">
         <button
           type="button"

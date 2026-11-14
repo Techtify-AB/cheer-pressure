@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Link from "next/link";
 import { useRequireProfile, useVoiceAvailability } from "@/components/hooks";
+import { Disclosure, Screen } from "@/components/Screen";
 import { forgetDesktopData } from "@/lib/platform";
 import { deleteEverything, saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
@@ -16,46 +18,63 @@ export default function SettingsPage() {
 
   if (!data || !ready) return null;
   const muted = data.settings.muted;
-  const counts = `${data.typingSessions.length} typing sessions, ${data.activityDays.length} days of first and last activity, ${data.daily.length} daily check-ins, ${data.weekly.length} weekly answers and ${data.reaction.length} reaction tests`;
+  const counts = `${data.typingSessions.length} typing sessions, ${data.activityDays.length} days of activity times, ${data.daily.length} check-ins, ${data.weekly.length} weekly answers and ${data.reaction.length} reaction tests`;
 
-  return (
-    <div className="stack-lg">
-      <h1>Your data and settings</h1>
-
-      <section className="card stack" aria-labelledby="where-title">
-        <h2 id="where-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-          Where your answers are
-        </h2>
-        <p style={{ marginBottom: 0 }}>
-          Only in this browser, on this device. There is no account and no login, and nothing is sent anywhere. Right
-          now that is {counts}.
-        </p>
-        {data.profile?.earlySigns.length ? (
-          <p className="small muted" style={{ marginBottom: 0 }}>
-            Your early signs: {data.profile.earlySigns.join(", ")}.
-          </p>
-        ) : null}
-      </section>
-
-      <section className="card stack" aria-labelledby="voice-title">
-        <h2 id="voice-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-          Voice
-        </h2>
-        {voice === "no" ? (
-          <p style={{ marginBottom: 0 }}>
-            <strong>Reading aloud: not available on this device.</strong> This browser has no voice built into the
-            device, and the companion never sends text elsewhere to be spoken. So it shows its text instead.
-          </p>
-        ) : (
-          <div>
-            <p style={{ marginBottom: 0 }}>
-              <strong>Reading aloud: {muted ? "off" : "on"}.</strong> The companion can read its questions aloud using
-              the voices built into your device. Only on-device voices are used, so the text is not sent anywhere.
+  if (confirming) {
+    return (
+      <Screen
+        lead={
+          <div role="alertdialog" aria-labelledby="confirm-text" aria-describedby="confirm-detail">
+            <h1 id="confirm-text" className="item-title">
+              Delete everything? This can&apos;t be undone.
+            </h1>
+            <p id="confirm-detail" className="muted">
+              Removes all your answers, measurements and settings from this device, and you start over with setup.
             </p>
+          </div>
+        }
+        actions={
+          <>
             <button
               type="button"
-              className="btn btn-secondary"
-              style={{ marginTop: "var(--space-3)" }}
+              className="btn btn-primary btn-danger"
+              autoFocus
+              onClick={async () => {
+                stopSpeaking();
+                await forgetDesktopData();
+                deleteEverything();
+                router.replace("/setup/");
+              }}
+            >
+              Yes, delete everything
+            </button>
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={() => setConfirming(false)}>
+                Keep my data
+              </button>
+            </div>
+          </>
+        }
+      />
+    );
+  }
+
+  return (
+    <Screen
+      lead={
+        <>
+          <h1 className="item-title">Your answers are only on this device</h1>
+          <p className="muted">
+            In this browser, with no account and no login. Nothing is sent anywhere. Right now that is {counts}.
+          </p>
+        </>
+      }
+      actions={
+        <>
+          {voice !== "no" && (
+            <button
+              type="button"
+              className="btn btn-primary"
               onClick={() => {
                 if (!muted) stopSpeaking();
                 saveSettings({ muted: !muted });
@@ -63,52 +82,48 @@ export default function SettingsPage() {
             >
               {muted ? "Turn reading aloud on" : "Mute reading aloud"}
             </button>
-          </div>
-        )}
-        <p style={{ marginBottom: 0 }}>
-          <strong>Answering by voice: off.</strong> This version has no voice answers, so you always tap or type. When
-          you read the sentence in the check-in, the microphone is used only to time how fast you read. That happens on
-          this device; no sound is recorded, kept or sent.
-        </p>
-      </section>
-
-      <section className="card stack" aria-labelledby="delete-title">
-        <h2 id="delete-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-          Delete everything
-        </h2>
-        <p style={{ marginBottom: 0 }}>Removes all your answers, measurements and settings from this device and starts over.</p>
-        {!confirming ? (
-          <div>
-            <button type="button" className="btn btn-secondary" onClick={() => setConfirming(true)}>
+          )}
+          <div className="links">
+            <Disclosure label="What is stored, in detail" title="What is stored, in detail">
+              <p>
+                Typing sessions and first and last activity are timing numbers and times of day only, never which keys
+                or what you typed. Daily check-ins keep your bedtime, wake time, form, reading pace and your note if you
+                wrote one. Weekly answers keep the numbers you picked.
+              </p>
+              {data.profile?.earlySigns.length ? <p>Your early signs: {data.profile.earlySigns.join(", ")}.</p> : null}
+              <p>
+                When you read the sentence in a check-in, the microphone is used only to time how fast you read. That
+                happens on this device; no sound is recorded, kept or sent.
+              </p>
+            </Disclosure>
+            <button type="button" className="btn btn-quiet" onClick={() => setConfirming(true)}>
               Delete everything
             </button>
+            <Link href="/" className="btn btn-quiet">
+              Back to home
+            </Link>
           </div>
+        </>
+      }
+    >
+      <section className="card stack-sm" aria-labelledby="voice-title">
+        <h2 id="voice-title">Voice</h2>
+        {voice === "no" ? (
+          <p>
+            <strong>Reading aloud: not available on this device.</strong> This browser has no voice built into the
+            device, and the companion never sends text elsewhere to be spoken. So it shows its text instead.
+          </p>
         ) : (
-          <div className="stack" role="alertdialog" aria-labelledby="confirm-text">
-            <p id="confirm-text" style={{ marginBottom: 0 }}>
-              <strong>Are you sure? This can&apos;t be undone.</strong>
-            </p>
-            <div className="btn-row">
-              <button
-                type="button"
-                className="btn btn-danger"
-                autoFocus
-                onClick={async () => {
-                  stopSpeaking();
-                  await forgetDesktopData();
-                  deleteEverything();
-                  router.replace("/setup/");
-                }}
-              >
-                Yes, delete everything
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)}>
-                Keep my data
-              </button>
-            </div>
-          </div>
+          <p>
+            <strong>Reading aloud: {muted ? "off" : "on"}.</strong> The companion can read its questions aloud using the
+            voices built into your device, so the text is not sent anywhere.
+          </p>
         )}
+        <p>
+          <strong>Answering by voice: off.</strong> You always tap or type. The microphone is used only if you choose to
+          read a sentence aloud, and no sound leaves this device.
+        </p>
       </section>
-    </div>
+    </Screen>
   );
 }

@@ -1,12 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Companion } from "@/components/companion/Companion";
+import { useState } from "react";
 import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
+import { Disclosure, Pager, Says, Screen } from "@/components/Screen";
 import { Sparkline, type ChartMetric } from "@/components/Sparkline";
 import { addDays, describeMinutes, formatShortDay } from "@/lib/dates";
 import { makeDemoData } from "@/lib/demo";
-import { CHART_DAYS, type MetricLevel } from "@/lib/levels";
+import { CHART_DAYS, type Levels, type MetricLevel } from "@/lib/levels";
 import { MIN_USUAL_POINTS, RECENT_POINTS, type PassiveMetric } from "@/lib/passive";
 import { addDemo, clearDemo, hasDemo, saveSettings, useData } from "@/lib/storage";
 
@@ -98,17 +100,32 @@ function chartFor(m: PassiveMetric, today: string): ChartMetric {
   return { label: m.label, format: m.format, series, usual: m.usual };
 }
 
-function PassiveCard({ m, today }: { m: PassiveMetric; today: string }) {
+const COUNT_WORDS = ["None", "One", "Two", "Three", "Four", "Five", "Six"];
+
+const HOW_IT_WORKS = (
+  <>
+    <p>
+      Your usual range is the middle half of your own earlier sessions or days. You are never compared with other
+      people.
+    </p>
+    <p>
+      A measure counts as changed only when your last three sessions or days in a row are all outside that range on
+      the same side. I only ask how you are doing when at least two measures have changed.
+    </p>
+    <p>
+      Each chart shows the last 14 days, one dot per day (for typing, the middle of that day&apos;s sessions). The
+      green band is your usual range, the dashed line your usual middle. The shaded right part is the last 7 days,
+      where dots outside your range are coloured. The verdict uses only the last three values on the card.
+    </p>
+    <p>For your own entries, the last 7 days are compared with your usual from the 8 weeks before.</p>
+    <p>&quot;Load demo data&quot; adds six weeks of made-up measurements where the last days change. Your own data is kept.</p>
+  </>
+);
+
+function PassiveItem({ m, today }: { m: PassiveMetric; today: string }) {
   return (
-    <section className="card stack" aria-labelledby={`p-${m.key}`}>
-      <div>
-        <h3 id={`p-${m.key}`} style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
-          {m.label}
-        </h3>
-        <p className="small muted" style={{ marginBottom: 0 }}>
-          {m.meaning}.
-        </p>
-      </div>
+    <section className="card stack-sm" aria-labelledby={`p-${m.key}`}>
+      <p className="small muted">{m.meaning}.</p>
       <dl className="numbers">
         <div>
           <dt>{m.recentValues ? `Last ${m.recentValues.length} ${unitWord(m, m.recentValues.length)}` : "Lately"}</dt>
@@ -131,17 +148,42 @@ function PassiveCard({ m, today }: { m: PassiveMetric; today: string }) {
           <dt>Your usual range</dt>
           <dd>{m.usual ? `${m.format(m.usual.low)} to ${m.format(m.usual.high)}` : "Not yet"}</dd>
           <dd className="small muted">
-            {m.usual ? `from ${m.usual.n} earlier ${unitWord(m, m.usual.n)}` : "still learning"}
+            {m.usual ? `the middle half of ${m.usual.n} earlier ${unitWord(m, m.usual.n)}` : "still learning"}
           </dd>
         </div>
       </dl>
-      <p style={{ marginBottom: 0 }}>
-        <strong>{passiveStatus(m)}</strong>
-      </p>
       <Sparkline metric={chartFor(m, today)} />
     </section>
   );
 }
+
+function OwnItem({ m }: { m: MetricLevel }) {
+  return (
+    <section className="card stack-sm">
+      <p className="small muted">{m.meaning}.</p>
+      <dl className="numbers">
+        <div>
+          <dt>Last 7 days</dt>
+          <dd>{recentText(m).value}</dd>
+          <dd className="small muted">{recentText(m).note}</dd>
+        </div>
+        <div>
+          <dt>Your usual</dt>
+          <dd>{m.usual ? m.format(m.usual.median) : "Not yet"}</dd>
+          <dd className="small muted">
+            {m.usual ? `the middle of ${m.usual.n} of your earlier entries` : "needs about a week of entries"}
+          </dd>
+        </div>
+      </dl>
+      <Sparkline metric={m} />
+    </section>
+  );
+}
+
+type Item =
+  | { kind: "passive"; key: string; title: string; verdict: string; m: PassiveMetric }
+  | { kind: "own"; key: string; title: string; verdict: string; m: MetricLevel }
+  | { kind: "weekly"; key: string; title: string; verdict: string };
 
 export default function TrendsPage() {
   const data = useData();
@@ -150,13 +192,14 @@ export default function TrendsPage() {
   const voice = useCompanionVoice();
   const { levels, passive, reflection } = useReflection(data);
   const router = useRouter();
+  const [view, setView] = useState<number | null>(null);
 
   if (!data || !ready || !levels || !passive || !reflection) return null;
 
   const demoOn = hasDemo(data);
-  const anything = data.daily.length + data.weekly.length + data.reaction.length > 0;
-  const weeklyList = data.weekly.slice(-6).reverse(); // newest first, so it is visible on a phone
+  const weeklyList = data.weekly.slice(-4).reverse(); // newest first; four fit on a phone
   const insight = reflection.passive.insight;
+  const changedCount = passive.changed.length;
 
   const loadDemo = () => addDemo(makeDemoData(today, data.profile?.earlySigns ?? []));
   const simulate = () => {
@@ -165,185 +208,146 @@ export default function TrendsPage() {
     router.push("/prompt/");
   };
 
-  return (
-    <div className="stack-lg">
-      <div>
-        <h1>Your own level</h1>
-        <p className="muted" style={{ marginBottom: 0 }}>
-          What is measured by itself, compared with your own usual range: the middle half of your own earlier
-          sessions and days. Never with other people. A measure counts as changed only when your last three sessions
-          or days in a row are all outside that range on the same side, and I only ask how you are doing when at least
-          two measures have changed.
-        </p>
-      </div>
+  const items: Item[] = [
+    ...passive.metrics.map(
+      (m): Item => ({ kind: "passive", key: m.key, title: m.label, verdict: passiveStatus(m), m }),
+    ),
+    ...levels.metrics
+      .filter((m) => m.usual || m.recentValues.length)
+      .map((m): Item => ({ kind: "own", key: m.key, title: m.label, verdict: changeText(m), m })),
+    ...(weeklyList.length
+      ? [{ kind: "weekly", key: "weekly", title: "Weekly answers", verdict: weeklyVerdict(levels) } as Item]
+      : []),
+  ];
 
-      <div className="companion-row" style={{ flexDirection: "row", textAlign: "left", alignItems: "flex-start" }}>
-        <div style={{ flex: "0 0 auto" }}>
-          <Companion state={voice.state} size={84} />
-        </div>
-        <div className="bubble" style={{ flex: 1 }} aria-live="polite">
-          <p>{insight}</p>
-          <button
-            type="button"
-            className="btn btn-quiet small"
-            style={{ paddingLeft: 0, minHeight: 36 }}
-            onClick={() => voice.say(insight)}
-          >
-            Read this aloud
-          </button>
-        </div>
-      </div>
-
-      <section className="demo-box stack" aria-labelledby="demo-title">
-        <div>
-          <span className="placeholder-tag">Demo</span>
-          <h2 id="demo-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-            {demoOn ? "Showing made-up demo data" : "Try it with made-up data"}
-          </h2>
-          <p className="small muted" style={{ marginBottom: 0 }}>
-            Six weeks of invented measurements where the last days change, so you can see how this works. Your own
-            data is kept and not overwritten. &quot;Simulate a change&quot; also makes the companion ask right away.
-          </p>
-        </div>
-        <div className="btn-row">
-          <button type="button" className="btn btn-secondary" onClick={loadDemo}>
-            {demoOn ? "Reload demo data" : "Load demo data"}
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={simulate}>
-            Simulate a change
-          </button>
-          {demoOn && (
-            <button type="button" className="btn btn-secondary" onClick={clearDemo}>
-              Clear demo data
-            </button>
-          )}
-        </div>
-      </section>
-
-      <p className="small muted" style={{ marginBottom: 0 }}>
-        Each chart shows the last 14 days, one dot per day (for typing, the middle value of that day&apos;s sessions). The green
-        band is your usual range and the dashed line your usual middle value. The shaded right part marks the last 7
-        days, and dots there outside your usual range are coloured. The verdict above each chart uses only the last
-        three sessions or days listed on the card.
-      </p>
-
-      <section className="stack" aria-labelledby="passive-title">
-        <h2 id="passive-title" style={{ fontSize: "var(--font-size-xl)", marginBottom: 0 }}>
-          Measured by itself
-        </h2>
-        {passive.metrics.map((m) => (
-          <PassiveCard key={m.key} m={m} today={today} />
-        ))}
-      </section>
-
-      {anything && reflection && (
-        <section className="stack" aria-labelledby="own-title">
-          <div>
-            <h2 id="own-title" style={{ fontSize: "var(--font-size-xl)", marginBottom: 2 }}>
-              Your own entries
-            </h2>
-            <p className="small muted" style={{ marginBottom: 0 }}>
-              What you told me yourself, in check-ins and the reaction test. {reflection.say}
+  if (view === null || !items[view]) {
+    return (
+      <Screen
+        lead={
+          <Says state={voice.state} size={72}>
+            <p>{insight}</p>
+            <p className="small muted">
+              {passive.learning
+                ? "Still learning, so no measure can count as changed yet."
+                : `${COUNT_WORDS[changedCount] ?? changedCount} of the ${passive.metrics.length} measures ${changedCount === 1 ? "has" : "have"} changed compared with your own usual range.`}
             </p>
+          </Says>
+        }
+        actions={
+          <>
+            <button type="button" className="btn btn-primary" onClick={() => setView(0)}>
+              See each measure
+            </button>
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={() => voice.say(insight)}>
+                Read this aloud
+              </button>
+              <Link href="/" className="btn btn-quiet">
+                Back to home
+              </Link>
+            </div>
+            <div className="links demo-links" role="group" aria-label="Made-up demo data">
+              <span className="placeholder-tag">Demo, made up</span>
+              <button type="button" className="btn btn-quiet" onClick={loadDemo}>
+                {demoOn ? "Reload demo data" : "Load demo data"}
+              </button>
+              <button type="button" className="btn btn-quiet" onClick={simulate}>
+                Simulate a change
+              </button>
+              {demoOn && (
+                <button type="button" className="btn btn-quiet" onClick={clearDemo}>
+                  Clear demo data
+                </button>
+              )}
+            </div>
+          </>
+        }
+      >
+        <section className="card stack-sm" aria-label="How a change is decided">
+          <p>
+            A measure counts as changed only when your last three sessions or days in a row are all outside your usual
+            range on the same side, and I only ask how you are doing when at least two measures have changed.
+          </p>
+          <Disclosure title="How this is worked out">{HOW_IT_WORKS}</Disclosure>
+        </section>
+      </Screen>
+    );
+  }
+
+  const item = items[view];
+  const section = item.kind === "passive" ? "Measured by itself" : "What you told me yourself";
+
+  return (
+    <Screen
+      lead={
+        <div className="item-lead">
+          <p className="small muted">
+            {section}: {item.title}
+          </p>
+          <h1>{item.verdict}</h1>
+        </div>
+      }
+      actions={
+        <>
+          <Pager index={view} total={items.length} onChange={setView} />
+          <div className="links">
+            <button type="button" className="btn btn-quiet" onClick={() => setView(null)}>
+              Back to the summary
+            </button>
+            <Disclosure title="How this is worked out">{HOW_IT_WORKS}</Disclosure>
           </div>
+        </>
+      }
+    >
+      {item.kind === "passive" && <PassiveItem m={item.m} today={today} />}
+      {item.kind === "own" && <OwnItem m={item.m} />}
+      {item.kind === "weekly" && (
+        <section className="card stack-sm">
+          <p className="small muted">0 means not at all, 1 several days, 2 more than half the days, 3 nearly every day.</p>
+          <table className="weekly-table">
+            <thead>
+              <tr>
+                <th scope="col">Question</th>
+                {weeklyList.map((w) => (
+                  <th key={w.date} scope="col">
+                    {formatShortDay(w.date)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {levels.weekly.items.map((it) => (
+                <tr key={it.key}>
+                  <th scope="row">{it.label}</th>
+                  {weeklyList.map((w) => {
+                    const v = it.key.startsWith("sign:")
+                      ? w.signs.find((x) => `sign:${x.sign}` === it.key)?.value
+                      : w[it.key as "down" | "interest" | "sleep" | "tense"];
+                    return (
+                      <td key={w.date} data-level={v ?? ""}>
+                        {v ?? ""}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       )}
-
-      {anything && (
-        <>
-
-          {levels.metrics.map((m) => (
-            <section key={m.key} className="card stack" aria-labelledby={`m-${m.key}`}>
-              <div>
-                <h3 id={`m-${m.key}`} style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
-                  {m.label} {m.experimental && <span className="badge badge-experiment">Experiment</span>}
-                </h3>
-                <p className="small muted" style={{ marginBottom: 0 }}>
-                  {m.meaning}.
-                </p>
-              </div>
-              <dl className="numbers">
-                <div>
-                  <dt>Last 7 days</dt>
-                  <dd>{recentText(m).value}</dd>
-                  <dd className="small muted">{recentText(m).note}</dd>
-                </div>
-                <div>
-                  <dt>Your usual</dt>
-                  <dd>{m.usual ? m.format(m.usual.median) : "Not yet"}</dd>
-                  <dd className="small muted">
-                    {m.usual ? `from ${m.usual.n} of your earlier entries` : "needs about a week of entries"}
-                  </dd>
-                </div>
-              </dl>
-              <p style={{ marginBottom: 0 }}>
-                <strong>{changeText(m)}</strong>
-              </p>
-              <Sparkline metric={m} />
-            </section>
-          ))}
-
-          <section className="card stack" aria-labelledby="weekly-title">
-            <div>
-              <h3 id="weekly-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 2 }}>
-                Weekly answers
-              </h3>
-              <p className="small muted" style={{ marginBottom: 0 }}>
-                0 means not at all, 1 several days, 2 more than half the days, 3 nearly every day. Newest answer first.
-              </p>
-            </div>
-            {weeklyList.length === 0 ? (
-              <p className="muted" style={{ marginBottom: 0 }}>
-                No weekly answers yet.
-              </p>
-            ) : (
-              <>
-                <div className="weekly-table-wrap">
-                  <table className="weekly-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Question</th>
-                        {weeklyList.map((w) => (
-                          <th key={w.date} scope="col">
-                            {formatShortDay(w.date)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {levels.weekly.items.map((item) => (
-                        <tr key={item.key}>
-                          <th scope="row">{item.label}</th>
-                          {weeklyList.map((w) => {
-                            const v = item.key.startsWith("sign:")
-                              ? w.signs.find((s) => `sign:${s.sign}` === item.key)?.value
-                              : w[item.key as "down" | "interest" | "sleep" | "tense"];
-                            return (
-                              <td key={w.date} data-level={v ?? ""}>
-                                {v ?? ""}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <ul className="small" style={{ marginBottom: 0, paddingLeft: "1.2em" }}>
-                  {levels.weekly.items
-                    .filter((i) => i.direction === "up" || i.direction === "down")
-                    .map((i) => (
-                      <li key={i.key}>
-                        {i.label}: {SCALE_WORDS[i.latest]} in the latest answer,{" "}
-                        {i.direction === "up" ? "more" : "less"} than your usual.
-                      </li>
-                    ))}
-                </ul>
-              </>
-            )}
-          </section>
-        </>
-      )}
-    </div>
+    </Screen>
   );
+}
+
+/** One line about the weekly answers: what went up or down in the latest answer. */
+function weeklyVerdict(levels: Levels): string {
+  const moved = levels.weekly.items.filter((i) => i.direction === "up" || i.direction === "down");
+  if (!moved.length) return "Your latest weekly answers are close to your usual ones.";
+  return moved
+    .slice(0, 2)
+    .map(
+      (i) =>
+        `${i.label}: ${SCALE_WORDS[i.latest]} in the latest answer, ${i.direction === "up" ? "more" : "less"} than your usual.`,
+    )
+    .join(" ");
 }

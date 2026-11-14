@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="placeholder-tag">Demo</span>
             <span>You are looking at made-up demo data.</span>
             <button type="button" className="demo-banner-clear" onClick={clearDemo}>
-              Clear demo data
+              Clear it
             </button>
           </div>
         )}

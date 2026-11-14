@@ -5,8 +5,8 @@
 // needed from the person day to day.
 
 import Link from "next/link";
-import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
+import { Disclosure, Says, Screen } from "@/components/Screen";
 import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import type { PassiveMetric } from "@/lib/passive";
 import { useData } from "@/lib/storage";
@@ -26,45 +26,67 @@ export default function HomePage() {
   const measuring = desktop && status?.listener === "running";
   const paused = measuring && !!status?.paused;
 
-  /** What each passive measure is doing right now, in plain words. */
+  /** What each passive measure is doing right now, in a few plain words. */
   const stateOf = (m: PassiveMetric): { state: string; on: boolean } => {
-    const learning = m.status === "learning" ? ", still learning" : "";
+    const learning = m.status === "learning";
     if (paused) return { state: "Paused", on: false };
-    if (m.unit === "session") {
-      if (measuring) return { state: `Measuring${learning}`, on: true };
-      return { state: `Only in the Live view box${learning}`, on: false };
-    }
-    if (measuring) {
-      const first = m.key === "firstActivity" && todayActivity ? `, today ${todayActivity.first}` : "";
-      return { state: `Measuring${first}${learning}`, on: true };
-    }
-    return { state: desktop ? "Needs permission, see Live view" : "Desktop app only", on: false };
+    if (measuring) return { state: learning ? "Still learning" : "Measuring", on: true };
+    if (m.unit === "session") return { state: learning ? "In the box, learning" : "Only in the box", on: false };
+    return { state: desktop ? "Needs permission" : "Desktop app only", on: false };
   };
 
-  const label = (m: PassiveMetric) => (m.key === "quietNight" ? "Quiet night, an estimate of rest" : m.label);
+  // Short names so each measure and its state fit on one line on a phone.
+  const SHORT: Partial<Record<PassiveMetric["key"], string>> = {
+    pauses: "Longer typing pauses",
+    quietNight: "Quiet night (estimate)",
+  };
+  const label = (m: PassiveMetric) => SHORT[m.key] ?? m.label;
 
   return (
-    <div className="stack-lg">
-      <div className="companion-row">
-        <Companion state={voice.state} size={170} />
-        <div className="bubble" aria-live="polite">
+    <Screen
+      lead={
+        <Says state={voice.state} size={72}>
           <p>{line}</p>
-        </div>
-        {passive.askNow ? (
-          <Link href="/prompt/" className="btn btn-secondary">
-            Have a look
-          </Link>
-        ) : (
-          <button type="button" className="btn btn-quiet small" onClick={() => voice.say(line)}>
-            Read this aloud
-          </button>
-        )}
-      </div>
-
-      <section className="card stack" aria-labelledby="sources-title">
-        <h2 id="sources-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-          What I&apos;m noticing right now
-        </h2>
+        </Says>
+      }
+      actions={
+        <>
+          {passive.askNow && (
+            <Link href="/prompt/" className="btn btn-primary">
+              Have a look
+            </Link>
+          )}
+          <nav aria-label="More" className="links">
+            <Link href="/check-in/" className="btn btn-quiet">
+              Tell me how you&apos;re doing
+            </Link>
+            <Link href="/live/" className="btn btn-quiet">
+              Live view
+            </Link>
+            <Link href="/trends/" className="btn btn-quiet">
+              Your own level
+            </Link>
+            <Link href="/weekly/" className="btn btn-quiet">
+              Weekly questions
+            </Link>
+            <Link href="/reaction/" className="btn btn-quiet">
+              Reaction test (experiment)
+            </Link>
+            <Link href="/share/" className="btn btn-quiet">
+              Share with my clinic
+            </Link>
+            <Link href="/settings/" className="btn btn-quiet">
+              Your data and settings
+            </Link>
+            <button type="button" className="btn btn-quiet" onClick={() => voice.say(line)}>
+              Read this aloud
+            </button>
+          </nav>
+        </>
+      }
+    >
+      <section className="card measures" aria-labelledby="sources-title">
+        <h2 id="sources-title">What I&apos;m measuring by myself</h2>
         <ul className="source-list">
           {passive.metrics.map((m) => {
             const { state, on } = stateOf(m);
@@ -77,43 +99,24 @@ export default function HomePage() {
             );
           })}
         </ul>
-        <p className="small muted" style={{ marginBottom: 0 }}>
-          Key timing is measured, never which keys you press or what you type in other apps. Notes and early signs you
-          write here are kept on this device only. Microphone: only if you choose to read a sentence aloud in a
-          check-in, and no sound is kept.
-        </p>
-        <p className="small muted" style={{ marginBottom: 0 }}>
-          Not connected yet: camera, microphone in the background, bedside sensor.
-        </p>
+        <p className="small muted not-connected">Not connected yet: camera, background microphone, bedside sensor.</p>
+        <Disclosure label="What is kept, and what is not" title="What is kept, and what is not">
+          <p>
+            Key timing is measured, never which keys you press or what you type in other apps. In a browser it is
+            measured only in the box on Live view; in the desktop app, across the whole computer.
+          </p>
+          <p>
+            First and last activity are the times of your first and last key press each day.{" "}
+            {todayActivity ? `Today your first was at ${todayActivity.first}.` : ""} Quiet night is the time between
+            them overnight: an estimate of rest, not measured sleep.
+          </p>
+          <p>Notes and early signs you write here are kept on this device only. Nothing is sent anywhere.</p>
+          <p>
+            Microphone: only if you choose to read a sentence aloud in a check-in, to time how fast you read. No sound
+            is kept.
+          </p>
+        </Disclosure>
       </section>
-
-      <nav aria-label="More">
-        <ul className="quiet-links">
-          <li>
-            <Link href="/check-in/">Tell me how you&apos;re doing</Link>
-          </li>
-          <li>
-            <Link href="/live/">Live view</Link>
-          </li>
-          <li>
-            <Link href="/trends/">Your own level</Link>
-          </li>
-          <li>
-            <Link href="/weekly/">Weekly questions</Link>
-          </li>
-          <li>
-            <Link href="/reaction/">
-              Reaction test <span className="badge badge-experiment">Experiment</span>
-            </Link>
-          </li>
-          <li>
-            <Link href="/share/">Share with my clinic</Link>
-          </li>
-          <li>
-            <Link href="/settings/">Your data and settings</Link>
-          </li>
-        </ul>
-      </nav>
-    </div>
+    </Screen>
   );
 }

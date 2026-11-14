@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { Pager, Screen } from "@/components/Screen";
 import { useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import { useData } from "@/lib/storage";
 import { buildSummary } from "@/lib/summary";
@@ -11,6 +13,7 @@ export default function SharePage() {
   const today = useToday();
   const { levels, reflection } = useReflection(data);
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
+  const [page, setPage] = useState(0);
 
   if (!data || !ready || !levels) return null;
 
@@ -37,35 +40,67 @@ export default function SharePage() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const pages = pagesOf(text);
+  const shown = Math.min(page, pages.length - 1);
+
   return (
-    <div className="stack-lg">
-      <div>
-        <h1>Share with my clinic</h1>
-        <p className="muted" style={{ marginBottom: 0 }}>
-          This is exactly what would be shared. Nothing is sent from here: you can copy it or download it, and then
-          decide yourself whether to give it to your clinic.
-        </p>
-      </div>
-
+    <Screen
+      lead={
+        <>
+          <h1 className="item-title">This is exactly what would be shared</h1>
+          <p className="muted">
+            Nothing is sent from here. Copy it or download it, then decide yourself whether to give it to your clinic.
+            Your typed notes are not part of it.
+          </p>
+        </>
+      }
+      actions={
+        <>
+          {pages.length > 1 && <Pager index={shown} total={pages.length} onChange={setPage} secondary />}
+          <button type="button" className="btn btn-primary" onClick={copy}>
+            Copy the whole text
+          </button>
+          <div className="links">
+            <button type="button" className="btn btn-quiet" onClick={download}>
+              Download as a file
+            </button>
+            <Link href="/" className="btn btn-quiet">
+              Back to home
+            </Link>
+          </div>
+          <p className="small muted center" aria-live="polite">
+            {copied === "copied"
+              ? "Copied. Nothing has been sent."
+              : copied === "failed"
+                ? "Copying didn't work in this browser. You can download it as a file instead."
+                : ""}
+          </p>
+        </>
+      }
+    >
       <div className="card">
-        <pre className="summary">{text}</pre>
+        <pre className="summary">{pages[shown]}</pre>
       </div>
-
-      <div className="btn-row">
-        <button type="button" className="btn btn-secondary" onClick={copy}>
-          Copy text
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={download}>
-          Download as a file
-        </button>
-      </div>
-      <p className="small muted" aria-live="polite" style={{ marginBottom: 0 }}>
-        {copied === "copied"
-          ? "Copied. Nothing has been sent."
-          : copied === "failed"
-            ? "Copying didn't work in this browser. You can select the text above or download it instead."
-            : "Your typed notes are not part of the summary."}
-      </p>
-    </div>
+    </Screen>
   );
+}
+
+/** The summary in pieces that fit on a phone screen, split at blank lines and then by length. */
+function pagesOf(text: string, budget = 420): string[] {
+  const pages: string[] = [];
+  for (const block of text.split(/\n\s*\n/)) {
+    let cur: string[] = [];
+    let size = 0;
+    for (const line of block.split("\n")) {
+      if (cur.length && size + line.length > budget) {
+        pages.push(cur.join("\n"));
+        cur = [];
+        size = 0;
+      }
+      cur.push(line);
+      size += line.length + 40; // a short line still takes a row
+    }
+    if (cur.length) pages.push(cur.join("\n"));
+  }
+  return pages.filter((p) => p.trim());
 }

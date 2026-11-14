@@ -81,6 +81,7 @@ doing", "Weekly questions"); the weekly ones are also offered after the answer "
 | `lib/summary.ts` | The text shown on "Share with my clinic" |
 | `styles/tokens.css` | Design tokens: colours, type, spacing, radius. The look lives here |
 | `components/companion/` | The character. One component, swappable |
+| `components/Screen.tsx` | The layout every screen uses: the lead (answer or question first), the content, the actions; plus the step count, the pager and the one disclosure sheet |
 
 ## Data model
 
@@ -170,6 +171,12 @@ the brain is asked anything.
 ## Changing the look
 
 - Colours, type, spacing and radius: `styles/tokens.css`. Components only read these variables.
+  That includes the glass look: the soft backdrop shapes, the frosted surfaces (kept 80 to 88
+  percent opaque so text stays readable) and their blur. With `prefers-reduced-transparency`, or
+  where `backdrop-filter` is not supported, the surfaces are solid.
+- Every screen fits one view with no page scrolling, at 390 by 844, 1366 by 768 and in the
+  desktop window: one question or decision per screen, long content paged one item at a time,
+  and details behind one "Show how this is worked out" style control.
 - The character: replace `components/companion/Companion.tsx` (and its CSS module) with any
   component that takes `{ state: "idle" | "speaking" | "listening"; size?: number }`.
   The check-in logic does not import anything else from it.

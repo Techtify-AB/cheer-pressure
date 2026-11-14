@@ -1,43 +1,38 @@
 import Link from "next/link";
 import { ClinicContactPlaceholder } from "@/components/ClinicContactPlaceholder";
+import { Screen } from "@/components/Screen";
 
 export const metadata = { title: "Need help now? · Cheer Pressure" };
 
 export default function HelpPage() {
   return (
-    <div className="stack-lg">
-      <div>
-        <h1>Need help now?</h1>
-        <p style={{ marginBottom: 0 }}>This app is a tool, not a therapist, and it can&apos;t help in an emergency.</p>
-      </div>
-
-      <section className="crisis-card stack" aria-labelledby="emergency-title">
-        <h2 id="emergency-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-          If you are in danger, or might hurt yourself
-        </h2>
-        <p style={{ marginBottom: 0 }}>Call the emergency number now.</p>
-        <a className="emergency-number" href="tel:112">
-          112
-        </a>
-      </section>
-
-      <section className="stack" aria-labelledby="clinic-title">
-        <h2 id="clinic-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-          Your clinic
-        </h2>
-        <p style={{ marginBottom: 0 }}>If things are getting harder but it isn&apos;t an emergency, contact your clinic.</p>
+    <Screen
+      lead={
+        <section className="crisis-card stack-sm" aria-labelledby="emergency-title">
+          <h1 id="emergency-title" className="item-title">
+            If you are in danger, or might hurt yourself, call 112 now
+          </h1>
+          <a className="emergency-number" href="tel:112">
+            Call 112
+          </a>
+        </section>
+      }
+      actions={
+        <div className="links">
+          <Link href="/" className="btn btn-quiet">
+            Back to home
+          </Link>
+        </div>
+      }
+    >
+      <section className="card stack-sm" aria-labelledby="clinic-title">
+        <h2 id="clinic-title">If it isn&apos;t an emergency</h2>
+        <p>
+          Contact your clinic, or tell someone you trust how you are doing. This app is a tool, not a therapist, and it
+          can&apos;t help in an emergency.
+        </p>
         <ClinicContactPlaceholder />
       </section>
-
-      <p className="muted" style={{ marginBottom: 0 }}>
-        It can also help to tell someone you trust how you are doing.
-      </p>
-
-      <div>
-        <Link href="/" className="btn btn-secondary">
-          Back to home
-        </Link>
-      </div>
-    </div>
+    </Screen>
   );
 }

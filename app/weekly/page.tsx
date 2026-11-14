@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Companion } from "@/components/companion/Companion";
 import { useCompanionVoice, useRequireProfile, useToday } from "@/components/hooks";
+import { Says, Screen, StepCount } from "@/components/Screen";
 import { OptionList } from "@/components/ScaleButtons";
 import { brain } from "@/lib/brain";
 import { formatDay, newId } from "@/lib/dates";
@@ -109,20 +109,19 @@ function WeeklyFlow({ data }: { data: AppData }) {
 
   if (doneLine) {
     return (
-      <div className="stack-lg">
-        <div className="companion-row">
-          <Companion state={voice.state} size={150} />
-          <div className="bubble" aria-live="polite">
+      <Screen
+        lead={
+          <Says state={voice.state} size={88}>
             <p>{doneLine}</p>
             <p className="small muted">Saved for {formatDay(today)}. You can see it under your own level.</p>
-          </div>
-        </div>
-        <div className="notice">
-          <Link href="/" className="btn btn-quiet">
+          </Says>
+        }
+        actions={
+          <Link href="/" className="btn btn-primary">
             Back to home
           </Link>
-        </div>
-      </div>
+        }
+      />
     );
   }
 
@@ -130,50 +129,40 @@ function WeeklyFlow({ data }: { data: AppData }) {
   const current = answers[item.key] ?? null;
 
   return (
-    <div className="stack-lg">
-      <div>
-        <div className="progress" aria-hidden="true">
-          {items.map((_, i) => (
-            <span key={i} className={i <= index ? "on" : ""} />
-          ))}
+    <Screen
+      lead={
+        <>
+          <Says state={voice.state}>
+            <p className="small muted" style={{ marginBottom: "var(--space-1)" }}>
+              {item.stem}
+            </p>
+            <h1>{item.text}</h1>
+          </Says>
+          <StepCount index={index} total={items.length} label="Weekly questions" />
+        </>
+      }
+      actions={
+        <div className="links">
+          {index > 0 && (
+            <button
+              type="button"
+              className="btn btn-quiet"
+              onClick={() => {
+                setIndex(index - 1);
+                say(spoken(index - 1));
+              }}
+            >
+              Back
+            </button>
+          )}
+          <Link href="/" className="btn btn-quiet">
+            Not now
+          </Link>
         </div>
-        <p className="small muted" style={{ marginBottom: 0 }}>
-          Weekly questions · {index + 1} of {items.length}
-          {last ? ` · last answered ${formatDay(last.date)}` : ""}
-        </p>
-      </div>
-
-      <div className="companion-row" style={{ flexDirection: "row", textAlign: "left", alignItems: "center" }}>
-        <div style={{ flex: "0 0 auto" }}>
-          <Companion state={voice.state} size={84} />
-        </div>
-        <div className="bubble" style={{ flex: 1 }} aria-live="polite">
-          <p className="small muted" style={{ marginBottom: "var(--space-1)" }}>
-            {item.stem}
-          </p>
-          <h1 style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>{item.text}</h1>
-        </div>
-      </div>
-
+      }
+    >
       <OptionList label={item.text} options={SCALE} value={current} onChange={answer} />
-
-      <div className="notice">
-        {index > 0 && (
-          <button
-            type="button"
-            className="btn btn-quiet"
-            onClick={() => {
-              setIndex(index - 1);
-              say(spoken(index - 1));
-            }}
-          >
-            Back
-          </button>
-        )}
-        <Link href="/" className="btn btn-quiet">
-          Not now
-        </Link>
-      </div>
-    </div>
+      {last && <p className="small muted">You last answered these on {formatDay(last.date)}.</p>}
+    </Screen>
   );
 }

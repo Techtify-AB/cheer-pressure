@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRequireProfile, useToday } from "@/components/hooks";
+import { Screen, StepCount } from "@/components/Screen";
 import { median } from "@/lib/levels";
 import { newId } from "@/lib/dates";
 import { saveReaction, useData } from "@/lib/storage";
@@ -85,72 +86,90 @@ export default function ReactionPage() {
     },
   };
 
-  return (
-    <div className="stack-lg">
-      <div className="stack">
-        <span className="badge badge-experiment">Experiment</span>
-        <h1>Reaction test</h1>
-        <p className="muted">
-          Five quick taps. This is an experiment: we don&apos;t yet know how much it says about how you are, so it
-          only goes into your own trends, labelled as an experiment.
-        </p>
-      </div>
+  const again = () => {
+    setTimes([]);
+    setResult(null);
+    setPhase("intro");
+  };
 
-      {phase !== "done" ? (
-        <button
-          type="button"
-          className="reaction-pad"
-          data-phase={phase}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            press();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === " " || e.key === "Enter") {
-              e.preventDefault();
-              if (!e.repeat) press();
-            }
-          }}
-        >
-          <span className="reaction-title">{padText[phase].title}</span>
-          {padText[phase].sub && <span className="reaction-sub">{padText[phase].sub}</span>}
-        </button>
-      ) : (
-        <div className="card stack" aria-live="polite">
-          <div>
-            <div className="big-number">{result} ms</div>
-            <p className="muted" style={{ marginBottom: 0 }}>
-              Your median: the middle of your five times. Lower means quicker.
-            </p>
+  if (phase === "done") {
+    return (
+      <Screen
+        lead={
+          <div aria-live="polite">
+            <h1 className="result-line">
+              Your median: {result} ms <span className="badge badge-experiment">Experiment</span>
+            </h1>
+            <p className="muted">The middle of your five times. Lower means quicker.</p>
           </div>
-          <p className="small muted" style={{ marginBottom: 0 }}>
-            Your five times: {times.join(", ")} ms. Saved.
-          </p>
-          <div className="btn-row">
-            <Link href="/" className="btn btn-secondary">
+        }
+        actions={
+          <>
+            <Link href="/" className="btn btn-primary">
               Back to home
             </Link>
-            <button
-              type="button"
-              className="btn btn-quiet"
-              onClick={() => {
-                setTimes([]);
-                setResult(null);
-                setPhase("intro");
-              }}
-            >
-              Do it again
-            </button>
-          </div>
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={again}>
+                Do it again
+              </button>
+            </div>
+          </>
+        }
+      >
+        <div className="card">
+          <p style={{ marginBottom: 0 }}>
+            Your five times: {times.join(", ")} ms, each the time from green to your tap. Saved, and shown under your
+            own level labelled as an experiment.
+          </p>
         </div>
-      )}
+      </Screen>
+    );
+  }
 
-      {previous && phase === "intro" && (
-        <p className="small muted">
-          Last time your median was {previous.medianMs} ms.
-        </p>
-      )}
-      <p className="small muted">You can use the mouse, a finger, or the space bar.</p>
-    </div>
+  return (
+    <Screen
+      lead={
+        <>
+          <h1 className="result-line">
+            Reaction test <span className="badge badge-experiment">Experiment</span>
+          </h1>
+          <p className="muted">
+            Five quick taps. We don&apos;t yet know how much this says about how you are, so it only goes into your own
+            trends, labelled as an experiment.
+          </p>
+          <StepCount index={Math.min(times.length, TRIALS - 1)} total={TRIALS} label="Taps" />
+        </>
+      }
+      actions={
+        <div className="links">
+          <Link href="/" className="btn btn-quiet">
+            Back to home
+          </Link>
+        </div>
+      }
+    >
+      <button
+        type="button"
+        className="reaction-pad"
+        data-phase={phase}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          press();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === " " || e.key === "Enter") {
+            e.preventDefault();
+            if (!e.repeat) press();
+          }
+        }}
+      >
+        <span className="reaction-title">{padText[phase].title}</span>
+        {padText[phase].sub && <span className="reaction-sub">{padText[phase].sub}</span>}
+      </button>
+      <p className="small muted">
+        You can use the mouse, a finger, or the space bar.
+        {previous && phase === "intro" ? ` Last time your median was ${previous.medianMs} ms.` : ""}
+      </p>
+    </Screen>
   );
 }

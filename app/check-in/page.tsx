@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Companion } from "@/components/companion/Companion";
 import { CrisisCard } from "@/components/CrisisCard";
+import { Says, Screen, StepCount } from "@/components/Screen";
 import { useCompanionVoice, useCrisisCheck, useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import { ReadAloudStep } from "@/components/ReadAloudStep";
 import { ScaleButtons } from "@/components/ScaleButtons";
@@ -17,6 +17,7 @@ import type { AppData, DailyEntry } from "@/lib/types";
 const QUESTIONS = [
   "How did you sleep? When did you go to bed, and when did you wake up?",
   "How is your form today?",
+  "Anything you'd like to note? It's optional.",
   "Last one. Please read this sentence aloud.",
 ];
 
@@ -119,8 +120,8 @@ function CheckInFlow({ data }: { data: AppData }) {
     crisisCheck.typed(value);
   };
 
-  const leaveFormStep = () => {
-    if (!crisisCheck.full(note)) go(2);
+  const leaveNoteStep = () => {
+    if (!crisisCheck.full(note)) go(3);
   };
 
   const back = () => {
@@ -148,100 +149,117 @@ function CheckInFlow({ data }: { data: AppData }) {
 
   const usualRate = levels?.metrics.find((m) => m.key === "speech")?.usual?.median ?? null;
 
+  const home = (
+    <Link href="/" className="btn btn-primary">
+      Back to home
+    </Link>
+  );
+
   if (finished) {
+    if (finished.crisis) {
+      return (
+        <Screen
+          lead={
+            finished.saved ? (
+              <p className="muted">Your answers are saved. What you wrote in the note was not kept.</p>
+            ) : null
+          }
+          actions={home}
+        >
+          <CrisisCard />
+        </Screen>
+      );
+    }
     return (
-      <div className="stack-lg">
-        {finished.crisis ? (
-          <>
-            {finished.saved && <p className="muted">Your answers are saved. What you wrote in the note was not kept.</p>}
-            <CrisisCard />
-            <Link href="/" className="btn btn-secondary">
-              Back to home
-            </Link>
-          </>
-        ) : (
-          <>
-            <div className="companion-row">
-              <Companion state={voice.state} size={150} />
-              <div className="bubble" aria-live="polite">
-                <p>{finished.line}</p>
-              </div>
-            </div>
-            <div className="notice">
-              <Link href="/" className="btn btn-quiet">
-                Back to home
-              </Link>
-            </div>
-          </>
-        )}
+      <Screen
+        lead={
+          <Says state={voice.state} size={88}>
+            <p>{finished.line}</p>
+          </Says>
+        }
+        actions={home}
+      />
+    );
+  }
+
+  const lead = (
+    <>
+      <Says state={voice.state}>
+        <h1 id="question">{QUESTIONS[step]}</h1>
+      </Says>
+      <StepCount index={step} total={QUESTIONS.length} />
+    </>
+  );
+
+  const backLink =
+    step > 0 ? (
+      <button type="button" className="btn btn-quiet" onClick={back}>
+        Back
+      </button>
+    ) : (
+      <Link href="/" className="btn btn-quiet">
+        Not now
+      </Link>
+    );
+
+  if (step === 3) {
+    return (
+      <div className="screen">
+        <div className="screen-lead">{lead}</div>
+        <ReadAloudStep usualRate={usualRate} onListening={voice.setListening} onFinish={finish} links={backLink} />
       </div>
     );
   }
 
+  const next =
+    step === 0 ? (
+      <button type="button" className="btn btn-primary" onClick={() => go(1)}>
+        Next
+      </button>
+    ) : step === 1 ? (
+      <button type="button" className="btn btn-primary" disabled={!form} onClick={() => go(2)}>
+        {form ? "Next" : "Pick a number to go on"}
+      </button>
+    ) : (
+      <button type="button" className="btn btn-primary" onClick={leaveNoteStep}>
+        Next
+      </button>
+    );
+
   return (
-    <div className="stack-lg">
-      <div>
-        <div className="progress" aria-hidden="true">
-          {QUESTIONS.map((_, i) => (
-            <span key={i} className={i <= step ? "on" : ""} />
-          ))}
-        </div>
-        <p className="small muted" style={{ marginBottom: 0 }}>
-          Step {step + 1} of {QUESTIONS.length}
-        </p>
-      </div>
-
-      <div className="companion-row" style={{ flexDirection: "row", textAlign: "left", alignItems: "center" }}>
-        <div style={{ flex: "0 0 auto" }}>
-          <Companion state={voice.state} size={84} />
-        </div>
-        <div className="bubble" style={{ flex: 1 }} aria-live="polite">
-          <h1 style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>{QUESTIONS[step]}</h1>
-        </div>
-      </div>
-
+    <Screen
+      lead={lead}
+      actions={
+        <>
+          {next}
+          <div className="links">{backLink}</div>
+        </>
+      }
+    >
       {step === 0 && (
-        <div className="stack">
+        <>
           <TimeStepper id="bedtime" label="Went to bed" value={bedtime} onChange={setBedtime} />
           <TimeStepper id="waketime" label="Woke up" value={wakeTime} onChange={setWakeTime} />
-          <button type="button" className="btn btn-primary" onClick={() => go(1)}>
-            Next
-          </button>
+        </>
+      )}
+      {step === 1 && <ScaleButtons label="Today's form, 1 to 5" options={FORM_OPTIONS} value={form} onChange={setForm} />}
+      {step === 2 && (
+        <div className="field">
+          <label htmlFor="note">Your note, in your own words</label>
+          <textarea
+            id="note"
+            value={note}
+            maxLength={500}
+            onFocus={() => voice.setListening(true)}
+            onBlur={(e) => {
+              voice.setListening(false);
+              crisisCheck.full(e.target.value);
+            }}
+            onChange={(e) => onNoteChange(e.target.value)}
+          />
+          <p className="small muted">Kept on this device only. Leave it empty if you like.</p>
         </div>
       )}
-
-      {step === 1 && (
-        <div className="stack">
-          <ScaleButtons label="Today's form, 1 to 5" options={FORM_OPTIONS} value={form} onChange={setForm} />
-          <div className="field">
-            <label htmlFor="note">Anything you&apos;d like to note? Optional</label>
-            <textarea
-              id="note"
-              value={note}
-              maxLength={500}
-              onFocus={() => voice.setListening(true)}
-              onBlur={(e) => {
-                voice.setListening(false);
-                crisisCheck.full(e.target.value);
-              }}
-              onChange={(e) => onNoteChange(e.target.value)}
-            />
-          </div>
-          <button type="button" className="btn btn-primary" disabled={!form} onClick={leaveFormStep}>
-            {form ? "Next" : "Pick a number to go on"}
-          </button>
-        </div>
-      )}
-
-      {step === 2 && <ReadAloudStep usualRate={usualRate} onListening={voice.setListening} onFinish={finish} />}
-
-      {step > 0 && (
-        <div className="notice">
-          <button type="button" className="btn btn-quiet" onClick={back}>
-            Back
-          </button>
-        </div>
-      )}
-    </div>
+    </Screen>
   );
 }

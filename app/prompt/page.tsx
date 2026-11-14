@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ClinicContactPlaceholder } from "@/components/ClinicContactPlaceholder";
-import { Companion } from "@/components/companion/Companion";
+import { Disclosure, Says, Screen, StepCount } from "@/components/Screen";
 import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import { newId } from "@/lib/dates";
 import { evaluatePassive } from "@/lib/passive";
@@ -37,6 +37,7 @@ function PromptFlow({ data }: { data: AppData }) {
   // Judged once when the page opens, so saving the answer does not change the text.
   const [evaluation] = useState(() => evaluatePassive(data, today));
   const [answer, setAnswer] = useState<CheckInAnswer | null>(null);
+  const [step, setStep] = useState<"explain" | "ask">("explain");
   // What to say comes from the brain (lib/brain.ts); whether to ask came from lib/passive.ts.
   const { reflection } = useReflection(data, evaluation);
 
@@ -60,146 +61,191 @@ function PromptFlow({ data }: { data: AppData }) {
     return () => window.clearTimeout(t);
   }, [answer, router]);
 
-  const demoTag = evaluation.simulated && (
-    <p className="notice">
-      <span className="placeholder-tag">Demo</span>
-      <span>This change is simulated with made-up data.</span>
-    </p>
+  const home = (
+    <Link href="/" className="btn btn-primary">
+      Back to home
+    </Link>
   );
 
   if (!evaluation.askNow && answer === null) {
     return (
-      <div className="stack-lg">
-        <div className="companion-row">
-          <Companion state="idle" size={150} />
-          <div className="bubble">
+      <Screen
+        lead={
+          <Says state="idle">
             <p>Nothing stands out compared with your usual right now. Nothing is needed from you.</p>
-          </div>
-        </div>
-        <div className="notice">
-          <Link href="/check-in/">Tell me how you&apos;re doing anyway</Link>
-          <Link href="/">Back to home</Link>
-        </div>
-      </div>
+          </Says>
+        }
+        actions={
+          <>
+            {home}
+            <div className="links">
+              <Link href="/check-in/" className="btn btn-quiet">
+                Tell me how you&apos;re doing anyway
+              </Link>
+            </div>
+          </>
+        }
+      />
     );
   }
 
   if (answer === "okay") {
     return (
-      <div className="stack-lg">
-        <div className="companion-row">
-          <Companion state="idle" size={150} />
-          <div className="bubble" aria-live="polite">
+      <Screen
+        lead={
+          <Says state="idle" size={88}>
             <p>Good to hear. Thanks for telling me. That&apos;s all for now.</p>
-          </div>
-        </div>
-        <div className="notice">
-          <Link href="/" className="btn btn-quiet">
-            Back to home
-          </Link>
-        </div>
-      </div>
+          </Says>
+        }
+        actions={home}
+      />
     );
   }
 
   if (answer === "not-best") {
     return (
-      <div className="stack-lg">
-        <div className="companion-row">
-          <Companion state="idle" size={130} />
-          <div className="bubble" aria-live="polite">
+      <Screen
+        lead={
+          <Says state="idle">
             <p>Thanks for telling me. Not every day is a good one.</p>
             <p className="suggestion">
               <strong>One small thing to try:</strong> {reflection?.passive.suggestion.text}
             </p>
-          </div>
-        </div>
-        <section className="card stack" aria-labelledby="weekly-offer">
-          <h2 id="weekly-offer" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-            A few more questions, if you like
-          </h2>
-          <p style={{ marginBottom: 0 }}>
-            A few short questions about the last week. They help you and your clinic see how things are going. Only
-            if you feel like it.
+          </Says>
+        }
+        actions={
+          <>
+            <Link href="/weekly/" className="btn btn-primary">
+              Answer a few more questions
+            </Link>
+            <div className="links">
+              <Link href="/" className="btn btn-quiet">
+                Not now
+              </Link>
+            </div>
+          </>
+        }
+      >
+        <section className="card stack-sm" aria-labelledby="weekly-offer">
+          <h2 id="weekly-offer">A few more questions, if you like</h2>
+          <p>
+            A few short questions about the last week. They help you and your clinic see how things are going. Only if
+            you feel like it.
           </p>
-          <div className="btn-row">
-            <Link href="/weekly/" className="btn btn-secondary">
-              Answer the weekly questions
-            </Link>
-            <Link href="/" className="btn btn-quiet">
-              Not now
-            </Link>
-          </div>
         </section>
-      </div>
+      </Screen>
     );
   }
 
   if (answer === "someone") {
     return (
-      <div className="stack-lg">
-        <section className="placeholder stack" aria-labelledby="contact-title">
-          <span className="placeholder-tag">Placeholder</span>
-          <h1 id="contact-title" style={{ fontSize: "var(--font-size-xl)", marginBottom: 0 }}>
-            Contact request (not connected yet)
-          </h1>
-          <p style={{ marginBottom: 0 }}>
-            In the finished app, this lets someone you trust know that you&apos;d like them to check in on you. It
-            isn&apos;t connected yet, so <strong>nothing has been sent</strong>.
-          </p>
-        </section>
-        <section className="card stack" aria-labelledby="reach-title">
-          <h2 id="reach-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
-            You can reach someone now
-          </h2>
-          <p style={{ marginBottom: 0 }}>Call or message someone you trust, or contact your clinic.</p>
+      <Screen
+        lead={
+          <section className="placeholder stack-sm" aria-labelledby="contact-title">
+            <span className="placeholder-tag">Placeholder</span>
+            <h1 id="contact-title">Contact request (not connected yet)</h1>
+            <p>
+              In the finished app, this lets someone you trust know that you&apos;d like them to check in on you. It
+              isn&apos;t connected yet, so <strong>nothing has been sent</strong>.
+            </p>
+          </section>
+        }
+        actions={home}
+      >
+        <section className="card stack-sm" aria-labelledby="reach-title">
+          <h2 id="reach-title">You can reach someone now</h2>
+          <p>Call or message someone you trust, or contact your clinic.</p>
           <ClinicContactPlaceholder />
-          <p style={{ marginBottom: 0 }}>
+          <p>
             If you are in danger or might hurt yourself, call <a href="tel:112">112</a>.
           </p>
         </section>
-        <div className="notice">
-          <Link href="/">Back to home</Link>
-        </div>
-      </div>
+      </Screen>
     );
   }
 
   if (!reflection) return null;
   const explanation = reflection.passive.explanation;
 
-  return (
-    <div className="stack-lg">
-      {demoTag}
-      <div className="companion-row">
-        <Companion state={voice.state} size={130} />
-        <div className="bubble" aria-live="polite">
-          <p>{explanation}</p>
-          <p className="small muted">This compares you only with your own earlier days.</p>
-        </div>
-        <button type="button" className="btn btn-quiet small" onClick={() => voice.say(`${explanation} ${QUESTION}`)}>
-          Read this aloud
-        </button>
-      </div>
-
-      <section className="stack" aria-labelledby="question">
-        <h1 id="question" style={{ fontSize: "var(--font-size-xl)", marginBottom: 0, textAlign: "center" }}>
-          {QUESTION}
-        </h1>
-        <div className="options" role="group" aria-labelledby="question">
-          {ANSWERS.map((a) => (
-            <button key={a.value} type="button" className="option" onClick={() => record(a.value)}>
-              <span>{a.label}</span>
+  if (step === "explain") {
+    return (
+      <Screen
+        lead={
+          <>
+            <Says state={voice.state}>
+              <p>{explanation}</p>
+            </Says>
+            <StepCount index={0} total={2} />
+          </>
+        }
+        actions={
+          <>
+            <button type="button" className="btn btn-primary" onClick={() => setStep("ask")}>
+              Next
             </button>
-          ))}
-        </div>
-      </section>
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={() => (record("not-now"), router.push("/"))}>
+                Not now
+              </button>
+              <button type="button" className="btn btn-quiet" onClick={() => voice.say(explanation)}>
+                Read this aloud
+              </button>
+            </div>
+          </>
+        }
+      >
+        <p className="muted">This compares you only with your own earlier days, never with other people.</p>
+        <Disclosure title="How this is worked out">
+          <p>
+            A measure counts as changed only when your last three sessions or days in a row are all outside your usual
+            range on the same side. I only ask when at least two have changed.
+          </p>
+          <ul className="worked-out">
+            {evaluation.changed.map((m) => (
+              <li key={m.key}>
+                <strong>{m.label}</strong>: your last three were {(m.recentValues ?? []).map(m.format).join(", ")}.
+                Your usual range is {m.usual ? `${m.format(m.usual.low)} to ${m.format(m.usual.high)}` : "not known yet"}
+                , from {m.usual?.n ?? 0} earlier {m.unit === "session" ? "sessions" : "days"}.
+              </li>
+            ))}
+          </ul>
+          {evaluation.simulated && <p>This change is simulated with made-up demo data.</p>}
+        </Disclosure>
+      </Screen>
+    );
+  }
 
-      <div className="notice">
-        <button type="button" className="btn btn-quiet" onClick={() => (record("not-now"), router.push("/"))}>
-          Not now
-        </button>
+  return (
+    <Screen
+      lead={
+        <>
+          <Says state={voice.state}>
+            <h1 id="question">{QUESTION}</h1>
+          </Says>
+          <StepCount index={1} total={2} />
+        </>
+      }
+      actions={
+        <div className="links">
+          <button type="button" className="btn btn-quiet" onClick={() => setStep("explain")}>
+            Back
+          </button>
+          <button type="button" className="btn btn-quiet" onClick={() => (record("not-now"), router.push("/"))}>
+            Not now
+          </button>
+          <button type="button" className="btn btn-quiet" onClick={() => voice.say(QUESTION)}>
+            Read this aloud
+          </button>
+        </div>
+      }
+    >
+      <div className="options" role="group" aria-labelledby="question">
+        {ANSWERS.map((a) => (
+          <button key={a.value} type="button" className="option" onClick={() => record(a.value)}>
+            <span>{a.label}</span>
+          </button>
+        ))}
       </div>
-    </div>
+    </Screen>
   );
 }
