@@ -17,9 +17,13 @@ export default function HomePage() {
 
   const doneToday = data.daily.some((e) => e.date === today);
   const lastWeekly = data.weekly[data.weekly.length - 1];
-  // Offered when 7 days have passed since the last weekly answer. Someone new is
-  // offered their first one after their first daily check-in.
-  const weeklyDue = lastWeekly ? daysBetween(lastWeekly.date, today) >= 7 : data.daily.length > 0;
+  const firstDaily = data.daily[0]; // lists are kept oldest first
+  // Offered by itself when 7 days have passed since the last weekly answer, or, for
+  // someone who has never answered, 7 days since their first daily check-in.
+  // The quiet "Weekly questions" link below is always there.
+  const weeklyDue = lastWeekly
+    ? daysBetween(lastWeekly.date, today) >= 7
+    : !!firstDaily && daysBetween(firstDaily.date, today) >= 7;
 
   const greeting = doneToday
     ? "Today's check-in is done. Nothing more is needed today."
@@ -53,9 +57,17 @@ export default function HomePage() {
       </div>
 
       <div className="stack">
-        <Link href="/check-in/" className="btn btn-primary">
-          {doneToday ? "Redo today's check-in" : "Start today's check-in"}
-        </Link>
+        {doneToday ? (
+          <p className="notice">
+            <Link href="/check-in/" className="btn btn-quiet">
+              Redo today&apos;s check-in
+            </Link>
+          </p>
+        ) : (
+          <Link href="/check-in/" className="btn btn-primary">
+            Start today&apos;s check-in
+          </Link>
+        )}
         {weeklyDue && (
           <p className="notice">
             <span>Your weekly questions are ready, whenever suits you.</span>
