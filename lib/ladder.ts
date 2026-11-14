@@ -186,7 +186,7 @@ export function clinicSummary(input: {
   const { ladder, passive } = input;
   const phrases = passive.changed.map((m) => m.phrase).filter((p): p is string => !!p);
   const since = passive.changed
-    .flatMap((m) => m.points.slice(-3).map((p) => p.date))
+    .flatMap((m) => m.points.slice(-(m.recent?.n ?? 3)).map((p) => p.date))
     .sort()[0];
   const lines: string[] = [];
   lines.push("From Cheri, my Cheer Pressure companion, compared only with my own usual:");

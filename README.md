@@ -35,7 +35,7 @@ node scripts/check-fit.mjs http://localhost:3472   # every screen fits, against 
 ```
 
 To try it quickly: finish setup, then open **Settings**, **For the demo**, and press
-**Six weeks in 20 seconds**, or **Simulate a change** to see the companion ask and walk the
+**Eight weeks in 20 seconds**, or **Simulate a change** to see the companion ask and walk the
 ladder (with **Skip ahead two days**). While any made-up data is stored, a calm banner in the
 header says so on every screen, with a link that clears it.
 
@@ -89,10 +89,12 @@ opened it on their phone and typed a first name, then "Connected with Sara". A q
   from the build, else `http://localhost:3480`. For a table demo on a phone hotspot see
   `server/README.md`.
 
-**Six weeks in 20 seconds** (`/demo/replay/`) replays made-up days (`lib/replay.ts`): five
+**Eight weeks in 20 seconds** (`/demo/replay/`) replays made-up days (`lib/replay.ts`): six
 steady weeks, then a drift in which sleep slips first (the day starts and ends later, quickly)
-and typing follows gradually (evenness, longer pauses). With the default days it stops on day
-38 of 42, on typing evenness and first activity. Each day it runs the real rule on the data up to that day and shows four measures
+and typing follows gradually (evenness, hold time). Eight weeks, because a 14-day learning
+period, a 28-day usual and a clear week of change do not fit in six with any margin. It is
+placed so that the day it asks is today; depending on the weekday it stops on day 46 to 48 of
+56 (about 17 seconds in), for example on typing evenness and last activity. Each day it runs the real rule on the data up to that day and shows four measures
 against their usual band. It stops when the rule would ask, with the same explanation the
 conversation shows, and "See what it asks" opens the conversation on those days. A test checks
 that the rule does not ask during the steady weeks.
@@ -107,34 +109,73 @@ the phone shows "They said yes"; then the service is stopped, the desktop's requ
 
 ## When the companion asks
 
-`lib/passive.ts` holds the one rule (unit tests in `scripts/test-passive.mts`):
+`lib/passive.ts` holds the one rule (unit tests in `scripts/test-passive.mts`).
 
-- A measure has **changed** when all of its last 3 sessions or days lie on the same side
-  outside the person's own typical range, the 10th to 90th percentile of their earlier sessions or
-  days. It needs at least 7 earlier ones, and the last 3 must include the past 7 days.
-- The measures belong to **sources** (one table, `SOURCES` in `lib/passive.ts`): **typing**
-  (evenness, longer pauses, hold time) and **day and night rhythm** (first activity, last
-  activity, quiet night; an estimate of rest, never measured sleep). The companion proposes a
-  check-in when measures have changed in **two different sources**, or when **at least two day
-  and night measures** have changed even if nothing else has. **Typing alone never asks**,
-  however many typing measures changed; "Your own level" under the demo still shows it, and
-  says so. The ladder's "the measures have come back" uses the same test.
-- Measured with `npx tsx scripts/measure-rule.mts` on 400 made-up five-week periods, steady
-  and then drifting in week six: this rule asks by chance in 16 of 400 and notices the drift in
-  400 of 400 (on average on day 38.4). The variants it was chosen from: at least 2 measures of
-  any kind (the earlier rule) 18 of 400, two different sources only 4 of 400, one day and night
-  measure alone 178 of 400 (far too noisy); all of them noticed the drift.
-- When it asks: a gentle cue on the mascot (no sound), and on home. The check-in explains what changed in plain
-  words and how many sessions and days it is based on, then asks one question with three
-  answers. The answer is stored with the measures that triggered it.
-- Until there are **7 days** of data it is still learning and never asks.
-- After asking, it waits **3 days**, unless a measure changes that was not part of the
-  last check-in.
+**One value per measure per day.** Typing: rhythm evenness and hold time, pooled over the day's
+counted bursts of real writing (below), only on days with at least 300 counted presses. Day and
+night rhythm: first activity, last activity and quiet night (last activity one day to first
+activity the next, an estimate of rest, not measured sleep). A day runs from 04:00 to 04:00.
 
-Measures: typing evenness (spread of the time between key presses), longer pauses (95th
-percentile), hold time, first activity, last activity, and quiet night (last activity one day
-to first activity the next, an estimate of rest, not measured sleep). A day runs from 04:00
-to 04:00. No percentages, no score, no diagnosis words.
+**Windows, the same for every measure.** The person's usual is the 28 days before the last week
+(at least 10 days with a value); recent is the last 7 days (at least 4 days with a value).
+Weekdays are compared with weekdays and weekends with weekends when the usual has at least 8
+weekdays and 4 weekend days; otherwise they are pooled. Until there are 14 days with any data
+it is still learning and never asks.
+
+**Changed.** A measure has changed when the median of the recent days lies outside the usual
+10th to 90th percentile band widened by a quarter of its width on each side. Typing compares
+like with like: the kind of app with the most counted presses this week, against that kind's
+own usual, when it has enough days in both windows; otherwise every kind pooled.
+
+**When it asks.** The measures belong to **sources** (one table, `SOURCES`): **typing**
+(evenness, hold time) and **day and night rhythm** (first activity, last activity, quiet
+night). It proposes a check-in when measures have changed in **two different sources**, or when
+**at least two day and night measures** have changed even if nothing else has. **Typing alone
+never asks**; "Your own level" under the demo still shows it, and says so. The ladder's "the
+measures have come back" uses the same test. After asking it waits **3 days**, unless a measure
+changes that was not part of the last check-in.
+
+**Measured, not guessed** (`npx tsx scripts/measure-rule.mts`): 400 made-up periods (weekday
+and weekend differences, days away, days with too little writing, day-to-day wobble), six
+steady weeks and then a one-week drift (sleep slips first, typing follows). Asks by chance
+during the steady weeks (after learning), and finds the drift, with the per-source rule:
+
+| "Changed" test | Asks by chance | Finds the drift in its first week | Day of the drift, on average |
+| --- | --- | --- | --- |
+| median of the week outside the widened band (chosen) | 2 of 400 | 400 of 400 | 5.1 |
+| at least 5 of the last 7 days outside the band | 6 of 400 | 372 of 400 (400 within two weeks) | 6.1 |
+| at least 4 of the last 7 days outside the band | 51 of 400 | 400 of 400 | 4.8 |
+| median of the week outside the 10 to 90 band | 132 of 400 | 400 of 400 | 4.1 |
+
+With the chosen test, "two different sources only" asks by chance in 1 of 400 and "any two
+measures" in 3 of 400. The script prints all of these.
+
+The check-in explains in plain words what changed over the last week compared with the four
+weeks before, and how many days that rests on, then asks one question with three answers. No
+percentages, no score, no diagnosis words.
+
+## Typing that counts
+
+`lib/typing.ts` (the in-app box and the tests) and `src-tauri/src/rhythm.rs` (the desktop
+app) apply the same rules; `scripts/typing-samples.mts` prints how the not-writing checks
+separate generated prose, game input and shortcut tapping.
+
+- **Bursts.** A run of presses with no gap over 2 s. Only bursts of at least 30 presses count.
+- **Motor rhythm, not thinking.** Rhythm evenness is the spread of the gaps under 1 s inside
+  counted bursts. Gaps of 1 to 2 s are **thinking pauses**: shown under the demo per 100
+  presses, never part of the rule, so writing that needs more thought does not look like a
+  change in the person.
+- **Not writing** (never knowing which key): a burst is left out when auto-repeat is over half
+  of its key-downs or the median hold is over 180 ms (held keys, as in games), when over 20 % of
+  presses come while two other keys are still down (keys at once), when fewer than 80 % of gaps
+  are under 1 s (scattered shortcuts), or when a game is in front. On 300 generated samples of
+  each kind, all prose counted and no game or shortcut sample did.
+- **Kind of app, never its name.** When a burst starts, the desktop app reads the frontmost
+  app's bundle identifier (NSWorkspace, no permission) and keeps only one word: writing, code,
+  browser, game or other (`src-tauri/src/frontmost.rs`). Unlisted apps that declare themselves
+  games in their Info.plist count as games. Bursts in games are never counted.
+- The **live view** under the demo says, while someone types, whether the current stretch
+  counts ("Counting: writing") or not ("Not counted: looks like held keys", "too short").
 
 The weekly questions are offered only inside the conversation, after "Not my best". The
 manual daily check-in, the reaction test and the share page are gone; their stored entries
@@ -154,9 +195,9 @@ still load.
 | `components/TrustedBridge.tsx` | Follows the pair at app level; robot line and read-aloud when a greeting arrives |
 | `components/LinkCode.tsx` | A link as a QR code made on the device, with Copy |
 | `server/` | The messages service and the two phone pages (its own package, see `server/README.md`) |
-| `lib/replay.ts` | The made-up six weeks for the replay, run through the real rule |
+| `lib/replay.ts` | The made-up eight weeks for the replay and the demo data, run through the real rule |
+| `lib/typing.ts` | Bursts of real writing, the not-writing checks and the daily pooling (same rules as `src-tauri/src/rhythm.rs`) |
 | `lib/passive.ts` | The passive measures and the rule that decides when to ask |
-| `lib/typing.ts` | Typing rhythm from key timings only (same calculation as the Rust side) |
 | `lib/platform.ts` | Desktop app or browser: wraps the desktop app's commands and events |
 | `lib/robot.ts` | The robot seam: interface, Web Serial implementation, desktop stub |
 | `src-tauri/` | The desktop app (Tauri 2, Rust) |
@@ -183,12 +224,15 @@ The person's own data is in `localStorage` under `companion.v1`, as one JSON obj
 - `weekly[]`: one per date. The two PHQ-2 items (`down`, `interest`), `sleep` and `tense`,
   all on the standard 0 to 3 scale, plus one 0 to 3 answer per early sign.
 - `reaction[]`: five reaction times in ms and their median, from an earlier version (no longer shown).
-- `typingSessions[]`: one per typing session (ends after 5 minutes without typing, or on
-  pause): date, where it was measured (`computer` or `box`), length in seconds, number of
-  presses, median interval, spread, 95th percentile pause, median hold. Numbers only.
+- `typingDays[]`: one per day and kind of app (`writing`, `code`, `browser`, `other`, and `all`
+  pooled; games are never kept): where it was measured (`computer` or `box`), counted presses
+  and bursts, rhythm evenness, hold time and thinking pauses per 100 presses (null under 300
+  counted presses). Numbers and one word for the kind of app only.
+- `typingSessions[]`: from earlier versions, one per typing session. Still loads; the rule no
+  longer reads it.
 - `activityDays[]`: first and last key press per day (`"HH:MM"`), from the desktop app.
 - `checkIns[]`: each proposed check-in and its answer, which measures triggered it, how
-  many sessions and days it was based on, and whether it was simulated.
+  many days it was based on, and whether it was simulated.
 - `settings`: whether read-aloud is muted, a running "Simulate a change", sources, small
   things, quiet hours, and `messagesUrl`, where the messages service lives.
 - `ladder`: the steps after "Not my best" and the answers to them.
@@ -219,9 +263,10 @@ interface Brain {
 
 `BrainInput` holds the recent daily and weekly entries, the profile, `levels` (the person's
 own baseline and the change in the last week, from `lib/levels.ts`) and `passive`: the six
-passive measures as plain data (key, label, status, direction, the last three values, the
-usual range, how many sessions or days exist) plus `askNow`, `reason`, `learning`,
-`daysOfData` and `basedOn` (how many sessions and days a change is based on).
+passive measures as plain data (key, source, label, status, direction, the last week's values,
+the usual range, whether weekdays and weekends were compared apart, how many days exist) plus
+`askNow`, `reason`, `learning`, `daysOfData` and `basedOn` (how many days this week and in the
+four weeks before a change is based on).
 
 `BrainOutput` has two parts:
 
@@ -326,18 +371,21 @@ A listen-only keyboard event tap (`src-tauri/src/listener.rs`) sees that *a* key
 or up anywhere on the computer. It cannot change or block input.
 
 - **Captured:** the moment of each key down and key up (the app's own clock), whether a
-  key-down is the keyboard's auto-repeat (repeats are not counted as presses), and the
-  time of day of the first and last key press per day, to the minute.
+  key-down is the keyboard's auto-repeat (counted as a repeat, never as a press), the time of
+  day of the first and last key press per day, to the minute, and when a burst of typing
+  starts, the kind of app in front as one word (writing, code, browser, game or other).
 - **Never captured:** which key, the character, the modifiers (Shift, Cmd and so on are not
-  even subscribed to), the app or window you type in, any text. The callback does not read
-  the key code field at all.
-- **Computed** (`src-tauri/src/rhythm.rs`): per 60 s live window and per session: presses,
-  median interval, spread (interquartile range), 95th percentile pause, median hold. Gaps
-  over 5 s are left out. Because the key is unknown, a release is paired with the oldest
-  press still down; with overlapping keys in another order that is an approximation.
-- **Kept:** session summaries and first and last activity, in `rhythm.json` in the app's
-  data folder (`~/Library/Application Support/fi.junction.cheerpressure/`) until the UI has
-  stored them, then in the UI's local storage. "Delete everything" clears both.
+  even subscribed to), the app's name or bundle identifier (read to pick the word, then
+  dropped), window titles, any text. The callback does not read the key code field at all.
+- **Computed** (`src-tauri/src/rhythm.rs`): bursts and their checks (see "Typing that counts"),
+  and per day and kind of app: counted presses, rhythm evenness, hold time, thinking pauses.
+  Because the key is unknown, a release is paired with the oldest press still down; with
+  overlapping keys in another order that is an approximation.
+- **Kept:** in `rhythm.json` in the app's data folder
+  (`~/Library/Application Support/fi.junction.cheerpressure/`): first and last activity, today's
+  and yesterday's counted gaps and holds in whole milliseconds (so the day can be pooled), and
+  older days only as their numbers; the UI copies the day numbers into its local storage.
+  "Delete everything" clears both.
 - **Sent anywhere:** nothing. The listener makes no network calls.
 
 macOS asks for **Input Monitoring** (System Settings, Privacy & Security, Input

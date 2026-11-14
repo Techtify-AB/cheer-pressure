@@ -1,10 +1,12 @@
-// Six weeks of made-up entries for trying the app. Weeks 1 to 5 are steady; in the
-// final week bedtime drifts later, form drops, reading slows, typing gets more uneven,
-// the whole day shifts later (first and last activity), and the weekly answers go up. The passive measures
-// (typing sessions, first and last activity) are what the companion's rule reads. Everything is tagged source "demo" so it can be cleared on its own.
+// Made-up entries for trying the app. The passive measures the companion's rule reads
+// (typing per day, first and last activity) are the replay's eight weeks (lib/replay.ts),
+// ending today: six steady weeks, then sleep slips and typing follows. The older entries
+// (daily check-ins, weekly answers, reaction tests) cover six weeks with a final drifting
+// week. Everything is tagged source "demo" so it can be cleared on its own.
 
 import { addDays, minutesToClock } from "./dates";
-import type { ActivityDay, DailyEntry, ReactionResult, Scale03, TypingSession, WeeklyEntry } from "./types";
+import { makeReplayData } from "./replay";
+import type { DailyEntry, ReactionResult, Scale03, TypingSession, WeeklyEntry } from "./types";
 
 const DAYS = 42;
 const DRIFT_DAYS = 6; // the last six days before today
@@ -77,45 +79,10 @@ export function makeDemoData(today: string, earlySigns: string[]) {
     reaction.push({ id: `demo-r-${date}`, date, trialsMs, medianMs: sorted[2], source: "demo", savedAt: now });
   }
 
-  // Typing sessions: timing numbers only, as the desktop app would store them.
+  // Typing per day and first and last activity: the replay's eight weeks, ending today, so
+  // "Load demo data" and "Eight weeks in 20 seconds" tell the same story.
+  const { typingDays, activityDays } = makeReplayData(today);
   const typingSessions: TypingSession[] = [];
-  const round = (v: number) => Math.round(v * 10) / 10;
-  for (let i = DAYS; i >= 1; i--) {
-    const date = addDays(today, -i);
-    const drift = i <= DRIFT_DAYS ? (DRIFT_DAYS + 1 - i) / DRIFT_DAYS : 0;
-    const inDrift = i <= DRIFT_DAYS;
-    if (!inDrift && rand() < 0.15) continue; // days without the computer
-    const sessions = 1 + Math.floor(rand() * 3);
-    for (let k = 0; k < sessions; k++) {
-      const presses = 250 + Math.round(rand() * 1200);
-      const medianInterval = (inDrift ? 215 + drift * 30 : 185) + jitter(14);
-      const spread = (inDrift ? 125 + drift * 45 : 92) + jitter(14);
-      typingSessions.push({
-        id: `demo-t-${date}-${k}`,
-        date,
-        measuredIn: "computer",
-        windowSec: Math.round(presses * (medianInterval / 1000) * 1.6),
-        presses,
-        medianIntervalMs: round(medianInterval),
-        spreadMs: round(spread),
-        p95PauseMs: round(640 + jitter(80)),
-        medianHoldMs: round(96 + jitter(6)),
-        source: "demo",
-        savedAt: now,
-      });
-    }
-  }
 
-  // First and last activity per day, as the desktop app would record them.
-  const activityDays: ActivityDay[] = [];
-  for (let i = DAYS; i >= 1; i--) {
-    const date = addDays(today, -i);
-    const inDrift = i <= DRIFT_DAYS; // the whole day shifts about 1.5 hours later
-    if (!inDrift && rand() < 0.08) continue;
-    const first = 7 * 60 + 20 + jitter(30) + (inDrift ? 95 : 0);
-    const last = 22 * 60 + 50 + jitter(30) + (inDrift ? 95 : 0);
-    activityDays.push({ date, first: minutesToClock(first), last: minutesToClock(last), source: "demo" });
-  }
-
-  return { daily, weekly, reaction, typingSessions, activityDays };
+  return { daily, weekly, reaction, typingSessions, typingDays, activityDays };
 }

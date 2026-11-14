@@ -50,19 +50,22 @@ export interface PassiveMeasureInput {
   /** The source it belongs to (SOURCES in lib/passive.ts): "typing" or "sleep" (day and night rhythm). */
   source: SourceId;
   label: string;
-  /** "session": one value per typing session. "day": one value per day. */
-  unit: "session" | "day";
+  /** One value per day for every measure. */
+  unit: "day";
   status: PassiveMetric["status"];
-  /** Set only when status is "changed": all of the last 3 lie on this side of the usual range. */
+  /** Set only when status is "changed": the last week lies on this side of the usual range. */
   direction: Direction | null;
   /**
-   * The last 3 values, oldest first, in the measure's own unit: milliseconds for the
-   * typing measures, minutes after 04:00 for first and last activity, hours for quiet night.
+   * The last week's values (up to 7 days), oldest first, in the measure's own unit:
+   * milliseconds for the typing measures, minutes after 04:00 for first and last activity,
+   * hours for quiet night.
    */
-  lastThree: number[] | null;
-  /** The person's own usual range (10th, 50th, 90th percentile of earlier values), same unit. */
+  recentValues: number[] | null;
+  /** The person's own usual range over the 28 days before (10th, 50th, 90th percentile), same unit. */
   usual: Range | null;
-  /** How many sessions or days of this measure exist so far. */
+  /** True when weekdays were compared with weekdays and weekends with weekends. */
+  split: boolean;
+  /** How many days of this measure exist so far. */
   count: number;
   /** The rule-based plain words for the change, e.g. "your typing has been more uneven". */
   phrase: string | null;
@@ -75,8 +78,8 @@ export interface PassiveInput {
   /** Decided by lib/passive.ts. The brain words it, it does not change it. */
   askNow: boolean;
   reason: Evaluation["reason"];
-  /** How many of the last sessions and days the change is based on. */
-  basedOn: { sessions: number; days: number };
+  /** How many days this week and in the four weeks before the change is based on. */
+  basedOn: { days: number; usualDays: number };
   /** The data includes made-up demo data, or the change was simulated. */
   simulated: boolean;
   measures: PassiveMeasureInput[];
@@ -98,7 +101,8 @@ export function passiveInput(e: Evaluation): PassiveInput {
       unit: m.unit,
       status: m.status,
       direction: m.direction,
-      lastThree: m.recentValues,
+      recentValues: m.recentValues,
+      split: m.split,
       usual: m.usual,
       count: m.points.length,
       phrase: m.phrase,

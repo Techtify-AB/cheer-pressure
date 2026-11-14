@@ -1,12 +1,14 @@
 // Unit tests for the passive rule (lib/passive.ts). Run: pnpm test:passive
-import { addDays } from "../lib/dates.ts";
+import { addDays, daysBetween } from "../lib/dates.ts";
 import { passiveInput, ruleBrain, SUGGESTIONS } from "../lib/brain.ts";
 import { computeLevels } from "../lib/levels.ts";
 import {
   calmLine,
   evaluatePassive,
   explainChange,
-  judge,
+  judgeDays,
+  isWeekend,
+  typingKindFor,
   clockToDayMinutes,
   dayMinutesToClock,
   suggestionFor,
@@ -16,7 +18,7 @@ import {
   sourceOf,
   SOURCES,
 } from "../lib/passive.ts";
-import type { ActivityDay, AppData, TypingSession } from "../lib/types.ts";
+import type { ActivityDay, AppData, TypingDay } from "../lib/types.ts";
 
 let failed = 0;
 function check(name: string, ok: boolean, detail = "") {
@@ -34,47 +36,29 @@ function empty(): AppData {
     weekly: [],
     reaction: [],
     typingSessions: [],
+    typingDays: [],
     activityDays: [],
     checkIns: [],
     settings: { muted: false },
   };
 }
 
-function session(date: string, spread: number, pause = 600, hold = 95): TypingSession {
-  return {
-    id: `t-${date}-${spread}`,
-    date,
-    measuredIn: "computer",
-    windowSec: 600,
-    presses: 400,
-    medianIntervalMs: 180,
-    spreadMs: spread,
-    p95PauseMs: pause,
-    medianHoldMs: hold,
-    source: "user",
-    savedAt: "",
-  };
+function typingDay(date: string, spread: number | null, hold: number | null, kind: TypingDay["kind"] = "all", presses = 900): TypingDay {
+  return { date, kind, measuredIn: "computer", presses, bursts: 9, spreadMs: spread, holdMs: hold, thinkingPer100: 4, source: "user", savedAt: "" };
 }
 
 function day(date: string, first: string, last: string): ActivityDay {
   return { date, first, last, source: "user" };
 }
 
-/** n days ending yesterday (or today), steady, then the last `drift` days changed. */
-function history(n: number, drift: number, opts: { spread?: boolean; pauses?: boolean; hold?: boolean; first?: boolean; last?: boolean } = {}) {
+/** n days ending today, steady with a small wobble, then the last `drift` days changed. */
+function history(n: number, drift: number, opts: { spread?: boolean; hold?: boolean; first?: boolean; last?: boolean } = {}) {
   const d = empty();
-  for (let i = n; i >= 1; i--) {
+  for (let i = n - 1; i >= 0; i--) {
     const date = addDays(TODAY, -i);
-    const inDrift = i <= drift;
+    const inDrift = i < drift;
     const wobble = (i % 3) * 4; // 0, 4, 8
-    d.typingSessions.push(
-      session(
-        date,
-        inDrift && opts.spread ? 160 + wobble : 90 + wobble,
-        inDrift && opts.pauses ? 900 + wobble : 600 + wobble,
-        inDrift && opts.hold ? 130 + wobble : 95 + wobble,
-      ),
-    );
+    d.typingDays!.push(typingDay(date, inDrift && opts.spread ? 160 + wobble : 90 + wobble, inDrift && opts.hold ? 140 + wobble : 95 + wobble));
     const first = inDrift && opts.first ? `09:${30 + (i % 3) * 5}` : `07:${10 + (i % 3) * 5}`;
     const last = inDrift && opts.last ? `01:${10 + (i % 3) * 5}` : `23:${10 + (i % 3) * 5}`;
     d.activityDays.push(day(date, first, last));
@@ -82,61 +66,122 @@ function history(n: number, drift: number, opts: { spread?: boolean; pauses?: bo
   return d;
 }
 
-// judge
-check("judge: learning below 7 earlier + 3 recent", judge([1, 2, 3, 4, 5, 6, 7, 8, 9]).status === "learning");
-const steady = judge([10, 11, 12, 10, 11, 12, 10, 11, 12, 11]);
-check("judge: inside the usual range is steady", steady.status === "steady" && steady.direction === null);
-const up = judge([10, 11, 12, 10, 11, 12, 10, 20, 21, 22]);
-check("judge: all of the last 3 above the usual range is up", up.status === "changed" && up.direction === "up");
-const down = judge([10, 11, 12, 10, 11, 12, 10, 2, 3, 4]);
-check("judge: all of the last 3 below the usual range is down", down.status === "changed" && down.direction === "down");
-const mixed = judge([10, 11, 12, 10, 11, 12, 10, 2, 3, 30]);
-check("judge: two low and one high is not a change (needs three in a row)", mixed.status === "steady");
-const oneOff = judge([10, 11, 12, 10, 11, 12, 10, 11, 40, 11]);
-check("judge: one odd session does not count", oneOff.status === "steady");
+const pts = (values: number[], end = TODAY) => values.map((value, i) => ({ date: addDays(end, i - (values.length - 1)), value }));
+const steadyVals = (n: number) => Array.from({ length: n }, (_, i) => 10 + (i % 3));
+
+// The windows: usual is the 28 days before the last week, recent is the last 7 days.
+check("windows: 9 usual days is still learning", judgeDays(pts([...steadyVals(9), ...steadyVals(7)]), TODAY).status === "learning");
+check("windows: 10 usual days is enough", judgeDays(pts([...steadyVals(10), ...steadyVals(7)]), TODAY).status === "steady");
+/** 28 steady usual days (35 to 8 days ago), then the given recent values on the last days. */
+const withRecent = (recent: number[]) => [
+  ...steadyVals(28).map((value, i) => ({ date: addDays(TODAY, -34 + i), value })),
+  ...recent.map((value, i) => ({ date: addDays(TODAY, i - (recent.length - 1)), value })),
+];
+check("windows: 3 days in the last week is not enough to compare", judgeDays(withRecent([20, 21, 22]), TODAY).status === "no-recent");
+const j4 = judgeDays(withRecent([20, 21, 22, 23]), TODAY);
+check("windows: 4 days in the last week are enough", j4.status === "changed" && j4.direction === "up" && j4.recent?.n === 4);
+const old = pts([...steadyVals(28), ...Array(7).fill(30), ...steadyVals(7)]);
+check("windows: days older than 35 days are not in the usual", judgeDays(pts([...Array(10).fill(50), ...steadyVals(28), ...steadyVals(7)]), TODAY).usual?.high === 12);
+check("windows: a week that came back is steady", judgeDays(old, TODAY).status === "steady");
+check("judge: the middle of the week clearly above is up", judgeDays(pts([...steadyVals(28), 20, 21, 22, 11, 20, 21, 22]), TODAY).direction === "up");
+check("judge: clearly below is down", judgeDays(pts([...steadyVals(28), 2, 3, 4, 2, 3, 4, 3]), TODAY).direction === "down");
+check("judge: two odd days in the week do not count", judgeDays(pts([...steadyVals(28), 40, 11, 10, 40, 12, 11, 10]), TODAY).status === "steady");
+check("judge: just outside the band is not clearly outside", judgeDays(pts([...steadyVals(28), ...Array(7).fill(12.3)]), TODAY).status === "steady");
+
+// Weekdays with weekdays, weekends with weekends
+{
+  // Weekends always 30 higher; a week that keeps that pattern is steady only when they are compared apart.
+  const series = Array.from({ length: 35 }, (_, i) => {
+    const date = addDays(TODAY, i - 34);
+    return { date, value: (isWeekend(date) ? 40 : 10) + (i % 3) };
+  });
+  const j = judgeDays(series, TODAY);
+  check("weekday split: a usual weekend level is not a change", j.split && j.status === "steady", j.status);
+  const weekendsOnWeekdays = series.map((p, i) => (i >= 28 && !isWeekend(p.date) ? { ...p, value: 40 + (i % 3) } : p));
+  const jw = judgeDays(weekendsOnWeekdays, TODAY);
+  check("weekday split: weekdays that look like weekends are a change", jw.split && jw.status === "changed" && jw.direction === "up");
+  const fewWeekends = series.filter((p, i) => i >= 28 || !isWeekend(p.date) || i < 7);
+  const jf = judgeDays(fewWeekends, TODAY);
+  check("weekday split: too few usual weekend days, so pooled", !jf.split, `${fewWeekends.filter((p) => isWeekend(p.date)).length} weekend days`);
+}
+
+// Typing compares like with like
+{
+  const d = empty();
+  for (let i = 34; i >= 0; i--) {
+    const date = addDays(TODAY, -i);
+    d.typingDays!.push(typingDay(date, 80 + (i % 3), 90, "writing", 1500));
+    d.typingDays!.push(typingDay(date, 140 + (i % 3), 110, "code", 400));
+    d.typingDays!.push(typingDay(date, 100 + (i % 3), 95, "all", 1900));
+  }
+  check("like with like: the kind with the most presses this week", typingKindFor(d.typingDays!, TODAY) === "writing");
+  const sparse = { ...d, typingDays: d.typingDays!.filter((t) => t.kind !== "writing" || daysBetween(t.date, TODAY) < 7) };
+  check("like with like: without enough usual days of a kind, the code days are used", typingKindFor(sparse.typingDays!, TODAY) === "code");
+  const pooled = { ...d, typingDays: d.typingDays!.filter((t) => t.kind === "all") };
+  check("like with like: otherwise pooled", typingKindFor(pooled.typingDays!, TODAY) === "all");
+  // An unusual week of code (more thought, slower) does not look like a change in writing.
+  const codeWeek = structuredClone(d);
+  for (const t of codeWeek.typingDays!) if (daysBetween(t.date, TODAY) < 7 && t.kind === "code") t.presses = 400;
+  const e = evaluatePassive(codeWeek, TODAY).metrics.find((m) => m.key === "spread")!;
+  check("like with like: the metric says which kind it compared", e.kind === "writing" && e.status === "steady");
+  const few = typingDay(TODAY, 300, 300, "all", 120);
+  check("a day under 300 counted presses has no typing value", typingKindFor([few], TODAY) === "all" && evaluatePassive({ ...empty(), typingDays: [few] }, TODAY).metrics.find((m) => m.key === "spread")!.points.length === 0);
+}
+
+// Older data must not crash, and old sessions are ignored by the rule
+{
+  const legacy = { ...empty(), typingDays: undefined } as unknown as AppData;
+  legacy.typingSessions = Array.from({ length: 40 }, (_, i) => ({
+    id: `t${i}`, date: addDays(TODAY, -i), measuredIn: "computer" as const, windowSec: 600, presses: 400,
+    medianIntervalMs: 180, spreadMs: i < 3 ? 400 : 90, p95PauseMs: 600, medianHoldMs: 95, source: "user" as const, savedAt: "",
+  }));
+  const e = evaluatePassive(legacy, TODAY);
+  check("older stored sessions load and are ignored by the rule", e.metrics.find((m) => m.key === "spread")!.points.length === 0 && !e.askNow);
+}
 
 // clock helpers
 check("day minutes: 00:40 comes after 23:10", clockToDayMinutes("00:40") > clockToDayMinutes("23:10"));
 check("day minutes round trip", dayMinutesToClock(clockToDayMinutes("01:15")) === "01:15");
 
 // evaluate
-const young = history(5, 0);
+const young = history(13, 0);
 const ey = evaluatePassive(young, TODAY);
-check("first days: learning and never asks", ey.learning && !ey.askNow && ey.reason === "learning", `${ey.daysOfData} days`);
+check("first 13 days: learning and never asks", ey.learning && !ey.askNow && ey.reason === "learning", `${ey.daysOfData} days`);
+check("from 14 days: no longer learning", !evaluatePassive(history(14, 0), TODAY).learning);
 
-const calm = history(20, 0);
+const calm = history(40, 0);
 const ec = evaluatePassive(calm, TODAY);
 check("steady history: does not ask", !ec.learning && !ec.askNow && ec.changed.length === 0, ec.reason);
 
-const one = history(20, 3, { spread: true });
+const one = history(40, 7, { spread: true });
 const eo = evaluatePassive(one, TODAY);
 check("one change: does not ask", !eo.askNow && eo.changed.map((m) => m.key).join() === "spread", eo.reason);
 
-const two = history(20, 3, { spread: true, first: true });
+const two = history(40, 7, { spread: true, first: true });
 const et = evaluatePassive(two, TODAY);
 const keys = et.changed.map((m) => m.key);
 check("two changes: asks", et.askNow && keys.includes("spread") && keys.includes("firstActivity"), keys.join());
 check(
   "explanation is plain",
-  /^Three things have changed compared with your usual: your typing has been more uneven, your days have started later and .+\. This is based on your last 3 typing sessions and 3 days\.$/.test(
+  /^Three things have changed: over the last week your typing has been more uneven, your days have started later and .+ than in the four weeks before\. This compares 7 days this week with 2\d days in the four weeks before\.$/.test(
     explainChange(et),
   ),
   explainChange(et),
 );
-check("based on 3 sessions and 3 days", et.basedOn.sessions === 3 && et.basedOn.days === 3);
+check("based on 7 days this week and the usual days before", et.basedOn.days === 7 && et.basedOn.usualDays >= 27, JSON.stringify(et.basedOn));
 
 // Sources: typing alone never asks; two sources, or two sleep measures alone, do.
 check("every measure belongs to one source", PASSIVE_DEFS.every((d) => SOURCES.filter((x) => x.measures.includes(d.key)).length === 1));
-const typingOnly = history(20, 3, { spread: true, pauses: true, hold: true });
+const typingOnly = history(40, 7, { spread: true, hold: true });
 const eto = evaluatePassive(typingOnly, TODAY);
 check(
-  "typing alone, all three typing measures changed: does not ask",
-  !eto.askNow && eto.changed.length === 3 && eto.changed.every((m) => m.source === "typing") && eto.reason === "typing-only",
+  "typing alone, both typing measures changed: does not ask",
+  !eto.askNow && eto.changed.length === 2 && eto.changed.every((m) => m.source === "typing") && eto.reason === "typing-only",
   `${eto.changed.map((m) => m.key).join()} ${eto.reason}`,
 );
 check("typing alone: the companion says nothing", explainChange(eto) === "Nothing stands out compared with your usual right now." && calmLine(eto) === calmLine(ec));
 check("typing alone: Your own level shows it and says typing alone does not ask", weeklyInsight(eto).includes("your typing has been more uneven") && weeklyInsight(eto).endsWith("Typing alone never makes me ask."), weeklyInsight(eto));
-const sleepTwo = history(20, 3, { first: true, last: true });
+const sleepTwo = history(40, 7, { first: true, last: true });
 const est2 = evaluatePassive(sleepTwo, TODAY);
 check(
   "two sleep measures alone: asks",
@@ -145,12 +190,12 @@ check(
 );
 check("enoughToAsk: one typing and one sleep", enoughToAsk([{ key: "hold" }, { key: "quietNight" }]));
 check("enoughToAsk: two sleep", enoughToAsk([{ key: "firstActivity" }, { key: "quietNight" }]));
-check("enoughToAsk: three typing is not enough", !enoughToAsk([{ key: "spread" }, { key: "pauses" }, { key: "hold" }]));
+check("enoughToAsk: both typing measures are not enough", !enoughToAsk([{ key: "spread" }, { key: "hold" }]));
 check("enoughToAsk: one sleep is not enough", !enoughToAsk([{ key: "lastActivity" }]));
 check("explanation names both sources in plain words", /your typing has been more uneven, your days have started later/.test(explainChange(et)), explainChange(et));
 check("brain input carries each measure's source", passiveInput(et).measures.every((m) => m.source === sourceOf(m.key)));
 
-const asked = history(20, 3, { spread: true, first: true });
+const asked = history(40, 7, { spread: true, first: true });
 asked.checkIns.push({
   id: "c1",
   date: addDays(TODAY, -1),
@@ -192,10 +237,10 @@ const ql = evaluatePassive(lateNight, TODAY).metrics.find((m) => m.key === "quie
 check("last activity after midnight belongs to the day before", Math.abs(ql.points[0].value - 8) < 1e-9, String(ql.points[0]?.value));
 
 // stale data
-const stale = history(20, 0);
-stale.typingSessions = stale.typingSessions.map((s) => ({ ...s, date: addDays(s.date, -30) }));
+const stale = history(40, 0);
+stale.typingDays = stale.typingDays!.map((s) => ({ ...s, date: addDays(s.date, -8) }));
 const est = evaluatePassive(stale, TODAY).metrics.find((m) => m.key === "spread")!;
-check("old sessions only: no recent comparison", est.status === "no-recent");
+check("nothing typed in the last week: no recent comparison", est.status === "no-recent");
 
 // the brain: the rule-based default words exactly what the pure functions say
 for (const [name, d] of [
@@ -221,8 +266,8 @@ for (const [name, d] of [
       out.passive.suggestion.text === SUGGESTIONS[suggestionFor(e)],
   );
 }
-const lastThree = passiveInput(et).measures.find((m) => m.key === "spread")!;
-check("brain input carries the last three values and usual range", lastThree.lastThree?.length === 3 && !!lastThree.usual);
+const recentIn = passiveInput(et).measures.find((m) => m.key === "spread")!;
+check("brain input carries the last week's values and usual range", recentIn.recentValues?.length === 7 && !!recentIn.usual);
 
 if (failed) {
   console.log(`${failed} failed`);

@@ -558,15 +558,16 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
         <p className="muted">This compares you only with your own earlier days, never with other people.</p>
         <Disclosure title="How this is worked out">
           <p>
-            A measure counts as changed only when your last three sessions or days in a row are all outside your usual
-            range on the same side. I only ask how you are doing when two different kinds of measure have changed (typing and your day and night rhythm), or at least two parts of your day and night rhythm. Typing alone never makes me ask.
+            A measure counts as changed when the middle of your last week is clearly outside your usual range from the
+            four weeks before. Weekdays are compared with weekdays and weekends with weekends. I only ask how you are doing when two different kinds of measure have changed (typing and your day and night rhythm), or at least two parts of your day and night rhythm. Typing alone never makes me ask.
           </p>
           <ul className="worked-out">
             {evaluation.changed.map((m) => (
               <li key={m.key}>
-                <strong>{m.label}</strong>: your last three were {(m.recentValues ?? []).map(m.format).join(", ")}.
-                Your usual range is {m.usual ? `${m.format(m.usual.low)} to ${m.format(m.usual.high)}` : "not known yet"}
-                , from {m.usual?.n ?? 0} earlier {m.unit === "session" ? "sessions" : "days"}.
+                <strong>{m.label}</strong>: the middle of your last week was {m.recent ? m.format(m.recent.median) : "not known"},
+                over {m.recent?.n ?? 0} days. Your usual range is{" "}
+                {m.usual ? `${m.format(m.usual.low)} to ${m.format(m.usual.high)}` : "not known yet"}, from {m.usual?.n ?? 0}{" "}
+                days in the four weeks before.
               </li>
             ))}
           </ul>

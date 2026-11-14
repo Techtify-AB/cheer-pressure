@@ -101,7 +101,7 @@ export default function HomePage() {
 
   /** What each passive measure is doing right now, in a few plain words. */
   const stateOf = (m: PassiveMetric): { state: string; on: boolean } => {
-    const off = m.unit === "session" ? !sources.typing : !sources.dayRhythm;
+    const off = m.source === "typing" ? !sources.typing : !sources.dayRhythm;
     if (off) return { state: "Off", on: false };
     if (pausedAll || menuPaused) return { state: "Paused", on: false };
     const learning = m.status === "learning";
@@ -109,7 +109,6 @@ export default function HomePage() {
     return { state: desktop ? "Needs permission" : "Desktop app only", on: false };
   };
   const SHORT: Partial<Record<PassiveMetric["key"], string>> = {
-    pauses: "Longer typing pauses",
     quietNight: "Quiet night (estimate)",
   };
   const todayActivity = data.activityDays.find((d) => d.date === today && d.source === "user");
@@ -167,7 +166,8 @@ export default function HomePage() {
         </ul>
         <p className="small muted">Not connected yet: {NOT_CONNECTED.join(", ").toLowerCase()}.</p>
         <p>
-          Only the timing of key presses is used, never which keys or what you type. First and last activity are the
+          Only the timing of key presses is used, never which keys or what you type, and the kind of app in front
+          (writing, code, browser or game), never its name or what is in it. Only real writing counts. First and last activity are the
           times of your first and last key press each day.{" "}
           {todayActivity ? `Today your first was at ${todayActivity.first}.` : ""} Quiet night is the time between them
           overnight: an estimate of rest, not measured sleep.

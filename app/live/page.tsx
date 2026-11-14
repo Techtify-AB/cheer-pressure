@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDesktopTyping } from "@/components/desktop";
 import { useRequireProfile } from "@/components/hooks";
 import { Disclosure, Screen } from "@/components/Screen";
-import { dayKey, formatDay, newId, todayKey } from "@/lib/dates";
+import { formatDay, todayKey } from "@/lib/dates";
 import {
   dayRhythm,
   openInputMonitoringSettings,
@@ -15,40 +15,50 @@ import {
 } from "@/lib/platform";
 import { connectRobot, connectedRobot, robotSupport } from "@/lib/robot";
 import { sourcesOf } from "@/lib/settings";
-import { saveTypingSessions, useData } from "@/lib/storage";
-import { LIVE_WINDOW_MS, TypingCollector, type TypingSessionEnd, type TypingStats } from "@/lib/typing";
+import { saveTypingDays, useData } from "@/lib/storage";
+import {
+  BurstCollector,
+  DayPool,
+  MIN_DAY_PRESSES,
+  burstNumbers,
+  verdict,
+  verdictWords,
+  type Burst,
+  type BurstNumbers,
+} from "@/lib/typing";
 
 const RECENT_MS = 2_000;
 
 const ms = (v: number | null) => (v === null ? "Not yet" : `${Math.round(v)} ms`);
 
-function Numbers({ stats }: { stats: TypingStats | null }) {
+/** Whether the burst being typed counts as writing, in plain words. */
+interface BurstState {
+  words: string;
+  counted: boolean;
+}
+
+function Numbers({ stats, countedToday }: { stats: BurstNumbers | null; countedToday: number }) {
   const s = stats;
   const rows: { label: string; value: string; meaning: string }[] = [
     {
-      label: "Key presses",
-      value: s ? String(s.presses) : "0",
-      meaning: "in the last minute",
+      label: "Counted today",
+      value: String(countedToday),
+      meaning: `key presses of real writing; a day needs ${MIN_DAY_PRESSES}`,
     },
     {
-      label: "Time between presses",
-      value: ms(s?.medianIntervalMs ?? null),
-      meaning: "the usual gap between two presses",
-    },
-    {
-      label: "Spread",
+      label: "Rhythm evenness",
       value: ms(s?.spreadMs ?? null),
-      meaning: "how uneven those gaps are",
-    },
-    {
-      label: "Longer pauses",
-      value: ms(s?.p95PauseMs ?? null),
-      meaning: "1 in 20 gaps is this long or longer",
+      meaning: "how uneven the gaps under a second are",
     },
     {
       label: "Hold time",
-      value: ms(s?.medianHoldMs ?? null),
+      value: ms(s?.holdMs ?? null),
       meaning: "how long a key is usually held down",
+    },
+    {
+      label: "Thinking pauses",
+      value: s?.thinkingPer100 == null ? "Not yet" : `${Math.round(s.thinkingPer100)} per 100`,
+      meaning: "gaps of 1 to 2 seconds, only shown, never counted",
     },
   ];
   return (
@@ -64,72 +74,67 @@ function Numbers({ stats }: { stats: TypingStats | null }) {
   );
 }
 
-function sessionFromBox(end: TypingSessionEnd, startedAt: Date) {
-  const s = end.stats;
-  return {
-    id: `box-${startedAt.getTime()}-${newId().slice(0, 8)}`,
-    date: dayKey(startedAt),
-    measuredIn: "box" as const,
-    windowSec: Math.max(0, (end.lastMs - end.firstMs) / 1000),
-    presses: s.presses,
-    medianIntervalMs: s.medianIntervalMs,
-    spreadMs: s.spreadMs,
-    p95PauseMs: s.p95PauseMs,
-    medianHoldMs: s.medianHoldMs,
-    source: "user" as const,
-    savedAt: new Date().toISOString(),
-  };
-}
-
-/** The in-app text box: its key timings feed the same calculation. The text is never stored. */
+/**
+ * The in-app text box: its key timings feed the same bursts and checks as the desktop app.
+ * The text is never stored. Counted bursts make today's value for the box.
+ */
 function useBoxMeter(paused: boolean) {
-  const collector = useRef(new TypingCollector());
-  const startedAt = useRef<Date | null>(null);
-  const [stats, setStats] = useState<TypingStats | null>(null);
+  const collector = useRef(new BurstCollector(() => "writing"));
+  const pool = useRef<{ date: string; pool: DayPool }>({ date: todayKey(), pool: new DayPool() });
+  const [stats, setStats] = useState<BurstNumbers | null>(null);
+  const [state, setState] = useState<BurstState | null>(null);
   const [typing, setTyping] = useState(false);
+  const [countedToday, setCountedToday] = useState(0);
 
-  const endSession = useCallback(() => {
-    const end = collector.current.endNow();
-    if (end && startedAt.current) saveTypingSessions([sessionFromBox(end, startedAt.current)]);
-    startedAt.current = null;
+  const finish = useCallback((b: Burst | null) => {
+    if (!b) return;
+    const v = verdict(b);
+    setState({ words: verdictWords(v, b.kind, b.presses), counted: v.counted });
+    if (!v.counted) return;
+    const today = todayKey();
+    if (pool.current.date !== today) pool.current = { date: today, pool: new DayPool() };
+    pool.current.pool.add(b);
+    const sum = pool.current.pool.summary();
+    setCountedToday(sum.presses);
+    setStats(burstNumbers(b));
+    saveTypingDays([{ date: today, kind: "all", measuredIn: "box", ...sum, source: "user", savedAt: new Date().toISOString() }]);
   }, []);
 
   useEffect(() => {
+    const c = collector.current;
     const id = window.setInterval(() => {
       const now = performance.now();
-      const c = collector.current;
-      const last = c.lastPress();
-      const isTyping = last !== null && now - last <= RECENT_MS;
-      setTyping(isTyping);
-      if (last !== null) setStats(c.live(now, LIVE_WINDOW_MS));
-      const end = c.endIfIdle(now);
-      if (end && startedAt.current) {
-        saveTypingSessions([sessionFromBox(end, startedAt.current)]);
-        startedAt.current = null;
+      const last = c.lastPressAt();
+      setTyping(last !== null && now - last <= RECENT_MS);
+      finish(c.tick(now));
+      const b = c.now();
+      if (b) {
+        const v = verdict(b);
+        setState({ words: verdictWords(v, b.kind, b.presses), counted: v.counted });
+        if (v.counted) setStats(burstNumbers(b));
       }
-    }, 1000);
+    }, 500);
     return () => {
       window.clearInterval(id);
-      endSession();
+      finish(c.close());
     };
-  }, [endSession]);
+  }, [finish]);
 
   useEffect(() => {
-    if (paused) endSession();
-  }, [paused, endSession]);
+    if (paused) finish(collector.current.close());
+  }, [paused, finish]);
 
-  // Only the moment is used. Which key it was is never read.
+  // Only the moment is used, and whether the keyboard is repeating a held key. Which key it was is never read.
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (paused || e.repeat) return;
-    if (!startedAt.current) startedAt.current = new Date();
-    collector.current.keyDown(performance.now());
+    if (paused) return;
+    finish(collector.current.keyDown(performance.now(), e.repeat));
   };
   const onKeyUp = () => {
     if (paused) return;
     collector.current.keyUp(performance.now());
   };
 
-  return { stats, typing, onKeyDown, onKeyUp };
+  return { stats, state, typing, countedToday, onKeyDown, onKeyUp };
 }
 
 export default function LivePage() {
@@ -138,10 +143,11 @@ export default function LivePage() {
   if (!data || !ready) return null;
   // Typing rhythm switched off, or everything paused, in Settings: the box measures nothing.
   const blocked = !!data.settings.pausedAll || !sourcesOf(data.settings).typing;
-  return <LiveView sessionsSaved={data.typingSessions.filter((t) => t.source === "user").length} blocked={blocked} />;
+  const daysSaved = (data.typingDays ?? []).filter((t) => t.source === "user" && t.spreadMs !== null).length;
+  return <LiveView daysSaved={daysSaved} blocked={blocked} />;
 }
 
-function LiveView({ sessionsSaved, blocked }: { sessionsSaved: number; blocked: boolean }) {
+function LiveView({ daysSaved, blocked }: { daysSaved: number; blocked: boolean }) {
   const { desktop, status, live, setStatus } = useDesktopTyping();
   const computer = desktop && status?.listener === "running";
   const [boxPaused, setBoxPaused] = useState(false);
@@ -176,6 +182,19 @@ function LiveView({ sessionsSaved, blocked }: { sessionsSaved: number; blocked: 
 
   const stats = computer ? (live?.stats ?? null) : box.stats;
   const typingNow = computer ? !!live?.typing : box.typing;
+  const countedToday = computer ? (live?.countedToday ?? 0) : box.countedToday;
+  const burst: BurstState | null = computer
+    ? live?.burst
+      ? {
+          words: verdictWords(
+            live.burst.counted ? { counted: true } : { counted: false, why: live.burst.why ?? "too-short" },
+            live.burst.kind,
+            live.burst.presses,
+          ),
+          counted: live.burst.counted,
+        }
+      : null
+    : box.state;
   const today = todayKey();
 
   let sourceText: string;
@@ -212,7 +231,8 @@ function LiveView({ sessionsSaved, blocked }: { sessionsSaved: number; blocked: 
             {permissionNeeded ? "Permission needed. Measuring only in this box for now" : sourceText}
           </h1>
           <p className="muted">
-            {notice ?? "Only the timing of key presses is used, never which keys or what you write."}
+            {notice ??
+              "Only key timing, never which keys or what you write, and the kind of app in front, never its name or what is in it."}
           </p>
         </>
       }
@@ -241,7 +261,7 @@ function LiveView({ sessionsSaved, blocked }: { sessionsSaved: number; blocked: 
                 {checking ? "Checking" : "Check again"}
               </button>
             )}
-            <Disclosure label="Your day, saved sessions and more" title="Your day, saved sessions and more">
+            <Disclosure label="Your day and how typing counts" title="Your day and how typing counts">
               {permissionNeeded && (
                 <p>
                   To measure typing rhythm across the whole computer, macOS needs you to allow Cheer Pressure under{" "}
@@ -250,10 +270,16 @@ function LiveView({ sessionsSaved, blocked }: { sessionsSaved: number; blocked: 
                   and open it again.
                 </p>
               )}
-              <p>Gaps between key presses longer than 5 seconds are left out of the numbers.</p>
               <p>
-                When typing stops for 5 minutes, the numbers for that stretch are saved as one session (only the
-                numbers). {sessionsSaved > 0 ? `${sessionsSaved} saved so far. ` : ""}Their spread shows up in{" "}
+                Only real writing counts: a stretch of at least 30 presses without a gap over 2 seconds. Stretches that
+                look like held keys, several keys at once or scattered shortcuts are left out, and so is anything typed
+                while a game is in front. Rhythm uses only the gaps under a second; gaps of 1 to 2 seconds are thinking
+                pauses, shown but never counted.
+              </p>
+              <p>
+                In the desktop app, the kind of app in front when a stretch starts is kept as one word (writing, code,
+                browser, game or other), never the app&apos;s name or what is in it. A day gets a value once it has{" "}
+                {MIN_DAY_PRESSES} counted presses. {daysSaved > 0 ? `${daysSaved} days so far. ` : ""}They show up in{" "}
                 <Link href="/trends/">Your own level</Link>.
               </p>
               {!desktop ? (
@@ -309,19 +335,17 @@ function LiveView({ sessionsSaved, blocked }: { sessionsSaved: number; blocked: 
             />
           </div>
         )}
-        <h2 id="numbers-title">The last minute</h2>
-        <p className="small muted" aria-live="polite">
+        <h2 id="numbers-title">This stretch of typing</h2>
+        <p className={burst?.counted ? "small burst-state counting" : "small burst-state"} aria-live="polite" role="status">
           {paused
             ? "Measuring is paused."
-            : typingNow
-              ? "Typing now. The numbers update every second."
-              : stats && stats.presses > 0
-                ? "Not typing right now. The numbers show the last minute."
-                : computer
-                  ? "Start typing anywhere and the numbers appear here."
-                  : "Type in the box and the numbers appear."}
+            : burst && (typingNow || !burst.counted)
+              ? burst.words
+              : computer
+                ? "Start typing anywhere. Mash keys or hold one down, and see it ignored."
+                : "Type in the box. Mash keys or hold one down, and see it ignored."}
         </p>
-        <Numbers stats={stats} />
+        <Numbers stats={stats} countedToday={countedToday} />
       </section>
     </Screen>
   );

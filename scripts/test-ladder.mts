@@ -15,7 +15,7 @@ import {
 } from "../lib/ladder.ts";
 import { createLocalContact, SIMULATED_REPLY } from "../lib/contact.ts";
 import { enoughToAsk, evaluatePassive } from "../lib/passive.ts";
-import { firstAsk, makeReplayData, replayFrames, shiftReplay, STEADY_DAYS, REPLAY_DAYS, driftOn } from "../lib/replay.ts";
+import { firstAsk, makeReplayData, replayEndingOn, replayFrames, shiftReplay, sleepDriftOn, STEADY_DAYS, REPLAY_DAYS, driftOn } from "../lib/replay.ts";
 import { inQuietHours, pickSmallThing, ROUTINES, DEFAULT_QUIET_HOURS } from "../lib/settings.ts";
 import { clockToDayMinutes } from "../lib/passive.ts";
 import type { LadderState, RoutineId } from "../lib/types.ts";
@@ -71,7 +71,7 @@ check("step 2 after two days when the measures have not come back", due(tried, 2
 const back = due(tried, 2, BACK);
 check("measures back in the usual range: nothing escalates, and the ladder may close", back.due === "none" && back.close, back.reason);
 check("one measure left changed does not escalate either (the rule needs two)", due(tried, 2, ONE).due === "none");
-const TYPING_ONLY = { askNow: false, changed: [{ key: "spread" }, { key: "pauses" }, { key: "hold" }] } as unknown as LadderInput["passive"];
+const TYPING_ONLY = { askNow: false, changed: [{ key: "spread" }, { key: "hold" }] } as unknown as LadderInput["passive"];
 const typingLeft = due(tried, 2, TYPING_ONLY);
 check("only typing still changed counts as come back, the same test as asking", typingLeft.due === "none" && typingLeft.close, typingLeft.reason);
 const SLEEP_TWO = { askNow: true, changed: [{ key: "firstActivity" }, { key: "quietNight" }] } as unknown as LadderInput["passive"];
@@ -166,11 +166,11 @@ for (const last of ["2026-11-14", "2027-03-29", "2026-06-30"]) {
   check(`replay (${last}): the rule never asks in the first ${STEADY_DAYS} days`, askedSteady.length === 0, askedSteady.join());
   const a = firstAsk(frames);
   check(
-    `replay (${last}): it asks in the last week, with the day and night rhythm among what changed`,
+    `replay (${last}): it asks after the drift began, with days to spare, with the day and night rhythm among what changed`,
     !!a && a.day > STEADY_DAYS && a.day <= REPLAY_DAYS - 3 && enoughToAsk(a.evaluation.changed) && a.evaluation.changed.some((m) => m.source === "sleep"),
     a ? `day ${a.day}: ${a.evaluation.changed.map((m) => m.key).join(", ")}` : "never",
   );
-  check(`replay (${last}): still learning on days 1 to 6`, frames.slice(0, 6).every((f) => f.evaluation.learning && !f.evaluation.askNow));
+  check(`replay (${last}): still learning on days 1 to 13`, frames.slice(0, 13).every((f) => f.evaluation.learning && !f.evaluation.askNow));
 }
 {
   const last = "2026-11-14";
@@ -183,17 +183,20 @@ for (const last of ["2026-11-14", "2027-03-29", "2026-06-30"]) {
     return med(lastDays) - med(steady);
   };
   const moved = [
-    ["typing evenness", split(r.typingSessions, (s) => s.spreadMs!), 25],
-    ["longer pauses", split(r.typingSessions, (s) => s.p95PauseMs!), 100],
+    ["typing evenness", split(r.typingDays.filter((t) => t.spreadMs !== null), (t) => t.spreadMs!), 20],
+    ["hold time", split(r.typingDays.filter((t) => t.holdMs !== null), (t) => t.holdMs!), 4],
     ["first activity", split(r.activityDays, (d) => clockToDayMinutes(d.first)), 45],
-    ["last activity", split(r.activityDays, (d) => clockToDayMinutes(d.last)), 30],
+    ["last activity", split(r.activityDays, (d) => clockToDayMinutes(d.last)), 45],
   ] as const;
   const drifting = moved.filter(([, delta, min]) => delta >= min);
-  check("replay: at least three measures drift in the last week", drifting.length >= 3, moved.map(([n, d]) => `${n} +${Math.round(d)}`).join(", "));
-  const shifted = shiftReplay(r, -5);
+  check("replay: typing and the day and night rhythm drift in the last days", drifting.length >= 3, moved.map(([n, d]) => `${n} +${Math.round(d)}`).join(", "));
+  check("replay: sleep slips first (on the drift's first day it has moved more than a third, typing a seventh)", sleepDriftOn(STEADY_DAYS + 1) > 0.35 && driftOn(STEADY_DAYS + 1) < 0.15);
+  const shifted = shiftReplay(r, -14);
   const a1 = firstAsk(replayFrames(r, last));
-  const a2 = firstAsk(replayFrames(shifted, addDays(last, -5)));
-  check("replay: moving every date gives the same outcome", a1?.day === a2?.day);
+  const a2 = firstAsk(replayFrames(shifted, addDays(last, -14)));
+  check("replay: moving every date by whole weeks gives the same outcome", a1?.day === a2?.day);
+  const placed = replayEndingOn(last);
+  check("replay: it can be placed so the day it asks is today", !!placed && firstAsk(replayFrames(placed.data, placed.lastDay))?.date === last);
   // The frame the replay stops on says the same as the app does with that data on that day.
   const e = evaluatePassive(a1!.data, a1!.date);
   check("replay: the stopping frame is exactly the rule's result", e.askNow && e.changed.length === a1!.evaluation.changed.length);
@@ -208,11 +211,11 @@ for (const last of ["2026-11-14", "2027-03-29", "2026-06-30"]) {
     ladder: answerSomeone(answerSmallThing(startAfterNotBest(a.date, "walk", true), "try", a.date), "yes", a.date),
     passive: a.evaluation,
     checkIns: [
-      { id: "c", date: a.date, at: "", answer: "not-best", triggeredBy: [], basedOn: { sessions: 3, days: 3 }, simulated: true },
+      { id: "c", date: a.date, at: "", answer: "not-best", triggeredBy: [], basedOn: { days: 7, usualDays: 26 }, simulated: true },
     ],
   });
   const withoutDates = text.replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} [A-Z][a-z]{2}\b/g, "");
-  check("clinic text: names what changed", text.includes("your typing has been more uneven"), text.split("\n")[1]);
+  check("clinic text: names what changed", a.evaluation.changed.every((m) => !m.phrase || text.includes(m.phrase)), text.split("\n")[1]);
   check("clinic text: the person's own answers", text.includes('"Not my best"') && text.includes("a walk in daylight") && text.includes("someone I trust"));
   check("clinic text: no numbers other than dates", !/\d/.test(withoutDates), withoutDates);
   check("clinic text: no risk or diagnosis words", !/(risk|depress|relapse|diagnos|score|%)/i.test(text));

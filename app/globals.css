@@ -1160,7 +1160,7 @@ textarea.typing-box { min-height: 72px; }
 .reply-text { font-size: var(--font-size-xl); font-weight: var(--font-weight-medium); }
 .share-title { font-size: var(--font-size-sm) !important; font-weight: var(--font-weight-medium); }
 
-/* Replay: six weeks in 20 seconds */
+/* Replay: eight weeks in 20 seconds */
 .replay-lead {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1229,3 +1229,7 @@ textarea.typing-box { min-height: 72px; }
   .greeting-line.calm-line { font-size: var(--font-size-lg); }
   .qr { width: 148px; height: 148px; }
 }
+
+/* Live view: whether this stretch of typing counts */
+.burst-state { margin: 0; font-weight: var(--font-weight-medium); color: var(--color-ink-soft); }
+.burst-state.counting { color: var(--color-done); }

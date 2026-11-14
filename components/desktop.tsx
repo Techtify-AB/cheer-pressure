@@ -9,19 +9,19 @@ import {
   dayRhythm,
   isDesktop,
   onNavigate,
+  onTypingCounted,
   onTypingLive,
-  onTypingSessionEnded,
   onTypingStatus,
   pageReady,
-  takeTypingSessions,
+  typingDays,
   typingStatus,
-  type DesktopSession,
   type DesktopStatus,
+  type DesktopTypingDay,
   type LiveTyping,
 } from "@/lib/platform";
 import { sourcesOf } from "@/lib/settings";
-import { readData, saveActivityDays, saveTypingSessions } from "@/lib/storage";
-import type { TypingSession } from "@/lib/types";
+import { readData, saveActivityDays, saveTypingDays } from "@/lib/storage";
+import type { TypingDay } from "@/lib/types";
 
 const noSubscribe = () => () => {};
 
@@ -54,25 +54,13 @@ export function useDesktopTyping() {
   return { desktop, status, live, setStatus };
 }
 
-export function fromDesktopSession(d: DesktopSession): TypingSession {
-  return {
-    id: d.id,
-    date: d.date,
-    measuredIn: "computer",
-    windowSec: d.windowSec,
-    presses: d.presses,
-    medianIntervalMs: d.medianIntervalMs,
-    spreadMs: d.spreadMs,
-    p95PauseMs: d.p95PauseMs,
-    medianHoldMs: d.medianHoldMs,
-    source: "user",
-    savedAt: new Date().toISOString(),
-  };
+export function fromDesktopDay(d: DesktopTypingDay): TypingDay {
+  return { ...d, measuredIn: "computer", source: "user", savedAt: new Date().toISOString() };
 }
 
 /**
- * Lives in the main window only. Collects finished typing sessions and first and
- * last activity from the desktop app and stores them with the rest of the person's
+ * Lives in the main window only. Collects typing per day and kind of app, and first and
+ * last activity, from the desktop app and stores them with the rest of the person's
  * data, and opens pages the mascot asks for.
  */
 export function DesktopBridge() {
@@ -87,8 +75,9 @@ export function DesktopBridge() {
       return { typing: src.typing && !s.pausedAll, day: src.dayRhythm && !s.pausedAll };
     };
     const collect = async () => {
-      const list = await takeTypingSessions(); // handed over once, so a switched-off source is dropped here
-      if (allowed().typing) saveTypingSessions(list.map(fromDesktopSession));
+      if (!allowed().typing) return;
+      const list = await typingDays();
+      saveTypingDays(list.map(fromDesktopDay));
     };
     const syncDays = async () => {
       if (!allowed().day) return;
@@ -97,8 +86,11 @@ export function DesktopBridge() {
     };
     void collect();
     void syncDays();
-    const daysTimer = window.setInterval(() => void syncDays(), 60_000);
-    const stopSessions = onTypingSessionEnded(() => void collect());
+    const daysTimer = window.setInterval(() => {
+      void syncDays();
+      void collect();
+    }, 60_000);
+    const stopSessions = onTypingCounted(() => void collect());
     const stopNavigate = onNavigate((path) => router.push(path));
     return () => {
       window.clearInterval(daysTimer);

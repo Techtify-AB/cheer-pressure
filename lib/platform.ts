@@ -5,7 +5,7 @@
 // the static web build works without Tauri. In a browser every desktop call is a
 // harmless no-op that returns null or an empty list.
 
-import type { TypingStats } from "./typing";
+import type { AppKind, BurstNumbers, NotCounted } from "./typing";
 
 /** True inside the Cheer Pressure desktop app. */
 export function isDesktop(): boolean {
@@ -22,22 +22,23 @@ export interface DesktopStatus {
 export interface LiveTyping {
   /** A key was pressed in the last 2 seconds. */
   typing: boolean;
-  windowSec: number;
-  stats: TypingStats;
+  /** The burst being typed now, or null: whether it counts as writing, and if not, why. */
+  burst: { presses: number; kind: AppKind; counted: boolean; why: NotCounted | null } | null;
+  /** Rhythm numbers over the counted bursts of the last minute. */
+  stats: BurstNumbers;
+  /** Counted presses today, every kind except games. */
+  countedToday: number;
 }
 
-/** A finished typing session as the desktop app hands it over. Numbers only. */
-export interface DesktopSession {
-  id: string;
+/** One day of typing for one kind of app, as the desktop app hands it over. Numbers only. */
+export interface DesktopTypingDay {
   date: string;
-  startedAt: string;
-  endedAt: string;
-  windowSec: number;
+  kind: "writing" | "code" | "browser" | "other" | "all";
   presses: number;
-  medianIntervalMs: number | null;
+  bursts: number;
   spreadMs: number | null;
-  p95PauseMs: number | null;
-  medianHoldMs: number | null;
+  holdMs: number | null;
+  thinkingPer100: number | null;
 }
 
 export interface DayActivity {
@@ -81,16 +82,16 @@ export const setTypingPaused = (paused: boolean) => invoke<DesktopStatus>("typin
 /** Lists the app under Input Monitoring and opens that pane of System Settings. */
 export const openInputMonitoringSettings = () => invoke<void>("typing_open_permission");
 export const retryTyping = () => invoke<DesktopStatus>("typing_retry");
-/** Session summaries not stored yet. Each one is handed over once. */
-export const takeTypingSessions = async () => (await invoke<DesktopSession[]>("typing_take_sessions")) ?? [];
+/** Typing per day and kind of app for the last days, today's still growing. */
+export const typingDays = async () => (await invoke<DesktopTypingDay[]>("typing_days")) ?? [];
 /** Forgets everything the desktop app keeps on disk (for "Delete everything"). */
 export const forgetDesktopData = () => invoke<void>("forget_all");
 export const dayRhythm = async () => (await invoke<DayActivity[]>("day_rhythm")) ?? [];
 
 export const onTypingLive = (h: (live: LiveTyping) => void) => listen<LiveTyping>("typing-live", h);
 export const onTypingStatus = (h: (s: DesktopStatus) => void) => listen<DesktopStatus>("typing-status", h);
-/** A session ended; call takeTypingSessions to collect it. */
-export const onTypingSessionEnded = (h: () => void) => listen<null>("typing-session", () => h());
+/** A burst was counted; call typingDays to collect today's numbers. */
+export const onTypingCounted = (h: () => void) => listen<null>("typing-counted", () => h());
 
 // Windows
 

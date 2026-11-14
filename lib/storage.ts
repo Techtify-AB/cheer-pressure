@@ -17,6 +17,7 @@ import type {
   PromptedCheckIn,
   ReactionResult,
   Settings,
+  TypingDay,
   TypingSession,
   WeeklyEntry,
 } from "./types";
@@ -26,6 +27,7 @@ const KEY = "companion.v1";
 function empty(): AppData {
   return { version: 1, profile: null, daily: [], weekly: [], reaction: [], typingSessions: [],
     activityDays: [],
+    typingDays: [],
     checkIns: [],
     settings: { muted: false },
     ladder: null,
@@ -68,6 +70,7 @@ function load(): AppData {
       reaction: parsed.reaction ?? [],
       typingSessions: parsed.typingSessions ?? [],
       activityDays: parsed.activityDays ?? [],
+      typingDays: Array.isArray(parsed.typingDays) ? parsed.typingDays : [],
       checkIns: parsed.checkIns ?? [],
       ladder: parsed.ladder ?? null,
     };
@@ -88,6 +91,7 @@ function commit(next: AppData) {
     reaction: sortByDate(next.reaction),
     typingSessions: sortByDate(next.typingSessions),
     activityDays: sortByDate(next.activityDays),
+    typingDays: sortByDate(next.typingDays ?? []),
     checkIns: sortByDate(next.checkIns),
   };
   cache = tidy;
@@ -152,6 +156,27 @@ export function saveTypingSessions(sessions: TypingSession[]) {
   commit({ ...d, typingSessions: [...d.typingSessions, ...fresh] });
 }
 
+/**
+ * Typing per day and kind of app. A row for the same day, kind and place replaces the stored
+ * one (today's values grow as the day goes on); a real day replaces a made-up one.
+ */
+export function saveTypingDays(days: TypingDay[]) {
+  if (!days.length) return;
+  const d = readData();
+  const key = (t: TypingDay) => `${t.date}|${t.kind}|${t.measuredIn}`;
+  const byKey = new Map((d.typingDays ?? []).map((t) => [key(t), t]));
+  let changed = false;
+  for (const t of days) {
+    const cur = byKey.get(key(t));
+    if (cur?.source === "user" && t.source === "demo") continue;
+    if (!cur || cur.presses !== t.presses || cur.spreadMs !== t.spreadMs || cur.holdMs !== t.holdMs || cur.source !== t.source) {
+      byKey.set(key(t), t);
+      changed = true;
+    }
+  }
+  if (changed) commit({ ...d, typingDays: [...byKey.values()] });
+}
+
 /** First and last activity per day from the desktop app. A day with real data replaces demo data. */
 export function saveActivityDays(days: ActivityDay[]) {
   if (!days.length) return;
@@ -194,6 +219,7 @@ export function addDemo(demo: {
   weekly: WeeklyEntry[];
   reaction: ReactionResult[];
   typingSessions: TypingSession[];
+  typingDays: TypingDay[];
   activityDays: ActivityDay[];
 }) {
   const d = clearDemoFrom(readData());
@@ -206,6 +232,10 @@ export function addDemo(demo: {
     weekly: [...d.weekly, ...demo.weekly.filter((e) => !realWeekly.has(e.date))],
     reaction: [...d.reaction, ...demo.reaction],
     typingSessions: [...d.typingSessions, ...demo.typingSessions],
+    typingDays: [
+      ...(d.typingDays ?? []),
+      ...demo.typingDays.filter((t) => !(d.typingDays ?? []).some((u) => u.date === t.date && u.kind === t.kind)),
+    ],
     activityDays: [...d.activityDays, ...demo.activityDays.filter((e) => !realActivity.has(e.date))],
   });
 }
@@ -217,6 +247,7 @@ function clearDemoFrom(d: AppData): AppData {
     weekly: d.weekly.filter((e) => e.source !== "demo"),
     reaction: d.reaction.filter((e) => e.source !== "demo"),
     typingSessions: d.typingSessions.filter((e) => e.source !== "demo"),
+    typingDays: (d.typingDays ?? []).filter((e) => e.source !== "demo"),
     activityDays: d.activityDays.filter((e) => e.source !== "demo"),
     settings: { ...d.settings, simulatedChangeAt: undefined },
     // A ladder that started from made-up data goes with it.
@@ -229,7 +260,9 @@ export function clearDemo() {
 }
 
 export function hasDemo(d: AppData): boolean {
-  return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions, ...d.activityDays].some((e) => e.source === "demo");
+  return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions, ...(d.typingDays ?? []), ...d.activityDays].some(
+    (e) => e.source === "demo",
+  );
 }
 
 /** Removes everything this app has stored in this browser. */

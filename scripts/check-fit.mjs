@@ -182,6 +182,19 @@ async function run(size) {
   await measure(page, "demo");
   await go("/live/");
   await measure(page, "live");
+  // The box: real writing counts, a held key does not.
+  await page.locator("#typing-box").click();
+  await page.keyboard.type("we walked to the harbour and back before lunch", { delay: 120 });
+  await page.waitForTimeout(700);
+  const writing = await page.locator(".burst-state").innerText();
+  await measure(page, "live-counting");
+  await page.waitForTimeout(2600);
+  for (let i = 0; i < 30; i++) await page.keyboard.down("k");
+  await page.keyboard.up("k");
+  await page.waitForTimeout(700);
+  const held = await page.locator(".burst-state").innerText();
+  await measure(page, "live-held-key");
+  results.push({ ok: writing.startsWith("Counting") && held.includes("held keys"), name: `live box: "${writing}" then "${held}"`, vp: `${size.width}x${size.height}`, overY: 0, overX: 0, primaries: 0, groups: 0, mood: "-", size: 0, noPointer: 0 });
 
   // The ladder, live: Simulate a change, Not my best, then skip ahead.
   await go("/demo/");

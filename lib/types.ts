@@ -100,8 +100,37 @@ export interface ActivityDay {
   source: Source;
 }
 
-/** The passive measures the companion compares with the person's own range. */
+/**
+ * The passive measures the companion compares with the person's own range. "pauses" is no
+ * longer measured (thinking pauses are context only); it can still appear in older check-ins.
+ */
 export type PassiveKey = "spread" | "pauses" | "hold" | "firstActivity" | "lastActivity" | "quietNight";
+
+/** The kind of app typed in, never its name: "all" pools every kind except games, which never count. */
+export type TypingKind = "writing" | "code" | "browser" | "other" | "all";
+
+/**
+ * One day of typing for one kind of app, pooled over that day's counted bursts of real writing
+ * (lib/typing.ts and src-tauri/src/rhythm.rs). Timing numbers only. Values are null when the
+ * day has fewer than 300 counted presses.
+ */
+export interface TypingDay {
+  date: DayKey;
+  kind: TypingKind;
+  /** Across the whole computer (desktop app) or only in the app's own box. */
+  measuredIn: "computer" | "box";
+  /** Counted presses and bursts. */
+  presses: number;
+  bursts: number;
+  /** Rhythm evenness: spread (75th minus 25th percentile) of the gaps under 1 s, ms. */
+  spreadMs: number | null;
+  /** Median hold, ms. */
+  holdMs: number | null;
+  /** Gaps of 1 to 2 s per 100 presses. Context only, never part of the rule. */
+  thinkingPer100: number | null;
+  source: Source;
+  savedAt: string;
+}
 
 export type CheckInAnswer = "okay" | "not-best" | "someone" | "not-now";
 
@@ -113,8 +142,8 @@ export interface PromptedCheckIn {
   answer: CheckInAnswer;
   /** Which measures had changed, and which way. */
   triggeredBy: { key: PassiveKey; direction: "up" | "down" }[];
-  /** How many recent typing sessions and days the comparison used. */
-  basedOn: { sessions: number; days: number };
+  /** How many recent days and usual days the comparison used (older check-ins: sessions and days). */
+  basedOn: { days: number; usualDays?: number; sessions?: number };
   /** True when the change was simulated or the data was made-up demo data. */
   simulated: boolean;
 }
@@ -179,7 +208,10 @@ export interface AppData {
   daily: DailyEntry[];
   weekly: WeeklyEntry[];
   reaction: ReactionResult[];
+  /** From earlier versions: one per typing session. Still loads; the rule no longer uses it. */
   typingSessions: TypingSession[];
+  /** Typing per day and kind of app. Missing in older data. */
+  typingDays?: TypingDay[];
   activityDays: ActivityDay[];
   checkIns: PromptedCheckIn[];
   settings: Settings;

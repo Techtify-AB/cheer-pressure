@@ -1,6 +1,6 @@
 "use client";
 
-// "Six weeks in 20 seconds": made-up days, replayed one day at a time. For each day the
+// "Eight weeks in 20 seconds": made-up days, replayed one day at a time. For each day the
 // REAL rule (evaluatePassive in lib/passive.ts) runs on the data up to that day, and
 // this screen shows only what it concludes. When it would ask, the replay stops and
 // the explanation is the one the real conversation shows.
@@ -12,7 +12,6 @@ import { Companion } from "@/components/companion/Companion";
 import { useRequireProfile, useToday } from "@/components/hooks";
 import { Screen } from "@/components/Screen";
 import { brain, passiveInput } from "@/lib/brain";
-import { daysBetween } from "@/lib/dates";
 import { computeLevels } from "@/lib/levels";
 import { LEARNING_DAYS, type PassiveMetric } from "@/lib/passive";
 import {
@@ -20,8 +19,8 @@ import {
   makeReplayData,
   REPLAY_DAYS,
   REPLAY_MS_PER_DAY,
+  replayEndingOn,
   replayFrames,
-  shiftReplay,
   upTo,
   type ReplayFrame,
 } from "@/lib/replay";
@@ -29,9 +28,10 @@ import type { PassiveKey } from "@/lib/types";
 import { addDemo, saveSettings, useData } from "@/lib/storage";
 
 /** The four strips shown by default. A changed measure outside these takes the last unchanged place. */
-const SHOWN: PassiveKey[] = ["spread", "pauses", "firstActivity", "lastActivity"];
+const SHOWN: PassiveKey[] = ["spread", "hold", "firstActivity", "lastActivity"];
 const MAX_STRIPS = 4;
-const STRIP_POINTS = 14;
+/** The four weeks of the usual and the last week. */
+const STRIP_POINTS = 35;
 
 function shownMetrics(metrics: PassiveMetric[]): PassiveMetric[] {
   const byKey = new Map(metrics.map((m) => [m.key, m]));
@@ -69,9 +69,11 @@ function Replay() {
   const today = useToday();
   const reduced = useSyncExternalStore(subscribeMotion, reducedMotion, () => false);
   const narrow = useSyncExternalStore(subscribeNarrow, narrowScreen, () => false);
-  // The six weeks end today; only the gaps between days matter to the rule.
-  const replay = useMemo(() => makeReplayData(today), [today]);
-  const frames = useMemo(() => replayFrames(replay, today), [replay, today]);
+  // Placed so that the day it asks is today: "See what it asks" then opens the conversation on
+  // exactly these days (the rule compares weekdays with weekdays, so days are not moved).
+  const placed = useMemo(() => replayEndingOn(today) ?? { data: makeReplayData(today), lastDay: today }, [today]);
+  const replay = placed.data;
+  const frames = useMemo(() => replayFrames(replay, placed.lastDay), [replay, placed.lastDay]);
   const stopAt = useMemo(() => firstAsk(frames), [frames]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -125,11 +127,10 @@ function Replay() {
     setPlaying(true);
   };
 
-  /** Opens the real conversation on the same days, moved so the day it stopped is today. */
+  /** Opens the real conversation on the same days, up to the day it stopped, which is today. */
   const seeWhatItAsks = () => {
     if (!stopAt) return;
-    const moved = shiftReplay(upTo(replay, stopAt.date), daysBetween(stopAt.date, today));
-    addDemo({ daily: [], weekly: [], reaction: [], ...moved });
+    addDemo({ daily: [], weekly: [], reaction: [], typingSessions: [], ...upTo(replay, stopAt.date) });
     saveSettings({ simulatedChangeAt: new Date().toISOString() });
     router.push("/prompt/");
   };
@@ -140,7 +141,8 @@ function Replay() {
   if (fired) line = explanation ?? "";
   else if (e.learning) line = `Still learning your usual rhythm: ${e.daysOfData} of ${LEARNING_DAYS} days so far.`;
   else if (e.changed.length === 1) line = "One thing looks different. That alone is not enough for me to ask.";
-  else if (index === 0 && !playing) line = "Six made-up weeks. I look at each day the way I look at yours.";
+  else if (e.reason === "typing-only") line = "Typing looks different. Typing alone never makes me ask.";
+  else if (index === 0 && !playing) line = "Eight made-up weeks. I look at each day the way I look at yours.";
   else line = "Nothing stands out compared with the usual.";
 
   const atEnd = index + 1 >= frames.length;
@@ -192,7 +194,7 @@ function Replay() {
           <Strip key={m.key} m={m} />
         ))}
         <p className="small muted strips-note">
-          Band: the usual range, from the earlier days. Dots: the latest values, the last three larger. About 20
+          Band: the usual range, from the four weeks before. Dots: one per day, the last week larger. About 20
           seconds in all.
         </p>
       </section>
@@ -234,8 +236,8 @@ function Strip({ m }: { m: PassiveMetric }) {
   const clampY = (v: number) => Math.min(hi, Math.max(lo, v));
   const y = (v: number) => H - PAD - ((clampY(v) - lo) / (hi - lo)) * (H - PAD * 2);
   const x = (i: number) => PAD + (i + (STRIP_POINTS - pts.length)) * ((W - PAD * 2) / (STRIP_POINTS - 1));
-  // The last three are what the rule compares; they get the change colour only when it counts as a change.
-  const recentFrom = pts.length - 3;
+  // The last week is what the rule compares; it gets the change colour only when it counts as a change.
+  const recentFrom = pts.length - (m.recentValues?.length ?? 0);
   const changed = m.status === "changed";
 
   let state: string;

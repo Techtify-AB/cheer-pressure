@@ -7,7 +7,7 @@ import { Disclosure, Pager, Says, Screen } from "@/components/Screen";
 import { Sparkline, type ChartMetric } from "@/components/Sparkline";
 import { addDays, describeMinutes, formatShortDay } from "@/lib/dates";
 import { CHART_DAYS, type Levels, type MetricLevel } from "@/lib/levels";
-import { MIN_USUAL_POINTS, RECENT_POINTS, type PassiveMetric } from "@/lib/passive";
+import { MIN_RECENT_DAYS, MIN_USUAL_DAYS, thinkingContext, typingAloneChanged, type PassiveMetric } from "@/lib/passive";
 import { useData } from "@/lib/storage";
 
 const SCALE_WORDS = ["not at all", "several days", "more than half the days", "nearly every day"];
@@ -44,11 +44,7 @@ function changeText(m: MetricLevel): string {
   }
 }
 
-function unitWord(m: PassiveMetric, n: number): string {
-  return m.unit === "session" ? (n === 1 ? "session" : "sessions") : n === 1 ? "day" : "days";
-}
-
-const NUMBER_WORDS = ["None", "One", "Two", "Three"];
+const dayWord = (n: number) => (n === 1 ? "day" : "days");
 
 /** "above" and "below" for most measures; "later" and "earlier" for times of day. */
 function sideWords(m: PassiveMetric): { up: string; down: string } {
@@ -59,30 +55,22 @@ function sideWords(m: PassiveMetric): { up: string; down: string } {
 
 /** The verdict, worded exactly as the rule in lib/passive.ts decides it. */
 function passiveStatus(m: PassiveMetric): string {
-  const need = MIN_USUAL_POINTS + RECENT_POINTS;
   if (m.status === "learning") {
-    return `Your usual range shows up after ${need} ${unitWord(m, need)}. ${m.points.length} so far.`;
+    return `Your usual range shows up after ${MIN_USUAL_DAYS} days with a value before the last week. ${m.points.length} so far.`;
   }
-  if (m.status === "no-recent" || !m.usual || !m.recentValues) return "Nothing in the last 7 days to compare.";
-  const usual = m.usual;
-  const n = m.recentValues.length;
-  const above = m.recentValues.filter((v) => v > usual.high).length;
-  const below = m.recentValues.filter((v) => v < usual.low).length;
+  if (m.status === "no-recent" || !m.usual || !m.recentValues) {
+    return `This needs ${MIN_RECENT_DAYS} days with a value in the last week to compare.`;
+  }
   const words = sideWords(m);
-  const last = `your last ${NUMBER_WORDS[n]?.toLowerCase() ?? n} ${unitWord(m, n)}`;
   if (m.status === "changed") {
     const side = m.direction === "up" ? words.up : words.down;
     const p = m.phrase ? ` ${m.phrase.charAt(0).toUpperCase()}${m.phrase.slice(1)}.` : "";
-    return `All ${NUMBER_WORDS[n]?.toLowerCase() ?? n} of your last ${unitWord(m, n)} were ${side} your usual range.${p}`;
+    return `Over the last week this was clearly ${side} your usual range.${p}`;
   }
-  if (above === 0 && below === 0) return "Within your usual range.";
-  if (above && below) {
-    return `Of ${last}, ${NUMBER_WORDS[above].toLowerCase()} ${above === 1 ? "was" : "were"} ${words.up} and ${NUMBER_WORDS[below].toLowerCase()} ${below === 1 ? "was" : "were"} ${words.down} your usual range, so this does not count as a change.`;
-  }
-  const k = above || below;
-  const side = above ? words.up : words.down;
-  return `${NUMBER_WORDS[k]} of ${last} ${k === 1 ? "was" : "were"} ${side} your usual range, so this does not count as a change yet.`;
+  return "Over the last week this was within your usual range.";
 }
+
+const KIND_WORDS: Record<string, string> = { writing: "writing", code: "code", browser: "the browser", other: "other apps" };
 
 /** The last 14 days for the chart: one value per day (the middle one for sessions). */
 function chartFor(m: PassiveMetric, today: string): ChartMetric {
@@ -103,20 +91,26 @@ const COUNT_WORDS = ["None", "One", "Two", "Three", "Four", "Five", "Six"];
 const HOW_IT_WORKS = (
   <>
     <p>
-      Your usual range is the middle 80 percent of your own earlier sessions or days. You are never compared with other
-      people.
+      Your usual range is the middle 80 percent of your own days in the four weeks before the last week. Weekdays are
+      compared with weekdays and weekends with weekends when there are enough of both. You are never compared with
+      other people.
     </p>
     <p>
-      A measure counts as changed only when your last three sessions or days in a row are all outside that range on
-      the same side. I only ask how you are doing when two different kinds of measure have changed (typing and your day and night rhythm), or at least two parts of your day and night rhythm. Typing alone never makes me ask.
+      A measure counts as changed when the middle of your last week is clearly outside that range. I only ask how you
+      are doing when two different kinds of measure have changed (typing and your day and night rhythm), or at least
+      two parts of your day and night rhythm. Typing alone never makes me ask.
     </p>
     <p>
-      Each chart shows the last 14 days, one dot per day (for typing, the middle of that day&apos;s sessions). The
-      green band is your usual range, the dashed line your usual middle. The shaded right part is the last 7 days,
-      where dots outside your range are coloured. The verdict uses only the last three values on the card.
+      Typing counts only real writing: stretches of at least 30 key presses, and only the gaps under a second, so
+      time spent thinking does not count. A day needs 300 counted presses. Typing is compared with the same kind of
+      app (for example mail with mail) when there are enough days of it.
+    </p>
+    <p>
+      Each chart shows the last 14 days, one dot per day. The green band is your usual range, the dashed line your
+      usual middle. The shaded right part is the last 7 days.
     </p>
     <p>For your own entries, the last 7 days are compared with your usual from the 8 weeks before.</p>
-    <p>&quot;Load demo data&quot; (For the demo, in Settings) adds six weeks of made-up measurements where the last days change. Your own data is kept.</p>
+    <p>&quot;Load demo data&quot; (For the demo, in Settings) adds eight weeks of made-up measurements where the last days change. Your own data is kept.</p>
   </>
 );
 
@@ -126,19 +120,19 @@ function PassiveItem({ m, today }: { m: PassiveMetric; today: string }) {
       <p className="small muted">{m.meaning}.</p>
       <dl className="numbers">
         <div>
-          <dt>{m.recentValues ? `Last ${m.recentValues.length} ${unitWord(m, m.recentValues.length)}` : "Lately"}</dt>
+          <dt>Last week</dt>
           <dd>
-            {m.recentValues
-              ? m.recentValues.map(m.format).join(", ")
+            {m.recent
+              ? m.format(m.recent.median)
               : m.points.length
                 ? m.format(m.points[m.points.length - 1].value)
                 : "None yet"}
           </dd>
           <dd className="small muted">
-            {m.recentValues
-              ? "oldest first, each one compared with your usual range"
+            {m.recent
+              ? `the middle of ${m.recent.n} ${dayWord(m.recent.n)}`
               : m.points.length
-                ? `your latest ${m.unit}`
+                ? "your latest day"
                 : "nothing measured yet"}
           </dd>
         </div>
@@ -146,10 +140,15 @@ function PassiveItem({ m, today }: { m: PassiveMetric; today: string }) {
           <dt>Your usual range</dt>
           <dd>{m.usual ? `${m.format(m.usual.low)} to ${m.format(m.usual.high)}` : "Not yet"}</dd>
           <dd className="small muted">
-            {m.usual ? `the middle half of ${m.usual.n} earlier ${unitWord(m, m.usual.n)}` : "still learning"}
+            {m.usual
+              ? `the middle 80 percent of ${m.usual.n} days before${m.split ? ", weekdays and weekends apart" : ""}`
+              : "still learning"}
           </dd>
         </div>
       </dl>
+      {m.kind && m.kind !== "all" ? (
+        <p className="small muted">Compared with your own days of typing in {KIND_WORDS[m.kind]}.</p>
+      ) : null}
       <Sparkline metric={chartFor(m, today)} />
     </section>
   );
@@ -180,6 +179,7 @@ function OwnItem({ m }: { m: MetricLevel }) {
 
 type Item =
   | { kind: "passive"; key: string; title: string; verdict: string; m: PassiveMetric }
+  | { kind: "context"; key: string; title: string; verdict: string; note: string }
   | { kind: "own"; key: string; title: string; verdict: string; m: MetricLevel }
   | { kind: "weekly"; key: string; title: string; verdict: string };
 
@@ -197,10 +197,19 @@ export default function TrendsPage() {
   const insight = reflection.passive.insight;
   const changedCount = passive.changed.length;
 
+  const thinking = thinkingContext(data, today);
+  const per100 = (v: number | null) => (v === null ? "not known yet" : `about ${Math.round(v)} per 100 presses`);
   const items: Item[] = [
     ...passive.metrics.map(
       (m): Item => ({ kind: "passive", key: m.key, title: m.label, verdict: passiveStatus(m), m }),
     ),
+    {
+      kind: "context",
+      key: "thinking",
+      title: "Thinking pauses",
+      verdict: `Last week ${per100(thinking.recent)}; in the four weeks before ${per100(thinking.usual)}.`,
+      note: "Gaps of one to two seconds while writing, when you stop to think. Shown only as context: they are left out of the typing numbers and never make me ask, because some writing simply needs more thought.",
+    },
     ...levels.metrics
       .filter((m) => m.usual || m.recentValues.length)
       .map((m): Item => ({ kind: "own", key: m.key, title: m.label, verdict: changeText(m), m })),
@@ -218,7 +227,7 @@ export default function TrendsPage() {
             <p className="small muted">
               {passive.learning
                 ? "Still learning, so no measure can count as changed yet."
-                : `${COUNT_WORDS[changedCount] ?? changedCount} of the ${passive.metrics.length} measures ${changedCount === 1 ? "has" : "have"} changed compared with your own usual range.`}
+                : `${COUNT_WORDS[changedCount] ?? changedCount} of the ${passive.metrics.length} measures ${changedCount === 1 ? "has" : "have"} changed compared with your own usual range.${typingAloneChanged(passive) ? " Typing alone does not make me ask." : ""}`}
             </p>
           </Says>
         }
@@ -240,8 +249,8 @@ export default function TrendsPage() {
       >
         <section className="card stack-sm" aria-label="How a change is decided">
           <p>
-            A measure counts as changed only when your last three sessions or days in a row are all outside your usual
-            range on the same side. I only ask how you are doing when two different kinds of measure have changed (typing and your day and night rhythm), or at least two parts of your day and night rhythm. Typing alone never makes me ask.
+            A measure counts as changed when the middle of your last week is clearly outside your usual range from the
+            four weeks before. I only ask how you are doing when two different kinds of measure have changed (typing and your day and night rhythm), or at least two parts of your day and night rhythm. Typing alone never makes me ask.
           </p>
           <Disclosure title="How this is worked out">{HOW_IT_WORKS}</Disclosure>
         </section>
@@ -250,7 +259,7 @@ export default function TrendsPage() {
   }
 
   const item = items[view];
-  const section = item.kind === "passive" ? "Measured by itself" : "What you told me yourself";
+  const section = item.kind === "passive" || item.kind === "context" ? "Measured by itself" : "What you told me yourself";
 
   return (
     <Screen
@@ -276,6 +285,11 @@ export default function TrendsPage() {
     >
       {item.kind === "passive" && <PassiveItem m={item.m} today={today} />}
       {item.kind === "own" && <OwnItem m={item.m} />}
+      {item.kind === "context" && (
+        <section className="card stack-sm">
+          <p className="small muted">{item.note}</p>
+        </section>
+      )}
       {item.kind === "weekly" && (
         <section className="card stack-sm">
           <p className="small muted">0 means not at all, 1 several days, 2 more than half the days, 3 nearly every day.</p>

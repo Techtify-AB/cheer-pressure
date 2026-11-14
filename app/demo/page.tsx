@@ -72,7 +72,7 @@ export default function DemoPage() {
       actions={
         <>
           <Link href="/demo/replay/" className="btn btn-primary">
-            Six weeks in 20 seconds
+            Eight weeks in 20 seconds
           </Link>
           <div className="links">
             <Link href="/settings/" className="btn btn-quiet">
@@ -93,7 +93,7 @@ export default function DemoPage() {
         </button>
         <button type="button" className="menu-row" onClick={demoOn ? clearDemo : loadDemo}>
           <span className="menu-label">{demoOn ? "Clear demo data" : "Load demo data"}</span>
-          <span className="menu-value">{demoOn ? "Your own data is kept" : "Six weeks of made-up days"}</span>
+          <span className="menu-value">{demoOn ? "Your own data is kept" : "Eight weeks of made-up days"}</span>
         </button>
         <button type="button" className="menu-row" onClick={() => setEditing(true)}>
           <span className="menu-label">Messages service</span>
