@@ -65,7 +65,7 @@ function CheckInFlow({ data }: { data: AppData }) {
   const [wakeTime, setWakeTime] = useState(previous?.wakeTime ?? "07:00");
   const [form, setForm] = useState<DailyEntry["form"] | null>(existing?.form ?? null);
   const [note, setNote] = useState(existing?.note ?? "");
-  const [finished, setFinished] = useState<null | { crisis: boolean; line: string }>(null);
+  const [finished, setFinished] = useState<null | { crisis: boolean; line: string; saved: boolean }>(null);
 
   const { say, quiet } = voice;
   // Read the first question once when the check-in opens.
@@ -78,10 +78,10 @@ function CheckInFlow({ data }: { data: AppData }) {
     say(QUESTIONS[next]);
   };
 
-  const finish = useCallback(
-    (speechRate: number | null) => {
-      if (!form) return;
-      const trimmed = note.trim();
+  const save = useCallback(
+    (speechRate: number | null, text: string) => {
+      if (!form) return false;
+      const trimmed = text.trim();
       saveDaily({
         id: existing?.id ?? newId(),
         date: today,
@@ -93,13 +93,38 @@ function CheckInFlow({ data }: { data: AppData }) {
         source: "user",
         savedAt: new Date().toISOString(),
       });
-      const crisis = containsCrisisWords(trimmed);
+      return true;
+    },
+    [form, existing, today, bedtime, wakeTime],
+  );
+
+  /** Crisis words in the note: the handoff card right away, no read-aloud step. */
+  const handOff = (text: string) => {
+    quiet();
+    const saved = save(null, text);
+    setFinished({ crisis: true, line: "", saved });
+  };
+
+  const onNoteChange = (value: string) => {
+    setNote(value);
+    if (containsCrisisWords(value)) handOff(value);
+  };
+
+  const leaveFormStep = () => {
+    if (containsCrisisWords(note)) handOff(note);
+    else go(2);
+  };
+
+  const finish = useCallback(
+    (speechRate: number | null) => {
+      if (!save(speechRate, note)) return;
+      const crisis = containsCrisisWords(note);
       const line = brain.closingLine("daily", today);
-      setFinished({ crisis, line });
+      setFinished({ crisis, line, saved: true });
       if (!crisis) say(line);
       else quiet();
     },
-    [form, note, existing, today, bedtime, wakeTime, say, quiet],
+    [save, note, today, say, quiet],
   );
 
   // The check-in ends by itself: back home a few seconds after the closing line.
@@ -116,7 +141,7 @@ function CheckInFlow({ data }: { data: AppData }) {
       <div className="stack-lg">
         {finished.crisis ? (
           <>
-            <p className="muted">Your check-in is saved.</p>
+            {finished.saved && <p className="muted">Your check-in is saved.</p>}
             <CrisisCard />
             <Link href="/" className="btn btn-secondary">
               Back to home
@@ -184,10 +209,10 @@ function CheckInFlow({ data }: { data: AppData }) {
               maxLength={500}
               onFocus={() => voice.setListening(true)}
               onBlur={() => voice.setListening(false)}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => onNoteChange(e.target.value)}
             />
           </div>
-          <button type="button" className="btn btn-primary" disabled={!form} onClick={() => go(2)}>
+          <button type="button" className="btn btn-primary" disabled={!form} onClick={leaveFormStep}>
             {form ? "Next" : "Pick a number to go on"}
           </button>
         </div>
