@@ -415,6 +415,12 @@ export interface SuggestionRecord {
   /** Judged after it was taken: did the categories come back within the following days? */
   cameBack?: boolean;
   judgedOn?: DayKey;
+  /** When "I'll try that" was tapped (ISO). */
+  answeredAt?: string;
+  /** "I'll try that" opened an activity, which asks "Did that help?" itself. */
+  viaActivity?: boolean;
+  /** The person's own answer to "Did it help?" ("skipped": asked once, no answer). */
+  helped?: "yes" | "a-little" | "not-really" | "skipped";
   simulated: boolean;
 }
 

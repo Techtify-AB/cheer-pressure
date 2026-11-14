@@ -17,7 +17,7 @@ import { COLOURS, FURS, lookOf } from "@/lib/look";
 import { useCamera } from "@/components/camera/useCamera";
 import { useVoice } from "@/components/voice/useVoice";
 import { isLocalOnly, messagesUrlOf, quietHoursOf, sourcesOf } from "@/lib/settings";
-import { addOwn, CAME_BACK_WITHIN_DAYS, countLine, helpsOf, MAX_OWN_HELPS, statsFor } from "@/lib/helps";
+import { addOwn, CAME_BACK_WITHIN_DAYS, countLine, feedbackFromActivities, helpsOf, MAX_OWN_HELPS, statsFor } from "@/lib/helps";
 import { newId } from "@/lib/dates";
 import { saveHelps } from "@/lib/storage";
 import { CrisisCard } from "@/components/CrisisCard";
@@ -354,7 +354,7 @@ function Measure({ data, back }: { data: AppData; back: React.ReactNode }) {
 function Helps({ data, back }: { data: AppData; back: React.ReactNode }) {
   const list = helpsOf(data);
   const [crisis, setCrisis] = useState(false);
-  const stats = statsFor(list, data.suggestions ?? []);
+  const stats = statsFor(list, data.suggestions ?? [], feedbackFromActivities(data));
   const counted = list.map((h, i) => ({ h, line: countLine(stats[i]) })).filter((x) => x.line);
   const ownCount = list.filter((h) => h.own).length;
   const set = (next: HelpItem[]) => saveHelps(next);
@@ -371,9 +371,9 @@ function Helps({ data, back }: { data: AppData; back: React.ReactNode }) {
           {!crisis && (
             <Disclosure label="How I choose" title="How I choose">
               <p>
-                I start with the things that were followed by better days. For each one I count how often you tried it, and
-                how often your values came back within {CAME_BACK_WITHIN_DAYS} days after. Things you have not tried yet come
-                before things that did not seem to help.
+                I start with what you said helped. After you try something I ask &quot;Did it help?&quot;, and your answer
+                counts most. How often your values came back within {CAME_BACK_WITHIN_DAYS} days after counts a little too.
+                Things you have not tried yet come before things that did not seem to help.
               </p>
               {counted.length ? (
                 <ul className="worked-out">

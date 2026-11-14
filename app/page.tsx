@@ -26,7 +26,8 @@ import { SOURCES } from "@/lib/passive";
 import { isActive } from "@/lib/ladder";
 import { moodFor } from "@/lib/mood";
 import { quietHoursOf, sourcesOf } from "@/lib/settings";
-import { readData, saveOnboarding, useData } from "@/lib/storage";
+import { readData, saveOnboarding, saveSuggestions, useData } from "@/lib/storage";
+import { answerHelped, HELPED_ANSWERS, helpedQuestion, helpedQuestionDue } from "@/lib/helps";
 import { answerTo, pendingMessage } from "@/lib/contact";
 import type { Answer } from "@/lib/events";
 import { messagesClient, primaryId, usePeople, useTrusted } from "@/lib/trusted";
@@ -61,6 +62,7 @@ export default function HomePage() {
   // The daily question, and the line after an answer ("Not so good" keeps its gentle line).
   const daily = useDailyQuestion(data);
   const [answeredToday, setAnsweredToday] = useState<DailyAnswerValue | null>(null);
+  const [thanked, setThanked] = useState(false);
   useEffect(() => {
     if (!answeredToday || answeredToday === "not-so-good") return;
     const t = window.setTimeout(() => setAnsweredToday(null), SENT_LINE_MS);
@@ -143,6 +145,17 @@ export default function HomePage() {
   else if (isActive(data.ladder)) line = "I'm keeping an eye on things and will look again in a few days. Nothing is needed from you.";
   else line = reflection.passive.calmLine;
 
+  // After "I'll try that" with no activity behind it: "Did it help?", asked once, quietly, the
+  // next time home is opened that day or the next (lib/helps.ts). Only when nothing else is asked.
+  const helpedAsk = !pausedAll && !outcome.speakUp && !answered && !answeredToday ? helpedQuestionDue(data.suggestions ?? [], new Date(), today) : null;
+  if (helpedAsk) line = helpedQuestion(helpedAsk);
+  const answerHelpedAsk = (v: "yes" | "a-little" | "not-really" | "skipped") => {
+    if (!helpedAsk) return;
+    saveSuggestions(answerHelped(readData().suggestions ?? [], helpedAsk.id, v));
+    setThanked(v !== "skipped");
+  };
+  if (thanked && !helpedAsk) line = "Thanks. That helps me suggest the right thing next time.";
+
   const mood = answered || answeredToday === "good" ? "joy" : moodFor({ wantsToAsk: outcome.speakUp, quiet: outcome.quiet && !pausedAll });
 
   // Paused, or the desktop app's typing waits for a permission: said once, under the four lines.
@@ -162,7 +175,22 @@ export default function HomePage() {
         </div>
       }
       actions={
-        outcome.speakUp ? (
+        helpedAsk ? (
+          <>
+            <div className="options options-row" role="group" aria-label={line}>
+              {HELPED_ANSWERS.map((a) => (
+                <button key={a.value} type="button" className="option" onClick={() => answerHelpedAsk(a.value)}>
+                  <span>{a.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={() => answerHelpedAsk("skipped")}>
+                Skip
+              </button>
+            </div>
+          </>
+        ) : outcome.speakUp ? (
           <Link href="/prompt/" className="btn btn-primary">
             Have a look
           </Link>

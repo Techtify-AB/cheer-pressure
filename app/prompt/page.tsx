@@ -33,7 +33,7 @@ import { GreetingScreen, ReplyCrisisScreen, who } from "@/components/Greeting";
 import { chooseContact, CONTACT_REQUEST_TEXT, type Contact, type ContactState } from "@/lib/contact";
 import type { Answer } from "@/lib/events";
 import { newId } from "@/lib/dates";
-import { answerOffer, helpsOf, learnedLine, offeredIn, openOffer, recordOffer, suggestionText } from "@/lib/helps";
+import { answerOffer, feedbackFromActivities, helpsOf, learnedLine, offeredIn, openOffer, recordOffer, statsFor, suggestionText } from "@/lib/helps";
 import {
   answerClinic,
   answerReply,
@@ -77,7 +77,7 @@ function activityLinkFor(item: Pick<HelpItem, "id" | "label" | "own">): string |
 async function offerHelp(today: string, ladderStartedOn: string, simulated: boolean): Promise<HelpChoice | null> {
   const d = readData();
   const history = d.suggestions ?? [];
-  const choice = await brain.chooseHelp(helpChoiceInput(today, helpsOf(d), history, offeredIn(history, ladderStartedOn)));
+  const choice = await brain.chooseHelp(helpChoiceInput(today, helpsOf(d), history, offeredIn(history, ladderStartedOn), null, feedbackFromActivities(d)));
   if (choice) saveSuggestions(recordOffer(history, { id: newId(), ladderStartedOn, today, item: choice.item, learned: choice.learned, simulated }));
   return choice;
 }
@@ -268,17 +268,18 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
         />
       );
     }
-    const answerIt = (a: "try" | "other" | "not-now") => {
+    const answerIt = (a: "try" | "other" | "not-now", viaActivity = false) => {
       const d = readData();
       const l = d.ladder;
       const open = l ? openOffer(d.suggestions ?? [], l.startedOn) : null;
-      if (open) saveSuggestions(answerOffer(d.suggestions ?? [], open.id, a));
+      if (open) saveSuggestions(answerOffer(d.suggestions ?? [], open.id, a, { viaActivity }));
       return l;
     };
     const done = (a: "try" | "not-now") => {
-      const l = answerIt(a);
-      if (l) saveLadder(answerSmallThing(l, a, today));
       const link = a === "try" && item ? activityLinkFor(item) : null;
+      // With an activity behind it, the activity asks "Did that help?"; otherwise Home asks once, later.
+      const l = answerIt(a, !!link);
+      if (l) saveLadder(answerSmallThing(l, a, today));
       if (link) router.push(link);
       else setView("small-thing-done");
     };
@@ -295,7 +296,7 @@ function Conversation({ data, start }: { data: AppData; start: View }) {
       });
     };
     const empty = !item || listDone;
-    const why = reason ?? (st?.learned && item ? learnedLine(item) : null);
+    const why = reason ?? (st?.learned && item ? learnedLine(item, statsFor([item], data.suggestions ?? [], feedbackFromActivities(data))[0]) : null);
     return (
       <Screen
         lead={

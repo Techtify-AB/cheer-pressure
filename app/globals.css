@@ -1498,3 +1498,5 @@ textarea.typing-box { min-height: 72px; }
 .asked-list { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-1); }
 .asked-list li { display: flex; justify-content: space-between; gap: var(--space-2); align-items: baseline; }
 .people-pick .option { min-height: 52px; }
+.options-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+.options-row .option { justify-content: center; min-height: 48px; padding-inline: var(--space-2); }

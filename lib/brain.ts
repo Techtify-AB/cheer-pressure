@@ -34,7 +34,7 @@ import {
   type Range,
   type SourceId,
 } from "./passive";
-import { orderByWhatHelped, statsFor, suggestionText, type HelpStats } from "./helps";
+import { orderByWhatHelped, statsFor, suggestionText, type FeedbackByItem, type HelpStats } from "./helps";
 import type { DailyAnswerValue, DailyEntry, HelpItem, PassiveKey, Profile, RoutineId, SuggestionRecord, WeeklyEntry } from "./types";
 
 /** The small things the companion can suggest: the routines the person can switch on or off in Settings. */
@@ -160,7 +160,9 @@ export interface HelpChoiceInput {
   history: SuggestionRecord[];
   /** Already offered in this conversation. */
   exclude: string[];
-  /** The plain counts per item: tried, back, score. */
+  /** What the person said when asked "Did that help?" in the activity library, per item. */
+  feedback: FeedbackByItem;
+  /** The plain counts per item: tried, back, asked, helped, score. */
   stats: HelpStats[];
   passive: PassiveInput | null;
 }
@@ -197,8 +199,15 @@ export interface Brain {
 }
 
 /** The input for chooseHelp, from the stored list and history. */
-export function helpChoiceInput(today: string, items: HelpItem[], history: SuggestionRecord[], exclude: string[] = [], passive: PassiveInput | null = null): HelpChoiceInput {
-  return { today, items, history, exclude, stats: statsFor(items, history), passive };
+export function helpChoiceInput(
+  today: string,
+  items: HelpItem[],
+  history: SuggestionRecord[],
+  exclude: string[] = [],
+  passive: PassiveInput | null = null,
+  feedback: FeedbackByItem = {},
+): HelpChoiceInput {
+  return { today, items, history, exclude, feedback, stats: statsFor(items, history, feedback), passive };
 }
 
 /** The pre-written replies to the daily hello, by answer. Picked by the day, so they vary. */
@@ -326,7 +335,7 @@ export const ruleBrain: Brain = {
   },
 
   async chooseHelp(input) {
-    const { order, reason, learned } = orderByWhatHelped(input.items, input.history, input.exclude);
+    const { order, reason, learned } = orderByWhatHelped(input.items, input.history, input.exclude, input.feedback);
     const item = order[0];
     return item ? { item, text: suggestionText(item), reason, learned } : null;
   },

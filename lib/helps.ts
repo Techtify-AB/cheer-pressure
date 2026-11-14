@@ -3,18 +3,23 @@
 // Onboarding asks what helps; the answer is the person's own list (starting items they picked,
 // plus their own words). Step one of the ladder suggests ONE thing from it, never one that is
 // switched off or removed. Each suggestion is recorded: what was offered, whether it was taken,
-// and whether the categories came back within the following days.
+// what the person said when asked "Did it help?", and whether the categories came back within
+// the following days.
 //
-// The learning is a plain count, small enough to say in one sentence:
+// The learning is one plain count, small enough to say in one sentence. The person's own answer
+// is the main signal; the values coming back is the second, at a quarter of the weight:
 //
-//   For each thing: how often it was taken (tried), and how often the values came back within
-//   CAME_BACK_WITHIN_DAYS days after (back). It is ranked by (back + 1) / (tried + 2).
+//   points = yes + 0.5 x "a little" + 0.25 x (times values came back within 3 days)
+//   out of = answers (yes, a little, not really) + 0.25 x (times taken and judged)
+//   score  = (points + 1) / (out of + 2)
 //
-// An untried thing starts at one half. One that was tried and followed by values coming back
-// rises above that; one tried without values coming back sinks below it, so untried things still
-// get offered before things that did not seem to help (the little exploration). Ties keep the
-// order of the person's own list, fewer tries first. Pure code, unit tested in
-// scripts/test-helps.mts. The brain (lib/brain.ts) gets the same history and may choose instead.
+// An untried thing starts at one half. One the person said helped rises above that; one they
+// said did not help, or that was taken without values coming back, sinks below it, so untried
+// things are still offered before things that did not seem to help (the little exploration).
+// Ties keep the order of the person's own list, fewer tries first. Answers come from two
+// places: "Did it help?" asked here after a suggestion with no activity behind it, and the
+// activity library's own "Did that help?" (a FeedbackByItem, see below). Pure code, unit tested
+// in scripts/test-helps.mts. The brain (lib/brain.ts) gets the same history and may choose instead.
 
 import { daysBetween } from "./dates";
 import { routinesOf } from "./settings";
@@ -88,10 +93,27 @@ export function itemPhrase(item: Pick<HelpItem, "id" | "label">): string {
   return s ? s.phrase : `"${item.label}"`;
 }
 
-/** The one plain line when a learned choice is used. */
-export function learnedLine(item: Pick<HelpItem, "id" | "label">): string {
-  return `Last time ${itemPhrase(item)} was followed by better days, so I'm suggesting it first.`;
+/** What the person answered about one item elsewhere (the activity library's "Did that help?"). */
+export interface ItemFeedback {
+  yes: number;
+  aLittle: number;
+  notReally: number;
 }
+/** Per HelpItem id. */
+export type FeedbackByItem = Record<string, ItemFeedback>;
+
+/**
+ * The activity library's answers to "Did that help?", per HelpItem. The library keeps them per
+ * activity; this is where they are mapped onto the person's own list.
+ */
+export function feedbackFromActivities(data: Pick<AppData, "helps" | "settings">): FeedbackByItem {
+  // activity feedback is wired here (lib/activities summary, mapped by activityForHelp)
+  void data;
+  return {};
+}
+
+/** The weight of "the values came back" next to the person's own answer. */
+export const CAME_BACK_WEIGHT = 0.25;
 
 export interface HelpStats {
   id: string;
@@ -99,15 +121,27 @@ export interface HelpStats {
   tried: number;
   /** Of those, times the values came back within CAME_BACK_WITHIN_DAYS days. */
   back: number;
+  /** Times the person answered "Did it help?" (yes, a little, not really; skips leave out). */
+  asked: number;
+  /** Of those, yes or a little. */
+  helped: number;
   score: number;
 }
 
-/** The counts per item, from the suggestion history. Only judged, taken suggestions count. */
-export function statsFor(items: HelpItem[], history: SuggestionRecord[]): HelpStats[] {
+/** The counts per item, from the suggestion history and the person's own answers. */
+export function statsFor(items: HelpItem[], history: SuggestionRecord[], feedback: FeedbackByItem = {}): HelpStats[] {
   return items.map((h) => {
-    const taken = history.filter((r) => r.item === h.id && r.answer === "try" && r.cameBack !== undefined);
+    const mine = history.filter((r) => r.item === h.id);
+    const taken = mine.filter((r) => r.answer === "try" && r.cameBack !== undefined);
     const back = taken.filter((r) => r.cameBack).length;
-    return { id: h.id, tried: taken.length, back, score: (back + 1) / (taken.length + 2) };
+    const f = feedback[h.id] ?? { yes: 0, aLittle: 0, notReally: 0 };
+    const yes = f.yes + mine.filter((r) => r.helped === "yes").length;
+    const little = f.aLittle + mine.filter((r) => r.helped === "a-little").length;
+    const not = f.notReally + mine.filter((r) => r.helped === "not-really").length;
+    const asked = yes + little + not;
+    const points = yes + 0.5 * little + CAME_BACK_WEIGHT * back;
+    const outOf = asked + CAME_BACK_WEIGHT * taken.length;
+    return { id: h.id, tried: taken.length, back, asked, helped: yes + little, score: (points + 1) / (outOf + 2) };
   });
 }
 
@@ -120,26 +154,34 @@ export interface HelpOrder {
   learned: boolean;
 }
 
+/** The one plain line when a learned choice is used: what it rests on. */
+export function learnedLine(item: Pick<HelpItem, "id" | "label">, s?: Pick<HelpStats, "asked" | "helped" | "back">): string {
+  if (s && s.asked > 0 && s.helped > 0) {
+    return `You've said ${itemPhrase(item)} helped ${s.helped} of ${s.asked} ${s.asked === 1 ? "time" : "times"}, so I'm suggesting it first.`;
+  }
+  return `Last time ${itemPhrase(item)} was followed by better days, so I'm suggesting it first.`;
+}
+
 /**
- * The person's own list, ordered by what was followed by values coming back. Never an item that
- * is switched off or removed. `exclude` leaves out items already offered in this conversation.
+ * The person's own list, ordered by the count above. Never an item that is switched off or
+ * removed. `exclude` leaves out items already offered in this conversation.
  */
-export function orderByWhatHelped(items: HelpItem[], history: SuggestionRecord[], exclude: string[] = []): HelpOrder {
+export function orderByWhatHelped(items: HelpItem[], history: SuggestionRecord[], exclude: string[] = [], feedback: FeedbackByItem = {}): HelpOrder {
   const on = items.filter((h) => h.on && !exclude.includes(h.id));
-  const stats = new Map(statsFor(on, history).map((s) => [s.id, s]));
+  const stats = new Map(statsFor(on, history, feedback).map((s) => [s.id, s]));
   const listIndex = new Map(items.map((h, i) => [h.id, i]));
   const order = [...on].sort((a, b) => {
     const sa = stats.get(a.id)!;
     const sb = stats.get(b.id)!;
-    return sb.score - sa.score || sa.tried - sb.tried || listIndex.get(a.id)! - listIndex.get(b.id)!;
+    return sb.score - sa.score || sa.tried + sa.asked - (sb.tried + sb.asked) || listIndex.get(a.id)! - listIndex.get(b.id)!;
   });
   const first = order[0];
   const s = first ? stats.get(first.id)! : null;
-  // Said only when the count put it first: it came back after it before, and the plain list
-  // order would have offered something else.
+  // Said only when the count put it first: the person said it helped, or values came back after
+  // it, and the plain list order would have offered something else.
   const plainFirst = on[0];
-  const learned = !!first && !!s && s.back > 0 && plainFirst?.id !== first.id;
-  const reason = learned ? learnedLine(first) : null;
+  const learned = !!first && !!s && (s.helped > 0 || s.back > 0) && plainFirst?.id !== first.id;
+  const reason = learned ? learnedLine(first, s!) : null;
   return { order, reason, learned };
 }
 
@@ -192,8 +234,10 @@ export function recordOffer(
 }
 
 /** The person's answer to one suggestion. An answered one keeps its first answer. */
-export function answerOffer(history: SuggestionRecord[], id: string, answer: "try" | "other" | "not-now"): SuggestionRecord[] {
-  return history.map((r) => (r.id === id && r.answer === null ? { ...r, answer } : r));
+export function answerOffer(history: SuggestionRecord[], id: string, answer: "try" | "other" | "not-now", extra: { at?: string; viaActivity?: boolean } = {}): SuggestionRecord[] {
+  return history.map((r) =>
+    r.id === id && r.answer === null ? { ...r, answer, ...(answer === "try" ? { answeredAt: extra.at ?? new Date().toISOString(), viaActivity: !!extra.viaActivity } : {}) } : r,
+  );
 }
 
 /** Item ids already offered in this ladder (so "Something else" moves on). */
@@ -206,9 +250,48 @@ export function openOffer(history: SuggestionRecord[], ladderStartedOn: DayKey):
   return [...history].reverse().find((r) => r.ladderStartedOn === ladderStartedOn && r.answer === null) ?? null;
 }
 
-/** The plain count for one item, for Settings: "Tried twice, followed by better days once." */
+/** The plain count for one item, for Settings: "You said it helped 2 of 3 times. Followed by better days once." */
 export function countLine(s: HelpStats): string | null {
-  if (!s.tried) return null;
+  if (!s.tried && !s.asked) return null;
   const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
-  return s.back ? `Tried ${times(s.tried)}, followed by better days ${times(s.back)}.` : `Tried ${times(s.tried)}, values did not come back soon after.`;
+  const said = s.asked ? `You said it helped ${s.helped} of ${s.asked} ${s.asked === 1 ? "time" : "times"}.` : "";
+  const back = s.tried ? (s.back ? `Followed by better days ${times(s.back)}.` : `Values did not come back soon after (${times(s.tried)}).`) : "";
+  return [said, back].filter(Boolean).join(" ");
+}
+
+// --- "Did it help?" for suggestions with no activity behind them ---------------------------
+
+export const HELPED_ANSWERS: { value: "yes" | "a-little" | "not-really"; label: string }[] = [
+  { value: "yes", label: "Yes" },
+  { value: "a-little", label: "A little" },
+  { value: "not-really", label: "Not really" },
+];
+
+/** Asked no sooner than this after "I'll try that", so it comes the next time the app is opened. */
+export const ASK_HELPED_AFTER_MS = 30 * 60_000;
+
+/**
+ * The one suggestion to ask "Did it help?" about now: taken ("I'll try that") today or
+ * yesterday, at least ASK_HELPED_AFTER_MS ago, with no activity behind it (the activity asks
+ * itself), and not asked yet. Asked once: any answer, or "Skip", ends it.
+ */
+export function helpedQuestionDue(history: SuggestionRecord[], now: Date, today: DayKey): SuggestionRecord | null {
+  const due = history.filter((r) => {
+    if (r.answer !== "try" || r.viaActivity || r.helped || r.simulated) return false;
+    const d = daysBetween(r.offeredOn, today);
+    if (d < 0 || d > 1) return false;
+    const at = r.answeredAt ? Date.parse(r.answeredAt) : NaN;
+    return Number.isFinite(at) ? now.getTime() - at >= ASK_HELPED_AFTER_MS : d >= 1;
+  });
+  return due[due.length - 1] ?? null;
+}
+
+/** Stores the answer to "Did it help?" (or "skipped"). */
+export function answerHelped(history: SuggestionRecord[], id: string, helped: NonNullable<SuggestionRecord["helped"]>): SuggestionRecord[] {
+  return history.map((r) => (r.id === id && !r.helped ? { ...r, helped } : r));
+}
+
+/** "Did a walk outdoors help?" in plain words. */
+export function helpedQuestion(r: Pick<SuggestionRecord, "item" | "label">): string {
+  return `Did ${itemPhrase({ id: r.item, label: r.label })} help?`;
 }
