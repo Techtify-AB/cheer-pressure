@@ -283,6 +283,11 @@ async function browser(base: string) {
     await page.locator(sel).first().click();
     await page.waitForTimeout(150);
   };
+  // As a string: the bundler's helper names do not exist inside the page.
+  const setVisibility = (page: P, v: "hidden" | "visible") =>
+    page.evaluate(
+      `Object.defineProperty(document, "visibilityState", { configurable: true, get() { return "${v}"; } }); document.dispatchEvent(new Event("visibilitychange"));`,
+    );
   const audioLeft = async (page: P) =>
     page.evaluate(() => {
       const w = window as unknown as { __media: HTMLMediaElement[] };
@@ -352,19 +357,22 @@ async function browser(base: string) {
       if (id === "song") await click(page, "[data-act=skip]");
       if (id === "game") {
         await click(page, "[data-act=start]");
-        // Find the two pairs by looking at the cards' labels as they turn.
-        for (let guard = 0; guard < 12; guard++) {
-          const won = await page.locator("[data-act=done]").count();
-          if (won) break;
-          const symbols: string[] = [];
-          for (let i = 0; i < 4; i++) {
-            const l = (await page.locator(`[data-card='${i}']`).getAttribute("aria-label")) ?? "";
-            symbols.push(l);
-          }
-          const down = symbols.map((l, i) => (l.includes("face down") ? i : -1)).filter((i) => i >= 0);
-          if (down.length < 2) break;
-          await click(page, `[data-card='${down[0]}']`);
-          await click(page, `[data-card='${down[1]}']`);
+        // Play it like a person with a good memory: remember each symbol as it turns.
+        const known = new Map<number, string>();
+        const labelOf = async (i: number) => (await page.locator(`[data-card='${i}']`).getAttribute("aria-label")) ?? "";
+        const sym = (l: string) => l.split(", ")[1] ?? "";
+        for (let guard = 0; guard < 12 && !(await page.locator("[data-act=done]").count()); guard++) {
+          const labels = await Promise.all([0, 1, 2, 3].map(labelOf));
+          const down = labels.map((l, i) => (l.includes("face down") ? i : -1)).filter((i) => i >= 0);
+          if (!down.length) break;
+          const first = down.find((i) => !known.has(i)) ?? down[0];
+          await click(page, `[data-card='${first}']`);
+          const s1 = sym(await labelOf(first));
+          known.set(first, s1);
+          const pair = down.find((i) => i !== first && known.get(i) === s1);
+          const second = pair ?? down.find((i) => i !== first && !known.has(i)) ?? down.find((i) => i !== first)!;
+          await click(page, `[data-card='${second}']`);
+          known.set(second, sym(await labelOf(second)));
           await page.waitForTimeout(1000);
         }
       }
@@ -423,16 +431,10 @@ async function browser(base: string) {
     await go(page, "/activities/evening/");
     await click(page, "[data-act=start]");
     await page.waitForTimeout(1200);
-    await page.evaluate(() => {
-      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
+    await setVisibility(page, "hidden");
     await page.waitForTimeout(300);
     const hiddenLeft = await audioLeft(page);
-    await page.evaluate(() => {
-      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
+    await setVisibility(page, "visible");
     check(`${label}: hiding the page stops and resets the sound`, hiddenLeft === 0);
     await ctx.close();
 
@@ -441,18 +443,13 @@ async function browser(base: string) {
     await p2.clock.install({ time: new Date("2026-11-14T12:00:00") });
     await go(p2, "/activities/outside/");
     await click(p2, "[data-act=start]");
-    await p2.evaluate(() => {
-      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
+    await setVisibility(p2, "hidden");
     await p2.clock.setSystemTime(new Date("2026-11-14T12:02:00"));
-    await p2.evaluate(() => {
-      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
+    await setVisibility(p2, "visible");
     await p2.clock.runFor(300);
     const shown = (await p2.locator(".act-timer-clock").textContent())?.trim();
-    check(`${label}: timer after two minutes hidden shows 3:00`, shown === "3:00", shown ?? "");
+    // Started a few hundred ms after 12:00:00 (the clicks), so 3:00 or 3:01, never the 4:59 a paused count would show.
+    check(`${label}: timer after two minutes hidden shows 3:00 left`, shown === "3:00" || shown === "3:01", shown ?? "");
     await p2.clock.setSystemTime(new Date("2026-11-14T12:30:00"));
     await go(p2, "/activities/outside/");
     await p2.clock.runFor(300);
@@ -482,6 +479,22 @@ async function browser(base: string) {
     await c3.close();
   }
 
+  // Reduced motion: the screen light is a fixed colour, on at once, no fade.
+  {
+    const { ctx, page } = await newPage({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await go(page, "/activities/song/");
+    await click(page, "[data-act=start]");
+    const light = await page.evaluate(() => {
+      const el = document.querySelector(".act-edge-light[data-on]");
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      return { opacity: cs.opacity, transition: cs.transitionDuration };
+    });
+    check("reduced motion: the light is a fixed colour, on at once", light?.opacity === "1" && parseFloat(light?.transition ?? "1") < 0.01, JSON.stringify(light));
+    await ctx.close();
+  }
+
   // The reaction check: five taps, an early one discarded, a result in plain words.
   {
     const { ctx, page } = await newPage({ width: 390, height: 844 });
@@ -491,12 +504,12 @@ async function browser(base: string) {
     await pad.dispatchEvent("pointerdown"); // too early
     const early = (await pad.getAttribute("data-phase")) === "early";
     let taps = 0;
-    for (let guard = 0; guard < 400 && taps < 5; guard++) {
+    for (let guard = 0; guard < 2000 && taps < 5; guard++) {
       if ((await pad.getAttribute("data-phase")) === "go") {
         await pad.dispatchEvent("pointerdown");
         taps++;
       }
-      await page.waitForTimeout(25);
+      await page.waitForTimeout(15);
     }
     await page.waitForSelector(".act-reaction-line", { timeout: 5000 });
     const line = (await page.locator(".act-reaction-line").textContent()) ?? "";

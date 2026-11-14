@@ -206,6 +206,15 @@ export function useAudioPlayer(): AudioPlayer {
       window.removeEventListener("pagehide", onPageHide);
       el?.removeEventListener("ended", onEnded);
       stop();
+      // On unmount the ref is already detached, so the element is stopped and reset directly.
+      if (el) {
+        el.pause();
+        try {
+          el.currentTime = 0;
+        } catch {
+          // not loaded
+        }
+      }
     };
   }, [stop]);
 
