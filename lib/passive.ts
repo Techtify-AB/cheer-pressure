@@ -16,6 +16,7 @@
 // score, no diagnosis: it says what changed, in plain words.
 
 import { addDays, clockToMinutes, daysBetween, minutesToClock } from "./dates";
+import type { SuggestionId } from "./brain";
 import type { AppData, DayKey, PassiveKey, PromptedCheckIn } from "./types";
 
 export const RECENT_POINTS = 3;
@@ -278,7 +279,18 @@ export function evaluatePassive(data: AppData, today: DayKey): Evaluation {
   return { today, daysOfData, learning, metrics, changed, basedOn, askNow, reason, simulated };
 }
 
-// Words
+// Words. These are the rule-based wording; the app reaches them through `brain`
+// (lib/brain.ts), so a trained model can replace them. Whether to ask is decided
+// above, in evaluatePassive, and never by the brain.
+
+/** What the wording below needs: an Evaluation, or the brain's plain-data input. */
+export interface PassiveView {
+  daysOfData: number;
+  learning: boolean;
+  askNow: boolean;
+  basedOn: { sessions: number; days: number };
+  changed: Pick<PassiveMetric, "key" | "direction" | "phrase">[];
+}
 
 const COUNT_WORDS = ["No things", "One thing", "Two things", "Three things", "Four things", "Five things", "Six things"];
 
@@ -287,7 +299,7 @@ export function joinPhrases(parts: string[]): string {
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
-function basedOnText(b: Evaluation["basedOn"]): string {
+function basedOnText(b: PassiveView["basedOn"]): string {
   const parts: string[] = [];
   if (b.sessions) parts.push(`${b.sessions} typing ${b.sessions === 1 ? "session" : "sessions"}`);
   if (b.days) parts.push(`${b.days} ${b.days === 1 ? "day" : "days"}`);
@@ -295,7 +307,7 @@ function basedOnText(b: Evaluation["basedOn"]): string {
 }
 
 /** "Two things have changed compared with your usual: ... This is based on ..." */
-export function explainChange(e: Evaluation): string {
+export function explainChange(e: PassiveView): string {
   const phrases = e.changed.map((m) => m.phrase).filter((p): p is string => !!p);
   if (!phrases.length) return "Nothing stands out compared with your usual right now.";
   const n = phrases.length;
@@ -304,7 +316,7 @@ export function explainChange(e: Evaluation): string {
 }
 
 /** One calm sentence for home. */
-export function calmLine(e: Evaluation): string {
+export function calmLine(e: PassiveView): string {
   if (e.learning) {
     return `I'm still learning your usual rhythm (${e.daysOfData} of ${LEARNING_DAYS} days so far). Nothing is needed from you.`;
   }
@@ -313,9 +325,18 @@ export function calmLine(e: Evaluation): string {
 }
 
 /** One sentence for "Your own level". */
-export function weeklyInsight(e: Evaluation): string {
+export function weeklyInsight(e: PassiveView): string {
   if (e.learning) return `Still learning your usual rhythm: ${e.daysOfData} of ${LEARNING_DAYS} days so far.`;
   const phrases = e.changed.map((m) => m.phrase).filter((p): p is string => !!p);
   if (!phrases.length) return "Lately your rhythm looks like your usual.";
   return `Lately, compared with your usual, ${joinPhrases(phrases)}.`;
+}
+
+/** One small thing to try after "Not my best", picked from what changed. */
+export function suggestionFor(e: PassiveView): SuggestionId {
+  const keys = new Set(e.changed.map((m) => `${m.key}:${m.direction}`));
+  if (keys.has("firstActivity:up") || keys.has("quietNight:down")) return "morning-light";
+  if (keys.has("lastActivity:up")) return "regular-bedtime";
+  if ([...keys].some((k) => k.startsWith("spread") || k.startsWith("pauses") || k.startsWith("hold"))) return "walk";
+  return "music";
 }

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { brain, type BrainOutput } from "@/lib/brain";
+import { brain, passiveInput, type BrainOutput } from "@/lib/brain";
 import { addDays, todayKey } from "@/lib/dates";
 import { computeLevels, type Levels } from "@/lib/levels";
 import { evaluatePassive, type Evaluation } from "@/lib/passive";
@@ -56,15 +56,22 @@ export function useToday(): string {
   return useMemo(() => todayKey(), []);
 }
 
-/** Levels against the person's own baseline, and what the brain makes of them. */
-export function useReflection(data: AppData | null) {
+/**
+ * Levels against the person's own baseline, the passive measures, and what the brain
+ * makes of them. Pass `fixed` to word an evaluation judged earlier (the proposed
+ * check-in keeps the one it opened with). Until the brain has answered the first time,
+ * `reflection` is null; after that it keeps the last answer while a new one is on its way.
+ */
+export function useReflection(data: AppData | null, fixed?: Evaluation) {
   const today = useToday();
   const levels = useMemo<Levels | null>(() => (data ? computeLevels(data, today) : null), [data, today]);
-  const [result, setResult] = useState<{ for: Levels; out: BrainOutput } | null>(null);
+  const live = useMemo<Evaluation | null>(() => (data ? evaluatePassive(data, today) : null), [data, today]);
+  const passive = fixed ?? live;
+  const [result, setResult] = useState<BrainOutput | null>(null);
 
   useEffect(() => {
-    if (!levels || !data) return;
-    let live = true;
+    if (!levels || !data || !passive) return;
+    let current = true;
     const since14 = addDays(today, -13);
     const since56 = addDays(today, -56);
     brain
@@ -74,16 +81,17 @@ export function useReflection(data: AppData | null) {
         recentDaily: data.daily.filter((e) => e.date >= since14),
         recentWeekly: data.weekly.filter((e) => e.date >= since56),
         levels,
+        passive: passiveInput(passive),
       })
       .then((out) => {
-        if (live) setResult({ for: levels, out });
+        if (current) setResult(out);
       });
     return () => {
-      live = false;
+      current = false;
     };
-  }, [levels, data, today]);
+  }, [levels, passive, data, today]);
 
-  return { levels, reflection: result && result.for === levels ? result.out : null };
+  return { levels, passive, reflection: result };
 }
 
 /** The passive measures against the person's own range, and whether to ask. */

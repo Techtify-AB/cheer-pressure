@@ -114,22 +114,52 @@ days are compared with it. Weekly answers compare the newest answer with the ear
 ```ts
 interface Brain {
   name: string;
-  reflect(input: BrainInput): Promise<BrainOutput>; // what to say + one suggestion
+  reflect(input: BrainInput): Promise<BrainOutput>; // everything the companion says
   closingLine(kind: "daily" | "weekly", today: string): string;
 }
 ```
 
-`BrainInput` holds the recent daily and weekly entries, the profile, and `levels` (the
-person's own baseline and the change in the last week, from `lib/levels.ts`). `BrainOutput`
-is one sentence to say, at most one suggestion (`morning-light`, `walk`, `regular-bedtime`
-or `music`), and whether a change was noticed.
+`BrainInput` holds the recent daily and weekly entries, the profile, `levels` (the person's
+own baseline and the change in the last week, from `lib/levels.ts`) and `passive`: the six
+passive measures as plain data (key, label, status, direction, the last three values, the
+usual range, how many sessions or days exist) plus `askNow`, `reason`, `learning`,
+`daysOfData` and `basedOn` (how many sessions and days a change is based on).
 
-`ruleBrain` is the default. It needs no API key and no network. To use a trained model,
-write another object that implements `Brain` (for example one that runs a small model in
-the browser) and change the last line of `lib/brain.ts`:
+`BrainOutput` has two parts:
+
+- For the person's own entries: one sentence to say (`say`), at most one suggestion
+  (`morning-light`, `walk`, `regular-bedtime` or `music`), and whether a change was noticed.
+- `passive`: the explanation shown first in the proposed check-in (`explanation`), the calm
+  line on home (`calmLine`), the one sentence on "Your own level" (`insight`) and the one small
+  thing to try after "Not my best" (`suggestion`).
+
+**Whether to ask is not the brain's decision.** That rule stays in `lib/passive.ts`
+(`evaluatePassive`, unit tested): three in a row outside the usual range, at least two
+measures, the learning period and the 3-day wait. The brain receives the outcome as
+`passive.askNow` and only words it.
+
+`ruleBrain` is the default. It needs no API key and no network, and it produces exactly what
+the app showed before the seam existed by calling the pure functions in `lib/passive.ts`
+(`explainChange`, `calmLine`, `weeklyInsight`, `suggestionFor`); `pnpm test:passive` checks
+that. To use a trained model, write another object that implements `Brain` and change the
+last line of `lib/brain.ts`:
 
 ```ts
 export const brain: Brain = ruleBrain; // swap for your model
+```
+
+A replacement can reuse the rules for anything it does not handle:
+
+```ts
+const modelBrain: Brain = {
+  ...ruleBrain,
+  name: "my-model",
+  async reflect(input) {
+    const base = await ruleBrain.reflect(input);
+    const insight = await myModel.describe(input.passive.measures); // your model, on the device
+    return { ...base, passive: { ...base.passive, insight } };
+  },
+};
 ```
 
 Nothing else in the app has to change. Keep the rules at the top of that file: compare only

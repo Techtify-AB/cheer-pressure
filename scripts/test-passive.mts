@@ -1,6 +1,17 @@
 // Unit tests for the passive rule (lib/passive.ts). Run: pnpm test:passive
 import { addDays } from "../lib/dates.ts";
-import { evaluatePassive, explainChange, judge, clockToDayMinutes, dayMinutesToClock } from "../lib/passive.ts";
+import { passiveInput, ruleBrain, SUGGESTIONS } from "../lib/brain.ts";
+import { computeLevels } from "../lib/levels.ts";
+import {
+  calmLine,
+  evaluatePassive,
+  explainChange,
+  judge,
+  clockToDayMinutes,
+  dayMinutesToClock,
+  suggestionFor,
+  weeklyInsight,
+} from "../lib/passive.ts";
 import type { ActivityDay, AppData, TypingSession } from "../lib/types.ts";
 
 let failed = 0;
@@ -148,6 +159,33 @@ const stale = history(20, 0);
 stale.typingSessions = stale.typingSessions.map((s) => ({ ...s, date: addDays(s.date, -30) }));
 const est = evaluatePassive(stale, TODAY).metrics.find((m) => m.key === "spread")!;
 check("old sessions only: no recent comparison", est.status === "no-recent");
+
+// the brain: the rule-based default words exactly what the pure functions say
+for (const [name, d] of [
+  ["learning", young],
+  ["steady", calm],
+  ["one change", one],
+  ["two changes", two],
+] as const) {
+  const e = evaluatePassive(d, TODAY);
+  const out = await ruleBrain.reflect({
+    today: TODAY,
+    profile: d.profile,
+    recentDaily: [],
+    recentWeekly: [],
+    levels: computeLevels(d, TODAY),
+    passive: passiveInput(e),
+  });
+  check(
+    `brain words match the rule functions (${name})`,
+    out.passive.explanation === explainChange(e) &&
+      out.passive.calmLine === calmLine(e) &&
+      out.passive.insight === weeklyInsight(e) &&
+      out.passive.suggestion.text === SUGGESTIONS[suggestionFor(e)],
+  );
+}
+const lastThree = passiveInput(et).measures.find((m) => m.key === "spread")!;
+check("brain input carries the last three values and usual range", lastThree.lastThree?.length === 3 && !!lastThree.usual);
 
 if (failed) {
   console.log(`${failed} failed`);

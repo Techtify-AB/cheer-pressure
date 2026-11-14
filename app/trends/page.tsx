@@ -2,12 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { Companion } from "@/components/companion/Companion";
-import { useCompanionVoice, usePassive, useReflection, useRequireProfile, useToday } from "@/components/hooks";
+import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import { Sparkline, type ChartMetric } from "@/components/Sparkline";
 import { addDays, describeMinutes, formatShortDay } from "@/lib/dates";
 import { makeDemoData } from "@/lib/demo";
 import { CHART_DAYS, type MetricLevel } from "@/lib/levels";
-import { MIN_USUAL_POINTS, RECENT_POINTS, weeklyInsight, type PassiveMetric } from "@/lib/passive";
+import { MIN_USUAL_POINTS, RECENT_POINTS, type PassiveMetric } from "@/lib/passive";
 import { addDemo, clearDemo, hasDemo, saveSettings, useData } from "@/lib/storage";
 
 const SCALE_WORDS = ["not at all", "several days", "more than half the days", "nearly every day"];
@@ -148,16 +148,15 @@ export default function TrendsPage() {
   const ready = useRequireProfile(data);
   const today = useToday();
   const voice = useCompanionVoice();
-  const { levels, reflection } = useReflection(data);
-  const passive = usePassive(data);
+  const { levels, passive, reflection } = useReflection(data);
   const router = useRouter();
 
-  if (!data || !ready || !levels || !passive) return null;
+  if (!data || !ready || !levels || !passive || !reflection) return null;
 
   const demoOn = hasDemo(data);
   const anything = data.daily.length + data.weekly.length + data.reaction.length > 0;
   const weeklyList = data.weekly.slice(-6).reverse(); // newest first, so it is visible on a phone
-  const insight = weeklyInsight(passive);
+  const insight = reflection.passive.insight;
 
   const loadDemo = () => addDemo(makeDemoData(today, data.profile?.earlySigns ?? []));
   const simulate = () => {

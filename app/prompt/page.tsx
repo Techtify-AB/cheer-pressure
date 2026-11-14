@@ -9,10 +9,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ClinicContactPlaceholder } from "@/components/ClinicContactPlaceholder";
 import { Companion } from "@/components/companion/Companion";
-import { useCompanionVoice, useRequireProfile, useToday } from "@/components/hooks";
-import { SUGGESTIONS, type SuggestionId } from "@/lib/brain";
+import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
 import { newId } from "@/lib/dates";
-import { evaluatePassive, explainChange, type Evaluation } from "@/lib/passive";
+import { evaluatePassive } from "@/lib/passive";
 import { saveCheckIn, useData } from "@/lib/storage";
 import type { AppData, CheckInAnswer } from "@/lib/types";
 
@@ -23,16 +22,6 @@ const ANSWERS: { value: Exclude<CheckInAnswer, "not-now">; label: string }[] = [
   { value: "not-best", label: "Not my best" },
   { value: "someone", label: "I'd like someone to check in on me" },
 ];
-
-/** One small thing to try, picked from what changed. */
-function suggestionFor(e: Evaluation): string {
-  const keys = new Set(e.changed.map((m) => `${m.key}:${m.direction}`));
-  let id: SuggestionId = "music";
-  if (keys.has("firstActivity:up") || keys.has("quietNight:down")) id = "morning-light";
-  else if (keys.has("lastActivity:up")) id = "regular-bedtime";
-  else if ([...keys].some((k) => k.startsWith("spread") || k.startsWith("pauses") || k.startsWith("hold"))) id = "walk";
-  return SUGGESTIONS[id];
-}
 
 export default function PromptPage() {
   const data = useData();
@@ -48,6 +37,8 @@ function PromptFlow({ data }: { data: AppData }) {
   // Judged once when the page opens, so saving the answer does not change the text.
   const [evaluation] = useState(() => evaluatePassive(data, today));
   const [answer, setAnswer] = useState<CheckInAnswer | null>(null);
+  // What to say comes from the brain (lib/brain.ts); whether to ask came from lib/passive.ts.
+  const { reflection } = useReflection(data, evaluation);
 
   const record = (value: CheckInAnswer) => {
     saveCheckIn({
@@ -119,7 +110,7 @@ function PromptFlow({ data }: { data: AppData }) {
           <div className="bubble" aria-live="polite">
             <p>Thanks for telling me. Not every day is a good one.</p>
             <p className="suggestion">
-              <strong>One small thing to try:</strong> {suggestionFor(evaluation)}
+              <strong>One small thing to try:</strong> {reflection?.passive.suggestion.text}
             </p>
           </div>
         </div>
@@ -174,7 +165,8 @@ function PromptFlow({ data }: { data: AppData }) {
     );
   }
 
-  const explanation = explainChange(evaluation);
+  if (!reflection) return null;
+  const explanation = reflection.passive.explanation;
 
   return (
     <div className="stack-lg">

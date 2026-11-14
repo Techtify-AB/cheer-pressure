@@ -1,7 +1,14 @@
 // The companion's "brain".
 //
-// Given the person's recent entries and their own usual level (baseline), it
-// decides what the companion says and which one small thing it suggests.
+// Given the person's recent entries, their own usual level (baseline) and the
+// passive measures, it decides what the companion says and which one small thing it
+// suggests: the reflection on their own entries, and for the passive measures the
+// explanation of what changed, the calm line on home, the one-sentence insight on
+// "Your own level" and the suggestion after "Not my best".
+//
+// What the brain does NOT decide: whether the companion asks. That rule stays in
+// lib/passive.ts (evaluatePassive) so it stays explainable and testable; the brain
+// gets the outcome as `passive.askNow` and only words it.
 //
 // `ruleBrain` below needs no API key and no network. A trained model plugs in by
 // implementing `Brain` and changing the `brain` export at the bottom of this file.
@@ -16,13 +23,82 @@
 
 import { describeMinutes } from "./dates";
 import type { Levels, MetricLevel } from "./levels";
-import type { DailyEntry, Profile, WeeklyEntry } from "./types";
+import {
+  calmLine,
+  explainChange,
+  suggestionFor,
+  weeklyInsight,
+  type Direction,
+  type Evaluation,
+  type PassiveMetric,
+  type Range,
+} from "./passive";
+import type { DailyEntry, PassiveKey, Profile, WeeklyEntry } from "./types";
 
 export type SuggestionId = "morning-light" | "walk" | "regular-bedtime" | "music";
 
 export interface Suggestion {
   id: SuggestionId;
   text: string;
+}
+
+/** One passive measure, as plain data. */
+export interface PassiveMeasureInput {
+  key: PassiveKey;
+  label: string;
+  /** "session": one value per typing session. "day": one value per day. */
+  unit: "session" | "day";
+  status: PassiveMetric["status"];
+  /** Set only when status is "changed": all of the last 3 lie on this side of the usual range. */
+  direction: Direction | null;
+  /**
+   * The last 3 values, oldest first, in the measure's own unit: milliseconds for the
+   * typing measures, minutes after 04:00 for first and last activity, hours for quiet night.
+   */
+  lastThree: number[] | null;
+  /** The person's own usual range (25th, 50th, 75th percentile of earlier values), same unit. */
+  usual: Range | null;
+  /** How many sessions or days of this measure exist so far. */
+  count: number;
+  /** The rule-based plain words for the change, e.g. "your typing has been more uneven". */
+  phrase: string | null;
+}
+
+/** The passive measures and the outcome of the rule in lib/passive.ts. */
+export interface PassiveInput {
+  daysOfData: number;
+  learning: boolean;
+  /** Decided by lib/passive.ts. The brain words it, it does not change it. */
+  askNow: boolean;
+  reason: Evaluation["reason"];
+  /** How many of the last sessions and days the change is based on. */
+  basedOn: { sessions: number; days: number };
+  /** The data includes made-up demo data, or the change was simulated. */
+  simulated: boolean;
+  measures: PassiveMeasureInput[];
+}
+
+/** Plain data for the brain from the rule's evaluation. */
+export function passiveInput(e: Evaluation): PassiveInput {
+  return {
+    daysOfData: e.daysOfData,
+    learning: e.learning,
+    askNow: e.askNow,
+    reason: e.reason,
+    basedOn: e.basedOn,
+    simulated: e.simulated,
+    measures: e.metrics.map((m) => ({
+      key: m.key,
+      label: m.label,
+      unit: m.unit,
+      status: m.status,
+      direction: m.direction,
+      lastThree: m.recentValues,
+      usual: m.usual,
+      count: m.points.length,
+      phrase: m.phrase,
+    })),
+  };
 }
 
 export interface BrainInput {
@@ -34,6 +110,20 @@ export interface BrainInput {
   recentWeekly: WeeklyEntry[];
   /** The person's own usual level and how the last week compares with it. */
   levels: Levels;
+  /** The passive measures against the person's own range, and whether the rule asks. */
+  passive: PassiveInput;
+}
+
+/** What the companion says about the passive measures. */
+export interface PassiveWords {
+  /** Shown first in the proposed check-in: what changed and how much data it is based on. */
+  explanation: string;
+  /** The one calm sentence on home. */
+  calmLine: string;
+  /** The one sentence on "Your own level". */
+  insight: string;
+  /** The one small thing to try after "Not my best". */
+  suggestion: Suggestion;
 }
 
 export interface BrainOutput {
@@ -43,6 +133,8 @@ export interface BrainOutput {
   suggestion: Suggestion | null;
   /** True when something changed compared with the person's own level. */
   noticedChange: boolean;
+  /** Words for the passive measures. */
+  passive: PassiveWords;
 }
 
 export interface Brain {
@@ -70,75 +162,92 @@ function joinPhrases(parts: string[]): string {
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
-export const ruleBrain: Brain = {
-  name: "rules-v1",
+/** The rule-based words for the passive measures: the pure functions in lib/passive.ts. */
+export function rulePassiveWords(p: PassiveInput): PassiveWords {
+  const view = { ...p, changed: p.measures.filter((m) => m.status === "changed") };
+  const id = suggestionFor(view);
+  return {
+    explanation: explainChange(view),
+    calmLine: calmLine(view),
+    insight: weeklyInsight(view),
+    suggestion: { id, text: SUGGESTIONS[id] },
+  };
+}
 
-  async reflect({ levels }) {
-    const phrases: string[] = [];
-    const order: SuggestionId[] = [];
+/** The rule-based reflection on the person's own entries. */
+function reflectOnEntries({ levels }: BrainInput): Omit<BrainOutput, "passive"> {
+  const phrases: string[] = [];
+  const order: SuggestionId[] = [];
 
-    const bed = find(levels, "bedtime");
-    if (bed?.direction === "up" && bed.delta !== null) {
-      phrases.push(`you've gone to bed about ${describeMinutes(bed.delta)} later`);
-      order.push("regular-bedtime", "morning-light");
-    } else if (bed?.direction === "down" && bed.delta !== null) {
-      phrases.push(`you've gone to bed about ${describeMinutes(bed.delta)} earlier`);
+  const bed = find(levels, "bedtime");
+  if (bed?.direction === "up" && bed.delta !== null) {
+    phrases.push(`you've gone to bed about ${describeMinutes(bed.delta)} later`);
+    order.push("regular-bedtime", "morning-light");
+  } else if (bed?.direction === "down" && bed.delta !== null) {
+    phrases.push(`you've gone to bed about ${describeMinutes(bed.delta)} earlier`);
+  }
+
+  const sleep = find(levels, "sleep");
+  if (sleep?.direction === "down" && !phrases.length) {
+    phrases.push("you've slept less");
+    order.push("regular-bedtime");
+  }
+
+  const form = find(levels, "form");
+  if (form?.direction === "down") {
+    phrases.push("your form has been lower");
+    order.push("walk");
+  }
+
+  const speech = find(levels, "speech");
+  if (speech?.direction === "down") {
+    phrases.push("you've read the sentence more slowly");
+    order.push("music");
+  }
+
+  const w = levels.weekly;
+  if (w.latestIsRecent) {
+    const higher = w.items.filter((i) => i.direction === "up");
+    const sign = higher.find((i) => i.key.startsWith("sign:"));
+    if (higher.length) {
+      phrases.push(
+        sign
+          ? `this week you noticed "${sign.label.toLowerCase()}" more than usual`
+          : "your weekly answers were higher than usual",
+      );
+      order.push("morning-light");
     }
+  }
 
-    const sleep = find(levels, "sleep");
-    if (sleep?.direction === "down" && !phrases.length) {
-      phrases.push("you've slept less");
-      order.push("regular-bedtime");
-    }
-
-    const form = find(levels, "form");
-    if (form?.direction === "down") {
-      phrases.push("your form has been lower");
-      order.push("walk");
-    }
-
-    const speech = find(levels, "speech");
-    if (speech?.direction === "down") {
-      phrases.push("you've read the sentence more slowly");
-      order.push("music");
-    }
-
-    const w = levels.weekly;
-    if (w.latestIsRecent) {
-      const higher = w.items.filter((i) => i.direction === "up");
-      const sign = higher.find((i) => i.key.startsWith("sign:"));
-      if (higher.length) {
-        phrases.push(
-          sign
-            ? `this week you noticed "${sign.label.toLowerCase()}" more than usual`
-            : "your weekly answers were higher than usual",
-        );
-        order.push("morning-light");
-      }
-    }
-
-    if (!levels.hasBaseline) {
-      return {
-        say: "After about a week of check-ins I can start comparing with your own usual level.",
-        suggestion: null,
-        noticedChange: false,
-      };
-    }
-
-    if (!phrases.length) {
-      return {
-        say: "The last week looks close to your own usual level.",
-        suggestion: null,
-        noticedChange: false,
-      };
-    }
-
-    const picked = order[0] ?? "walk";
+  if (!levels.hasBaseline) {
     return {
-      say: `Compared with your own usual level, over the last week ${joinPhrases(phrases.slice(0, 3))}.`,
-      suggestion: { id: picked, text: SUGGESTIONS[picked] },
-      noticedChange: true,
+      say: "After about a week of check-ins I can start comparing with your own usual level.",
+      suggestion: null,
+      noticedChange: false,
     };
+  }
+
+  if (!phrases.length) {
+    return {
+      say: "The last week looks close to your own usual level.",
+      suggestion: null,
+      noticedChange: false,
+    };
+  }
+
+  const picked = order[0] ?? "walk";
+  return {
+    say: `Compared with your own usual level, over the last week ${joinPhrases(phrases.slice(0, 3))}.`,
+    suggestion: { id: picked, text: SUGGESTIONS[picked] },
+    noticedChange: true,
+  };
+}
+
+export const ruleBrain: Brain = {
+  name: "rules-v2",
+
+  async reflect(input) {
+    return { ...reflectOnEntries(input), passive: rulePassiveWords(input.passive) };
   },
 
   closingLine(kind, today) {

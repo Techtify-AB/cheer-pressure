@@ -7,8 +7,8 @@
 import Link from "next/link";
 import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
-import { useCompanionVoice, usePassive, useRequireProfile, useToday } from "@/components/hooks";
-import { calmLine, type PassiveMetric } from "@/lib/passive";
+import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
+import type { PassiveMetric } from "@/lib/passive";
 import { useData } from "@/lib/storage";
 
 export default function HomePage() {
@@ -16,12 +16,12 @@ export default function HomePage() {
   const ready = useRequireProfile(data);
   const today = useToday();
   const voice = useCompanionVoice();
-  const passive = usePassive(data);
+  const { passive, reflection } = useReflection(data);
   const { desktop, status } = useDesktopTyping();
 
-  if (!data || !ready || !passive) return null;
+  if (!data || !ready || !passive || !reflection) return null;
 
-  const line = calmLine(passive);
+  const line = reflection.passive.calmLine;
   const todayActivity = data.activityDays.find((d) => d.date === today && d.source === "user");
   const measuring = desktop && status?.listener === "running";
   const paused = measuring && !!status?.paused;
