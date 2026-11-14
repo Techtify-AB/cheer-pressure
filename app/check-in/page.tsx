@@ -57,8 +57,10 @@ function CheckInFlow({ data }: { data: AppData }) {
   const today = useToday();
   const voice = useCompanionVoice();
   const { levels } = useReflection(data);
-  const existing = data.daily.find((e) => e.date === today);
-  const previous = existing ?? data.daily[data.daily.length - 1];
+  // Only the person's own entries pre-fill the form, never made-up demo ones.
+  const own = data.daily.filter((e) => e.source === "user");
+  const existing = own.find((e) => e.date === today);
+  const previous = existing ?? own[own.length - 1];
 
   const [step, setStep] = useState(0);
   const [bedtime, setBedtime] = useState(previous?.bedtime ?? "23:00");

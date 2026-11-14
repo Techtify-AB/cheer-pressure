@@ -9,7 +9,7 @@ import { Companion } from "@/components/companion/Companion";
 import { useDesktopTyping } from "@/components/desktop";
 import { useCompanionVoice, usePassive, useRequireProfile, useToday } from "@/components/hooks";
 import { calmLine } from "@/lib/passive";
-import { hasDemo, useData } from "@/lib/storage";
+import { useData } from "@/lib/storage";
 
 export default function HomePage() {
   const data = useData();
@@ -60,13 +60,6 @@ export default function HomePage() {
           </button>
         )}
       </div>
-
-      {hasDemo(data) && (
-        <p className="notice">
-          <span className="placeholder-tag">Demo</span>
-          <span>Some of what you see is made-up demo data.</span>
-        </p>
-      )}
 
       <section className="card stack" aria-labelledby="sources-title">
         <h2 id="sources-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>

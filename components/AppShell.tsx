@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DesktopBridge } from "@/components/desktop";
 import { useVoiceAvailability } from "@/components/hooks";
-import { saveSettings, useData } from "@/lib/storage";
+import { clearDemo, hasDemo, saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -13,6 +13,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const muted = data?.settings.muted ?? false;
   const onHelp = pathname?.startsWith("/help");
   const voice = useVoiceAvailability();
+  // Made-up data is marked on every screen, for as long as any of it is stored.
+  const demo = !!data && (hasDemo(data) || !!data.settings.simulatedChangeAt);
 
   // The mascot window shows only the character: no header, no page frame.
   if (pathname?.startsWith("/mascot")) return <>{children}</>;
@@ -54,6 +56,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Need help now?
           </Link>
         </div>
+        {demo && (
+          <div className="demo-banner" role="note">
+            <span className="placeholder-tag">Demo</span>
+            <span>You are looking at made-up demo data.</span>
+            <button type="button" className="demo-banner-clear" onClick={clearDemo}>
+              Clear demo data
+            </button>
+          </div>
+        )}
       </header>
       <DesktopBridge />
       <main id="main" className="page">

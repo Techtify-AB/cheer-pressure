@@ -532,6 +532,41 @@ pre.summary {
   margin: 0;
 }
 
+/* Shown in the header on every screen while made-up demo data is stored */
+.demo-banner {
+  max-width: var(--content-width);
+  margin: 0 auto var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  border: 1px dashed var(--color-placeholder-line);
+  background: var(--color-placeholder-bg);
+  color: var(--color-placeholder-ink);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+.demo-banner .placeholder-tag {
+  margin-bottom: 0;
+}
+.demo-banner-clear {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.demo-banner-clear:hover {
+  background: color-mix(in srgb, var(--color-placeholder-line) 18%, transparent);
+}
+
 .demo-box {
   border: 2px dashed var(--color-placeholder-line);
   background: var(--color-placeholder-bg);
