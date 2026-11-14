@@ -1,153 +1,103 @@
 "use client";
 
-// A tiny adapter to the phone app's bridge, of this interface's own. The phone app (mobile/,
-// built separately) shows this same interface in a WebView. Its web side, lib/phone.ts, may or
-// may not be in this build, so nothing here imports it: the adapter feature-detects
-// window.ReactNativeWebView and speaks the bridge's documented wire format itself.
+// A thin adapter between this interface's screens and the phone app's bridge (lib/phone.ts, which
+// owns the wire format and is the only place that talks to the phone). It adds only what the
+// screens need on top: one permission answer per "What may I look at?" step, and the voice
+// features of the daily hello, which the phone app may not have yet.
 //
-//   web -> native  window.ReactNativeWebView.postMessage(JSON.stringify({ cheerPressure: 1, id, kind, args }))
-//   native -> web  window.__cheerPressurePhone.receive({ cheerPressure, id, ok, result | error })
-//                  window.__cheerPressurePhone.receive({ cheerPressure, event, data })
-//
-// Answers to this adapter's own requests (ids starting "ui-") are taken here; everything else is
-// handed on to whichever receiver was there before (lib/phone.ts), so both can live side by side.
-//
-// Requests this interface sends:
-//   requestPermission    { kind: "health" | "location" | "notifications" | "camera-microphone" }
-//   scheduleNotifications { plan: { notices: [...] } }   the daily hello, sent whenever Settings change
-//   listen.start / listen.stop   {}                      speech to text while the person holds to talk
-//   converse             { text, context }               Cheri's reply to what they said
-//   speak                { text }                        Cheri says it aloud
-// Events it listens for:
-//   transcript           { text, final }                 the person's words while they talk
-//
-// Outside the phone app every request rejects at once with "not-phone", and callers fall back to
-// the browser or desktop equivalent.
+// Voice features (feature-detected; the hello falls back to one tap without them):
+//   listen.start / listen.stop   {}               speech to text while the person holds to talk
+//   converse                     { text, context } Cheri's reply to what they said
+//   speak                        { text }          Cheri says it aloud
+//   event "transcript"           { text, final }   the person's words while they talk
+// They count as present only when the phone's getCapabilities answer says so
+// ({ listen: true, converse: true, speak: true }). Outside the phone app nothing here does
+// anything, and every call answers "not here".
 
-export const BRIDGE_VERSION = 1;
+import { isPhoneApp } from "./platform";
+import type { PermissionKind, PermissionState } from "./types";
 
-interface PhoneWindow {
-  ReactNativeWebView?: { postMessage(message: string): void };
-  __cheerPressurePhone?: { queue?: unknown[]; receive(message: unknown): void };
-}
+export { isPhoneApp };
 
-const TIMEOUTS: Record<string, number> = {
-  requestPermission: 180_000,
-  scheduleNotifications: 10_000,
-  "listen.start": 8_000,
-  "listen.stop": 8_000,
-  converse: 20_000,
-  speak: 20_000,
-};
+type Phone = typeof import("./phone");
+const phone = (): Promise<Phone> => import("./phone");
 
-export class BridgeError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
-function win(): PhoneWindow | null {
-  return typeof window === "undefined" ? null : (window as unknown as PhoneWindow);
-}
-
-/** True inside the phone app's WebView. */
-export function isPhoneApp(): boolean {
-  const w = win();
-  return !!w?.ReactNativeWebView && typeof w.ReactNativeWebView.postMessage === "function";
-}
-
-const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
-const handlers = new Map<string, Set<(data: unknown) => void>>();
-let counter = 0;
-let hooked: { receive(message: unknown): void } | null = null;
-
-function parse(raw: unknown): Record<string, unknown> | null {
-  if (raw && typeof raw === "object") return raw as Record<string, unknown>;
-  if (typeof raw !== "string") return null;
-  try {
-    const v = JSON.parse(raw);
-    return v && typeof v === "object" ? (v as Record<string, unknown>) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Puts this adapter in front of the current receiver, once, and again if it was replaced. */
-function hook() {
-  const w = win();
-  if (!w) return;
-  if (hooked && w.__cheerPressurePhone === hooked) return;
-  const before = w.__cheerPressurePhone;
-  const mine = {
-    queue: before?.queue,
-    receive(raw: unknown) {
-      const m = parse(raw);
-      if (m && typeof m.id === "string" && m.id.startsWith("ui-")) {
-        const p = pending.get(m.id);
-        if (!p) return;
-        pending.delete(m.id);
-        clearTimeout(p.timer);
-        if (m.ok) p.resolve(m.result);
-        else {
-          const err = (m.error ?? {}) as { code?: string; message?: string };
-          p.reject(new BridgeError(err.code ?? "failed", err.message ?? "The phone could not do that."));
-        }
-        return;
-      }
-      if (m && typeof m.event === "string") for (const h of handlers.get(m.event) ?? []) h(m.data);
-      if (before && typeof before.receive === "function") before.receive(raw);
-      else if (before) (before.queue ??= []).push(raw);
-    },
-  };
-  w.__cheerPressurePhone = mine;
-  hooked = mine;
-}
-
-/** One request to the phone app. Rejects with "not-phone" outside it, "timeout" without an answer. */
-export function phoneRequest<T = unknown>(kind: string, args: Record<string, unknown> = {}, timeoutMs?: number): Promise<T> {
-  if (!isPhoneApp()) return Promise.reject(new BridgeError("not-phone", "Only in the phone app."));
-  hook();
-  const id = `ui-${Date.now().toString(36)}-${(counter++).toString(36)}`;
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new BridgeError("timeout", `The phone did not answer ${kind} in time.`));
-    }, timeoutMs ?? TIMEOUTS[kind] ?? 10_000);
-    pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
-    try {
-      win()!.ReactNativeWebView!.postMessage(JSON.stringify({ cheerPressure: BRIDGE_VERSION, id, kind, args }));
-    } catch {
-      clearTimeout(timer);
-      pending.delete(id);
-      reject(new BridgeError("failed", "Could not reach the phone."));
-    }
-  });
-}
-
-/** Listens to an event from the phone app. Returns a function that stops listening. */
-export function onPhone(event: string, handler: (data: unknown) => void): () => void {
-  hook();
-  const set = handlers.get(event) ?? new Set();
-  set.add(handler);
-  handlers.set(event, set);
-  return () => set.delete(handler);
-}
-
-export type PermissionAnswer = "granted" | "denied" | "unknown" | "not-here";
-
-/** Asks the phone for one permission. Outside the phone app: "not-here". */
-export async function requestPermission(kind: "health" | "location" | "notifications" | "camera-microphone"): Promise<PermissionAnswer> {
+/**
+ * Asks the phone for one permission, the way lib/phone.ts asks. Sleep and steps also read them
+ * at once. Outside the phone app: "not-here". The phone saying nothing clear: null.
+ */
+export async function askPhonePermission(kind: PermissionKind): Promise<PermissionState | null> {
   if (!isPhoneApp()) return "not-here";
   try {
-    const r = await phoneRequest<{ state?: string }>("requestPermission", { kind });
-    if (r?.state === "granted") return "granted";
-    if (r?.state === "denied") return "denied";
-    if (r?.state === "not-available") return "not-here";
-    return "unknown"; // "asked": Health never says whether reading was allowed
+    const p = await phone();
+    const state = kind === "health" ? await p.connectPhoneHealth() : (await p.requestPermission(kind)).state;
+    if (kind === "notifications" && state === "granted") void p.refreshNotificationPlan();
+    if (state === "granted") return "granted";
+    if (state === "denied") return "denied";
+    if (state === "not-available") return "not-here";
+    // "asked": Health never tells an app whether reading was allowed, only that it asked.
+    return state === "asked" ? "yes" : null;
   } catch (e) {
-    return e instanceof BridgeError && e.code === "not-available" ? "not-here" : "unknown";
+    return (e as { code?: string })?.code === "not-available" ? "not-here" : null;
   }
+}
+
+/** Plans the daily hello's notifications again (after the time, how often or an answer changed). */
+export async function replanHello(): Promise<void> {
+  if (!isPhoneApp()) return;
+  try {
+    await (await phone()).refreshNotificationPlan();
+  } catch {
+    // Without permission for notifications the phone plans nothing; the hello is on Home.
+  }
+}
+
+export interface VoiceFeatures {
+  listen: boolean;
+  converse: boolean;
+  speak: boolean;
+}
+
+const NONE: VoiceFeatures = { listen: false, converse: false, speak: false };
+let features: Promise<VoiceFeatures> | null = null;
+
+/** Which voice features the phone app has. Asked once. Outside the phone app: none. */
+export function voiceFeatures(): Promise<VoiceFeatures> {
+  if (!isPhoneApp()) return Promise.resolve(NONE);
+  return (features ??= phone()
+    .then((p) => p.getCapabilities())
+    .then((c) => {
+      const x = c as unknown as Partial<Record<keyof VoiceFeatures, unknown>>;
+      return { listen: x.listen === true, converse: x.converse === true, speak: x.speak === true };
+    })
+    .catch(() => NONE));
+}
+
+/** Sends a request lib/phone.ts does not list yet. Only after voiceFeatures() said it exists. */
+async function extra<T>(kind: string, args: Record<string, unknown>): Promise<T> {
+  const p = await phone();
+  return p.request(kind as Parameters<Phone["request"]>[0], args as never) as Promise<T>;
+}
+
+export const listenStart = () => extra<unknown>("listen.start", {});
+export const listenStop = () => extra<{ text?: string } | null>("listen.stop", {});
+export const converse = (text: string, context: Record<string, unknown>) => extra<{ text?: string } | null>("converse", { text, context });
+export const speakOnPhone = (text: string) => extra<unknown>("speak", { text });
+
+/** The person's words while they talk, when the phone sends them. Returns a function that stops listening. */
+export function onTranscript(handler: (t: { text: string; final: boolean }) => void): () => void {
+  if (!isPhoneApp()) return () => {};
+  let stop: (() => void) | null = null;
+  let stopped = false;
+  void phone().then((p) => {
+    if (stopped) return;
+    stop = p.onPhoneEvent("transcript" as Parameters<Phone["onPhoneEvent"]>[0], (d: unknown) => {
+      const t = d as { text?: unknown; final?: unknown };
+      if (typeof t?.text === "string") handler({ text: t.text, final: t.final === true });
+    });
+  });
+  return () => {
+    stopped = true;
+    stop?.();
+  };
 }

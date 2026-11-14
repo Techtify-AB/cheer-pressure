@@ -31,7 +31,7 @@ import { containsCrisisWords } from "@/lib/crisis";
 import { dailyQuestionOf, TIMES } from "@/lib/daily";
 import { newId } from "@/lib/dates";
 import { addOwn, helpsOf, MAX_OWN_HELPS, STARTING_HELPS } from "@/lib/helps";
-import { isPhoneApp, requestPermission } from "@/lib/phoneBridge";
+import { askPhonePermission, isPhoneApp } from "@/lib/phoneBridge";
 import { isDesktop } from "@/lib/platform";
 import { CLINIC_CHOICES, clinicOf, messagesUrlOf } from "@/lib/settings";
 import { readData, saveHelps, saveOnboarding, savePermission, saveProfile, saveSettings, useData } from "@/lib/storage";
@@ -662,24 +662,26 @@ function PermissionStep({ sub, progress, nav, onDone }: StepProps & { sub: numbe
       return;
     }
     setAsking(true);
-    const a = await requestPermission(p.kind);
+    // Through lib/phone.ts: the phone's own sheet. Sleep and steps are read at once when allowed.
+    const state = await askPhonePermission(p.kind);
     setAsking(false);
-    const state: PermissionState | "unknown" = a === "granted" ? "granted" : a === "denied" ? "denied" : a === "not-here" ? "not-here" : "unknown";
-    if (state !== "unknown") savePermission(p.kind, state);
+    if (state) savePermission(p.kind, state);
     if (p.kind === "camera-microphone" && state === "granted") saveSettings({ helloSensors: true });
-    setAnswer(state);
+    setAnswer(state ?? "unknown");
   };
 
   const result =
     answer === "granted"
       ? "Allowed. Thank you."
-      : answer === "denied"
-        ? "Not allowed. That's fine: everything else works, and you can change it in the phone's settings."
-        : answer === "unknown"
-          ? "The phone did not answer. You can allow it later in the phone's settings."
-          : answer === "not-here"
-            ? "Not available on this phone."
-            : null;
+      : answer === "yes"
+        ? "Asked. If you allowed it, I'll start reading it from today."
+        : answer === "denied"
+          ? "Not allowed. That's fine: everything else works, and you can change it in the phone's settings."
+          : answer === "unknown"
+            ? "The phone did not answer. You can allow it later in the phone's settings."
+            : answer === "not-here"
+              ? "Not available on this phone yet."
+              : null;
 
   return (
     <Screen
