@@ -112,7 +112,7 @@ export type CategoryId = "sleep" | "energy" | "social" | "mood";
 export type SourceId = CategoryId;
 
 /** Which switch in Settings turns an input on, or null for one that is not connected yet. */
-export type InputSetting = "dayRhythm" | "typing" | "camera" | "microphone" | "contact" | "dailyQuestion" | "phoneHealth" | null;
+export type InputSetting = "dayRhythm" | "typing" | "camera" | "microphone" | "contact" | "dailyQuestion" | "phoneHealth" | "reactionCheck" | null;
 
 export interface Input {
   id: string;
@@ -164,6 +164,8 @@ export const SOURCES: {
       { id: "movement", label: "Body movement (camera)", measures: ["movementLevel", "positionChanges"], setting: "camera", sensor: true },
       { id: "voice-pace", label: "Pace of the voice (microphone)", measures: ["voicePace"], setting: "microphone", sensor: true },
       { id: "typing", label: "Typing rhythm", measures: ["spread", "hold"], setting: "typing", sensor: true },
+      // Experimental: the quick reaction check (components/activities/ReactionCheck.tsx), last in Energy.
+      { id: "reaction-check", label: "Reaction check (experimental)", measures: ["reactionTime"], setting: "reactionCheck", sensor: true },
     ],
   },
   {
@@ -520,6 +522,18 @@ export const PASSIVE_DEFS: Def[] = [
     isNot: "Never which keys",
   },
   {
+    key: "reactionTime",
+    label: "Reaction time (experimental)",
+    meaning: "How quickly you tapped in the reaction check, the middle of that day's checks. Experimental. One bad night's sleep slows reactions too",
+    format: ms,
+    up: "your reactions have been slower",
+    down: "your reactions have been quicker",
+    upWord: "slower",
+    downWord: "quicker",
+    is: "The middle time of five taps in the quick reaction check, the middle of the day's checks (experimental)",
+    isNot: "Not a test of how you are; one bad night's sleep slows reactions too",
+  },
+  {
     key: "contact",
     label: "Messages with a trusted person",
     meaning: "Messages sent and answered with the person you trust, per day",
@@ -743,6 +757,25 @@ export function phoneSleepPoints(data: AppData, key: "phoneAsleep" | "phoneBedti
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/**
+ * The reaction check's day values: the median of that day's results (each one already the median
+ * of its five taps). Read defensively: the list may be missing (older data, or before the reaction
+ * check exists in this build), and anything that is not a day with a positive time is skipped.
+ */
+export function reactionPoints(data: AppData, today: DayKey): Point[] {
+  const list = (data as { reactionChecks?: unknown }).reactionChecks;
+  if (!Array.isArray(list)) return [];
+  const byDay = new Map<DayKey, number[]>();
+  for (const r of list as { date?: unknown; medianMs?: unknown }[]) {
+    if (!r || typeof r.date !== "string" || r.date > today) continue;
+    if (typeof r.medianMs !== "number" || !Number.isFinite(r.medianMs) || r.medianMs <= 0) continue;
+    byDay.set(r.date, [...(byDay.get(r.date) ?? []), r.medianMs]);
+  }
+  return [...byDay.entries()]
+    .map(([date, v]) => ({ date, value: quantile([...v].sort((a, b) => a - b), 0.5) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 /** Steps per day from the phone. Today is left out (it is still growing), and so are days with no steps at all. */
 export function stepPoints(data: AppData, today: DayKey): Point[] {
   return (data.stepDays ?? [])
@@ -754,6 +787,7 @@ export function stepPoints(data: AppData, today: DayKey): Point[] {
 function seriesFor(data: AppData, key: PassiveKey, today: DayKey, kind: TypingKind): Point[] {
   if (key === "phoneAsleep" || key === "phoneBedtime" || key === "phoneWake") return phoneSleepPoints(data, key, today);
   if (key === "steps") return stepPoints(data, today);
+  if (key === "reactionTime") return reactionPoints(data, today);
   if (COMPUTER_SLEEP_KEYS.includes(key) && phoneSleepReplaces(data, today)) return [];
   if (key === "spread" || key === "hold") return typingPoints(data.typingDays ?? [], key, kind, today);
   if (key === "movementLevel" || key === "positionChanges") return movementPoints(data, key, today);

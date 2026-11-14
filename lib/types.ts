@@ -124,7 +124,9 @@ export type PassiveKey =
   | "phoneAsleep"
   | "phoneBedtime"
   | "phoneWake"
-  | "steps";
+  | "steps"
+  // The quick reaction check (experimental): the median of the day's results, ms.
+  | "reactionTime";
 
 /**
  * One night from the phone's health data (Apple Health today, Health Connect later), reduced on

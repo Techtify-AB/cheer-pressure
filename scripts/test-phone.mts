@@ -5,8 +5,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { addDays } from "../lib/dates.ts";
-import { evaluatePassive, phoneSleepPoints, SOURCES, stepPoints, sourceOf } from "../lib/passive.ts";
-import { categoryLine, inputViews } from "../lib/categories.ts";
+import { evaluatePassive, PASSIVE_DEFS, phoneSleepPoints, reactionPoints, SOURCES, stepPoints, sourceOf } from "../lib/passive.ts";
+import { categoryLine, categoryOpening, inputViews } from "../lib/categories.ts";
 import { HELLO_PATH, planNotifications, PHONE_BRIDGE_VERSION, PHONE_EVENTS, PHONE_REQUESTS, wordDue } from "../lib/phone.ts";
 import type { AppData, HealthNight, StepsDay } from "../lib/types.ts";
 import { localDay, reduceNights, reduceSteps, type RawSleepSample } from "../mobile/src/health/nights.ts";
@@ -238,6 +238,48 @@ function stepDays(n: number, drift = 0): StepsDay[] {
   check("made-up weeks: shown as simulated", e.simulated);
   const midnight = demoWeeks(new Date(2026, 10, 14, 0, 30));
   check("made-up weeks: nothing written that ends after now is kept by the reducer", reduceNights(midnight.sleep.map((x) => ({ ...x, source: "m" })), { now: new Date(2026, 10, 14, 0, 30).getTime() }).every((x) => x.date < TODAY));
+}
+
+// --- The reaction check (experimental), last in Energy ----------------------------------
+
+{
+  const energy = SOURCES.find((c) => c.id === "energy")!.inputs;
+  check("Energy's last input is the reaction check, after typing", energy.at(-1)?.id === "reaction-check" && energy.at(-2)?.id === "typing" && energy.at(-1)?.label === "Reaction check (experimental)");
+  check("the reaction check is an Energy measure", sourceOf("reactionTime") === "energy");
+  const def = PASSIVE_DEFS.find((d) => d.key === "reactionTime")!;
+  check("worded as an observation against the usual, marked experimental", def.up === "your reactions have been slower" && /experimental/i.test(def.label) && /experimental/i.test(def.is));
+  check("the legend says one bad night's sleep slows reactions too", /one bad night's sleep slows reactions too/.test(def.isNot) && /one bad night's sleep slows reactions too/i.test(def.meaning));
+
+  // Missing list (older data, or before the reaction check lands): no results, nothing breaks.
+  const none = empty();
+  const en = evaluatePassive(none, TODAY);
+  check("no stored list: no points", reactionPoints(none, TODAY).length === 0 && reactionPoints({ ...none, reactionChecks: "nonsense" } as unknown as AppData, TODAY).length === 0);
+  const vNone = inputViews("energy", none, en, false).find((v) => v.input.id === "reaction-check");
+  check("no results yet: shown as on, still learning (0 days), never left out", vNone?.kind === "learning" && vNone.days === 0, JSON.stringify(vNone));
+  const paused = { ...none, settings: { muted: false, pausedAll: true } };
+  check("paused: off", inputViews("energy", paused, evaluatePassive(paused, TODAY), false).find((v) => v.input.id === "reaction-check")?.kind === "off");
+
+  // The day value is the median of that day's results; junk is skipped.
+  const r = (date: string, medianMs: number) => ({ id: `${date}-${medianMs}`, date, at: `${date}T12:00:00Z`, medianMs, trialsMs: [], context: "own" as const });
+  const mixed = { ...none, reactionChecks: [r("2026-11-10", 300), r("2026-11-10", 400), r("2026-11-10", 380), r("2026-11-11", 0), { date: 5, medianMs: 300 }, r("2026-11-20", 300)] } as unknown as AppData;
+  const pts = reactionPoints(mixed, TODAY);
+  check("one value a day, the median of that day's results; zero, junk and future days skipped", pts.length === 1 && pts[0].date === "2026-11-10" && pts[0].value === 380, JSON.stringify(pts));
+
+  // 40 days of checks, the last week slower: Energy changes, and alone it never asks. Steady steps
+  // carry the learning period (like the daily answer, checks the person does are not counted in it).
+  const checks = (drift: number) =>
+    Array.from({ length: 40 }, (_, i) => r(addDays(TODAY, i - 39), 320 + ((i * 7) % 5) * 6 + (i >= 33 ? drift : 0)));
+  const steady = { ...none, stepDays: stepDays(40), reactionChecks: checks(0) } as AppData;
+  const es = evaluatePassive(steady, TODAY);
+  check("steady checks: values, within the usual", inputViews("energy", steady, es, false).find((v) => v.input.id === "reaction-check")?.kind === "values" && !es.changed.length);
+  const slower = { ...none, stepDays: stepDays(40), reactionChecks: checks(90) } as AppData;
+  const e1 = evaluatePassive(slower, TODAY);
+  check("a slower last week makes Energy changed, worded against the usual", e1.changed.some((m) => m.key === "reactionTime" && m.direction === "up") && categoryOpening("energy", inputViews("energy", slower, e1, false), e1) === "Over the last week your reactions have been slower than your usual." && e1.reason !== "changed", categoryOpening("energy", inputViews("energy", slower, e1, false), e1));
+  check("the reaction check alone never makes Cheri ask", !e1.askNow, e1.reason);
+  const withSteps = { ...slower, stepDays: stepDays(40, 3) } as AppData;
+  check("with steps also down it is still one category (Energy): no asking", !evaluatePassive(withSteps, TODAY).askNow);
+  const withSleep = { ...slower, healthNights: nights(40, 3) } as AppData;
+  check("with Sleep changed too, two categories ask", evaluatePassive(withSleep, TODAY).askNow);
 }
 
 // --- Notifications -----------------------------------------------------------------------

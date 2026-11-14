@@ -34,6 +34,9 @@ export function inputState(input: Input, data: AppData, paired: boolean): InputS
     case "phoneHealth":
       // Only the phone app asks; Health never says whether reading was allowed, so asked counts as on.
       return data.phoneHealth?.askedAt || data.healthNights?.length || data.stepDays?.length ? "measuring" : "not-connected";
+    case "reactionCheck":
+      // Nothing to switch on: it counts whenever the person does a check (no results yet shows as still learning).
+      return "measuring";
   }
 }
 
@@ -45,6 +48,7 @@ const SHORT: Record<string, string> = {
   movement: "movement from the camera",
   "voice-pace": "pace of the voice",
   typing: "typing rhythm",
+  "reaction-check": "the reaction check (experimental)",
   expression: "face movement",
   posture: "posture",
   "voice-tone": "tone of voice",
@@ -96,6 +100,7 @@ export const MEASURE_WORDS: Partial<Record<PassiveKey, string>> = {
   firstActivity: "The day's start (this computer)",
   lastActivity: "The day's end (this computer)",
   movementLevel: "Movement (camera)",
+  reactionTime: "Reaction time (experimental)",
   positionChanges: "Position changes (camera)",
   contact: "Contact with the person you trust",
   ownAnswer: "Your daily answers",
@@ -144,6 +149,7 @@ const TURN_ON: Record<string, { action: string; rest: string; href: string }> = 
   movement: { action: "Turn on the camera", rest: " to measure movement. The picture is worked out on this computer.", href: "/settings/#measure-energy" },
   "voice-pace": { action: "Turn on the microphone", rest: " to measure the pace of your voice. No words are recognised.", href: "/settings/#measure-energy" },
   typing: { action: "Turn on typing rhythm", rest: " to measure it. Only the timing of key presses, never which keys.", href: "/settings/#measure-energy" },
+  "reaction-check": { action: "Try the reaction check", rest: " (experimental): five taps, about half a minute. One bad night's sleep slows reactions too.", href: "/activities/reaction/" },
   "trusted-contact": { action: "Turn on messages with someone you trust", rest: " to count them, never what they say.", href: "/settings/#measure-social" },
   "daily-answer": { action: "Turn on the daily question", rest: " to add your own answers.", href: "/settings/#daily" },
   expression: { action: "Turn on the camera", rest: " to observe face movement. The picture is worked out on this computer.", href: "/settings/#measure-energy" },
@@ -159,6 +165,7 @@ export const INPUT_WORDS: Record<string, string> = {
   movement: "movement",
   "voice-pace": "the pace of your voice",
   typing: "typing",
+  "reaction-check": "the reaction check",
   "trusted-contact": "contact with the person you trust",
   "daily-answer": "your own answers",
   expression: "face movement",
