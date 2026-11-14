@@ -67,6 +67,17 @@ later, shorter nights and fewer steps, so Sleep and Energy both change and Cheri
 Release builds register none of it, and the bridge refuses `demoHealth` there. The page shows them
 as made-up data (its demo banner).
 
+Three more development-only links, for trying things from a script without tapping:
+
+```sh
+xcrun simctl openurl booted "cheerpressure://dev/open?path=/values/"       # open a screen
+xcrun simctl openurl booted "cheerpressure://dev/notify?kind=word&in=15"   # a notification in 15 s (leave the app to see it)
+xcrun simctl openurl booted "cheerpressure://dev/ask?kind=health"          # one permission question, as the page asks it
+```
+
+Health remembers its answer per app even after the app is deleted from the simulator; to see
+Health's sheet again, delete the app and install it again (`xcrun simctl uninstall booted app.cheerpressure.mobile`).
+
 ## Release build (the bundled interface)
 
 ```sh
@@ -74,7 +85,8 @@ npm run web:copy -- --build      # pnpm build at the root, then copy out/ into t
 npx expo run:ios --configuration Release
 ```
 
-The release build carries the static export inside the app and serves it from a small server in
+Build `out/` from the code you want in the app: the copy is a snapshot, and an old `out/` gives
+an old interface (no phone sleep and steps on Home, for one). The release build carries the static export inside the app and serves it from a small server in
 the native module on `http://127.0.0.1:41473`, listening on the loopback address only. Not
 `file://`, because the export breaks there in three ways: its files are linked from the root
 (`/_next/static/...`, which from `file://` is the root of the phone's disk), its pages are
