@@ -1,13 +1,14 @@
 //! Cheer Pressure desktop app: the web UI in a main window, a small mascot window, a
 //! menu bar icon, and typing rhythm measured across the computer (timing only).
 
+mod frontmost;
 mod listener;
 mod rhythm;
 mod store;
 
-use chrono::{DateTime, Local, SecondsFormat};
+use chrono::{DateTime, Local};
 use listener::{KeySink, StartError};
-use rhythm::{Collector, Stats, LIVE_WINDOW_MS};
+use rhythm::{Burst, BurstCollector, Numbers, NotCounted};
 use serde::Serialize;
 use std::{
   sync::{
@@ -17,7 +18,7 @@ use std::{
   thread,
   time::{Duration, Instant},
 };
-use store::{SessionSummary, Store};
+use store::{Store, TypingDayRow};
 use tauri::{
   menu::{Menu, MenuItem, PredefinedMenuItem},
   tray::TrayIconBuilder,
@@ -41,12 +42,33 @@ pub struct Status {
   pub paused: bool,
 }
 
+/// The burst being typed now: whether it counts as writing, and if not, why.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveBurst {
+  presses: u32,
+  kind: &'static str,
+  counted: bool,
+  why: Option<NotCounted>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Live {
   typing: bool,
-  window_sec: f64,
-  stats: Stats,
+  burst: Option<LiveBurst>,
+  /// The current burst's numbers while it counts, otherwise the last counted burst's.
+  stats: Numbers,
+  counted_today: u32,
+}
+
+fn empty_numbers() -> Numbers {
+  rhythm::numbers(&[], &[], 0, 0)
+}
+
+fn live_burst(b: &Burst) -> LiveBurst {
+  let v = rhythm::verdict(b);
+  LiveBurst { presses: b.presses, kind: b.kind.as_str(), counted: v.is_ok(), why: v.err() }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -58,9 +80,11 @@ struct DayRow {
 
 #[derive(Default)]
 struct Inner {
-  collector: Collector,
-  session_start: Option<DateTime<Local>>,
-  session_last: Option<DateTime<Local>>,
+  collector: BurstCollector,
+  /// When the burst being typed started (wall clock), for its day.
+  burst_start: Option<DateTime<Local>>,
+  /// The last counted burst's numbers, for the live view.
+  last_counted: Option<Numbers>,
   /// Wall-clock moments of presses since the last tick, for first and last activity.
   activity_first: Option<DateTime<Local>>,
   activity_last: Option<DateTime<Local>>,
@@ -85,28 +109,29 @@ impl Measure {
     Status { listener: *self.listener.lock().unwrap(), paused: self.paused.load(Ordering::SeqCst) }
   }
 
-  /// Ends the running session, if any, and queues its summary for the UI.
-  fn end_session(&self, inner: &mut Inner, end: Option<rhythm::SessionEnd>) -> Option<SessionSummary> {
-    let end = end?;
-    let start = inner.session_start.take()?;
-    let last = inner.session_last.take().unwrap_or(start);
-    let summary = SessionSummary::new(
-      format!("desk-{}", start.timestamp_millis()),
-      start.format("%Y-%m-%d").to_string(),
-      start.to_rfc3339_opts(SecondsFormat::Secs, false),
-      last.to_rfc3339_opts(SecondsFormat::Secs, false),
-      ((end.last_ms - end.first_ms) / 1000.0).max(0.0),
-      &end.stats,
-    );
-    self.store.lock().unwrap().push_session(summary.clone());
-    Some(summary)
+  /// Keeps a finished burst if it counts as writing. Returns whether it did.
+  fn finish_burst(&self, inner: &mut Inner, burst: Option<Burst>) -> bool {
+    let Some(burst) = burst else { return false };
+    let start = inner.burst_start.take().unwrap_or_else(Local::now);
+    if rhythm::verdict(&burst).is_err() {
+      return false;
+    }
+    let day = day_of(start);
+    let keep_open_from = day_of(start - chrono::Duration::days(1));
+    inner.last_counted = Some(rhythm::burst_numbers(&burst));
+    self.store.lock().unwrap().add_burst(&day, &keep_open_from, &burst)
   }
+}
+
+/// The day a moment belongs to: a day runs from 04:00 to 04:00 (same as lib/passive.ts).
+fn day_of(wall: DateTime<Local>) -> String {
+  (wall - chrono::Duration::hours(DAY_STARTS_AT_HOUR)).format("%Y-%m-%d").to_string()
 }
 
 struct Sink(Arc<Measure>);
 
 impl KeySink for Sink {
-  fn key_down(&self) {
+  fn key_down(&self, repeat: bool) {
     let m = &self.0;
     if m.paused.load(Ordering::Relaxed) {
       return;
@@ -114,11 +139,17 @@ impl KeySink for Sink {
     let t = m.now_ms();
     let wall = Local::now();
     let mut inner = m.inner.lock().unwrap();
-    inner.collector.key_down(t);
-    if inner.session_start.is_none() {
-      inner.session_start = Some(wall);
+    // The kind of app in front is read once, when a new burst starts; only the kind is kept.
+    let ended = inner.collector.key_down(t, repeat, frontmost::frontmost_kind);
+    if ended.is_some() {
+      m.finish_burst(&mut inner, ended);
     }
-    inner.session_last = Some(wall);
+    if repeat {
+      return;
+    }
+    if inner.burst_start.is_none() || inner.collector.current().is_some_and(|b| b.presses == 1) {
+      inner.burst_start = Some(wall);
+    }
     if inner.activity_first.is_none() {
       inner.activity_first = Some(wall);
     }
@@ -163,14 +194,16 @@ fn set_paused(app: &AppHandle, paused: bool) {
   measure.paused.store(paused, Ordering::SeqCst);
   if paused {
     let mut inner = measure.inner.lock().unwrap();
-    let end = inner.collector.end_now();
-    let summary = measure.end_session(&mut inner, end);
+    let burst = inner.collector.close();
+    let counted = measure.finish_burst(&mut inner, burst);
     inner.was_typing = false;
     drop(inner);
-    if summary.is_some() {
-      let _ = app.emit("typing-session", ());
+    if counted {
+      let _ = app.emit("typing-counted", ());
     }
-    let _ = app.emit("typing-live", Live { typing: false, window_sec: LIVE_WINDOW_MS / 1000.0, stats: rhythm::stats(&[], &[]) });
+    let today = day_of(Local::now());
+    let counted_today = measure.store.lock().unwrap().counted_on(&today);
+    let _ = app.emit("typing-live", Live { typing: false, burst: None, stats: empty_numbers(), counted_today });
   }
   emit_status(app);
 }
@@ -183,7 +216,7 @@ fn show_main(app: &AppHandle) {
   }
 }
 
-/// Once a second: first and last activity, live numbers while typing, session ends,
+/// Once a second: first and last activity, live numbers while typing, burst ends,
 /// and a retry when the permission was missing.
 fn ticker(app: AppHandle) {
   let measure = app.state::<Arc<Measure>>().inner().clone();
@@ -206,13 +239,20 @@ fn ticker(app: AppHandle) {
       let last = inner.activity_last.take();
       if !measure.paused.load(Ordering::SeqCst) {
         let typing = inner.collector.last_press().is_some_and(|t| now - t <= TYPING_RECENT_MS);
-        if typing || inner.was_typing {
-          let stats = inner.collector.live(now, LIVE_WINDOW_MS);
-          live = Some(Live { typing, window_sec: LIVE_WINDOW_MS / 1000.0, stats });
+        let burst = inner.collector.tick(now);
+        let ending = burst.as_ref().map(live_burst);
+        ended = measure.finish_burst(&mut inner, burst);
+        if typing || inner.was_typing || ending.is_some() {
+          let current = inner.collector.current().map(live_burst).or(ending);
+          let stats = match inner.collector.current() {
+            Some(b) if rhythm::verdict(b).is_ok() => rhythm::burst_numbers(b),
+            _ => inner.last_counted.clone().unwrap_or_else(empty_numbers),
+          };
+          let today = day_of(Local::now());
+          let counted_today = measure.store.lock().unwrap().counted_on(&today);
+          live = Some(Live { typing, burst: current, stats, counted_today });
         }
         inner.was_typing = typing;
-        let end = inner.collector.end_if_idle(now);
-        ended = measure.end_session(&mut inner, end).is_some();
       }
       (first, last)
     };
@@ -225,6 +265,10 @@ fn ticker(app: AppHandle) {
         let day = (wall - chrono::Duration::hours(DAY_STARTS_AT_HOUR)).format("%Y-%m-%d").to_string();
         store.touch(&day, &wall.format("%H:%M").to_string());
       }
+      if tick % 30 == 0 {
+        // A day that has passed keeps only its numbers.
+        store.close_days_before(&day_of(Local::now() - chrono::Duration::days(1)));
+      }
       if ended || tick % 30 == 0 {
         store.save_if_dirty();
       }
@@ -233,7 +277,7 @@ fn ticker(app: AppHandle) {
       let _ = app.emit("typing-live", l);
     }
     if ended {
-      let _ = app.emit("typing-session", ());
+      let _ = app.emit("typing-counted", ());
     }
   }
 }
@@ -268,22 +312,19 @@ fn typing_retry(app: AppHandle) -> Status {
   measure.status()
 }
 
-/// Session summaries the UI has not stored yet. Each is handed over once.
+/// Typing per day and kind of app, newest first: today's numbers grow as the day goes on.
 #[tauri::command]
-fn typing_take_sessions(measure: tauri::State<'_, Arc<Measure>>) -> Vec<SessionSummary> {
-  let mut store = measure.store.lock().unwrap();
-  let out = store.take_sessions();
-  store.save_if_dirty();
-  out
+fn typing_days(measure: tauri::State<'_, Arc<Measure>>) -> Vec<TypingDayRow> {
+  measure.store.lock().unwrap().typing_rows()
 }
 
-/// "Delete everything" in the UI: forgets first and last activity, unsent session
-/// summaries and the running session, and writes the empty file.
+/// "Delete everything" in the UI: forgets first and last activity, typing days and the
+/// running burst, and writes the empty file.
 #[tauri::command]
 fn forget_all(measure: tauri::State<'_, Arc<Measure>>) {
   {
     let mut inner = measure.inner.lock().unwrap();
-    let _ = inner.collector.end_now();
+    let _ = inner.collector.close();
     *inner = Inner::default();
   }
   measure.store.lock().unwrap().clear();
@@ -347,7 +388,7 @@ pub fn run() {
       typing_set_paused,
       typing_open_permission,
       typing_retry,
-      typing_take_sessions,
+      typing_days,
       day_rhythm,
       forget_all,
       open_main,
@@ -432,11 +473,11 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     RunEvent::Reopen { .. } => show_main(app),
     RunEvent::Exit => {
-      // Keep the running session's summary for next time, and save to disk.
+      // Keep the running burst if it counts, and save to disk.
       let measure = app.state::<Arc<Measure>>().inner().clone();
       let mut inner = measure.inner.lock().unwrap();
-      let end = inner.collector.end_now();
-      measure.end_session(&mut inner, end);
+      let burst = inner.collector.close();
+      measure.finish_burst(&mut inner, burst);
       drop(inner);
       measure.store.lock().unwrap().save_if_dirty();
     }

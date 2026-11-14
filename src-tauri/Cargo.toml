@@ -27,6 +27,11 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 # The system-wide key listener: a listen-only CGEventTap (needs Input Monitoring).
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEvent", "CGEventTypes"] }
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFMachPort", "CFRunLoop"] }
+# The kind of app in front when typing starts (writing, code, browser, game): NSWorkspace's
+# frontmost application and its bundle identifier. No permission needed; only the kind is kept.
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace", "NSRunningApplication"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSBundle", "NSString", "NSURL"] }
 
 [profile.dev]
 # Keep debug builds smaller on disk.

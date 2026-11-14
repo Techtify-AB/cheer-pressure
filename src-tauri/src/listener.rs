@@ -2,13 +2,14 @@
 //! key went down or up anywhere on the computer, but it cannot change or block input.
 //!
 //! PRIVACY: the callback reads only the event type (down or up) and whether the press
-//! is the keyboard's own auto-repeat. It never reads the key code, the character or
-//! the modifiers. The moment is taken with the app's own clock, so nothing from the
+//! is the keyboard's own auto-repeat (passed on, so held keys can be told apart from
+//! writing). It never reads the key code, the character or the modifiers. The moment is taken with the app's own clock, so nothing from the
 //! event itself is kept. Needs the "Input Monitoring" permission.
 
-/// Something that wants to know that a key went down or up, and nothing more.
+/// Something that wants to know that a key went down (or repeated) or up, and nothing more.
 pub trait KeySink: Send + Sync + 'static {
-  fn key_down(&self);
+  /// `repeat`: the keyboard repeating a held key, not a new press.
+  fn key_down(&self, repeat: bool);
   fn key_up(&self);
 }
 
@@ -60,10 +61,7 @@ mod mac {
       // The only field read: is this the keyboard repeating a held key? Repeats are
       // not new presses. This says nothing about which key it is.
       let repeat = CGEvent::integer_value_field(Some(unsafe { event.as_ref() }), CGEventField::KeyboardEventAutorepeat) != 0;
-      if repeat {
-        return event.as_ptr();
-      }
-      let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ctx.sink.key_down()));
+      let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ctx.sink.key_down(repeat)));
     } else {
       let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ctx.sink.key_up()));
     }

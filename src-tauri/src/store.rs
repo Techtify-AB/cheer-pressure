@@ -2,18 +2,23 @@
 //!
 //! - per day (04:00 to 04:00 local time), the first and last key press time to the
 //!   minute ("HH:MM"), and
-//! - typing session summaries the web UI has not picked up yet.
+//! - typing per day and kind of app (writing, code, browser, other, and "all" pooled):
+//!   today's and yesterday's counted bursts as whole-millisecond gaps and holds, so the day's
+//!   numbers can be pooled, and older days only as their summary numbers.
 //!
-//! No keys, characters or text are ever written here. Only times and counts.
+//! No keys, characters, text, app names or window titles are ever written here. Only times,
+//! counts and the kind of app as one word. Games are never counted, so never kept.
 
-use crate::rhythm::Stats;
+use crate::rhythm::{AppKind, Burst, DayPool, DaySummary};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
 /// How many days of first and last activity to keep.
 const KEEP_DAYS: usize = 120;
-/// Summaries waiting for the UI; older ones are dropped beyond this.
-const KEEP_PENDING: usize = 200;
+/// How many days of typing summaries to keep (the rule looks back 35 days).
+const KEEP_TYPING_DAYS: usize = 60;
+/// The pooled row: every kind except games.
+pub const ALL: &str = "all";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DayActivity {
@@ -21,47 +26,26 @@ pub struct DayActivity {
   pub last: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// One day of typing for one kind of app, as the UI receives it.
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionSummary {
-  pub id: String,
-  /// Local day the session started, "YYYY-MM-DD".
+pub struct TypingDayRow {
   pub date: String,
-  /// ISO times of the first and last key press.
-  pub started_at: String,
-  pub ended_at: String,
-  /// Length of the session in seconds, first to last press.
-  pub window_sec: f64,
-  pub presses: usize,
-  pub median_interval_ms: Option<f64>,
-  pub spread_ms: Option<f64>,
-  pub p95_pause_ms: Option<f64>,
-  pub median_hold_ms: Option<f64>,
-}
-
-impl SessionSummary {
-  pub fn new(id: String, date: String, started_at: String, ended_at: String, window_sec: f64, s: &Stats) -> Self {
-    Self {
-      id,
-      date,
-      started_at,
-      ended_at,
-      window_sec,
-      presses: s.presses,
-      median_interval_ms: s.median_interval_ms,
-      spread_ms: s.spread_ms,
-      p95_pause_ms: s.p95_pause_ms,
-      median_hold_ms: s.median_hold_ms,
-    }
-  }
+  pub kind: String,
+  #[serde(flatten)]
+  pub summary: DaySummary,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Data {
   #[serde(default)]
   pub days: BTreeMap<String, DayActivity>,
+  /// Open days (today, yesterday): date, then kind, then the pooled counted bursts.
   #[serde(default)]
-  pub pending_sessions: Vec<SessionSummary>,
+  pub typing_open: BTreeMap<String, BTreeMap<String, DayPool>>,
+  /// Closed days: date, then kind, then the day's numbers.
+  #[serde(default)]
+  pub typing_days: BTreeMap<String, BTreeMap<String, DaySummary>>,
 }
 
 pub struct Store {
@@ -108,21 +92,62 @@ impl Store {
     }
   }
 
-  pub fn push_session(&mut self, s: SessionSummary) {
-    self.data.pending_sessions.push(s);
-    let n = self.data.pending_sessions.len();
-    if n > KEEP_PENDING {
-      self.data.pending_sessions.drain(0..n - KEEP_PENDING);
+  /**
+   * Adds a counted burst to its day, under its kind and under "all". Days before `keep_open_from`
+   * are closed: only their numbers are kept. Returns false for a burst that does not count.
+   */
+  pub fn add_burst(&mut self, day: &str, keep_open_from: &str, burst: &Burst) -> bool {
+    if burst.kind == AppKind::Game {
+      return false;
     }
+    let kinds = self.data.typing_open.entry(day.to_string()).or_default();
+    if !kinds.entry(burst.kind.as_str().to_string()).or_default().add(burst) {
+      return false;
+    }
+    kinds.entry(ALL.to_string()).or_default().add(burst);
+    self.close_days_before(keep_open_from);
     self.dirty = true;
+    true
   }
 
-  pub fn take_sessions(&mut self) -> Vec<SessionSummary> {
-    if self.data.pending_sessions.is_empty() {
-      return Vec::new();
+  /// Turns open days before `date` into their summary numbers.
+  pub fn close_days_before(&mut self, date: &str) {
+    let old: Vec<String> = self.data.typing_open.keys().filter(|d| d.as_str() < date).cloned().collect();
+    for d in old {
+      if let Some(kinds) = self.data.typing_open.remove(&d) {
+        let sums = kinds.into_iter().map(|(k, pool)| (k, pool.summary())).collect();
+        self.data.typing_days.insert(d, sums);
+        self.dirty = true;
+      }
     }
-    self.dirty = true;
-    std::mem::take(&mut self.data.pending_sessions)
+    while self.data.typing_days.len() > KEEP_TYPING_DAYS {
+      let oldest = self.data.typing_days.keys().next().cloned();
+      if let Some(k) = oldest {
+        self.data.typing_days.remove(&k);
+      }
+    }
+  }
+
+  /// Every typing day kept, closed and open, newest first.
+  pub fn typing_rows(&self) -> Vec<TypingDayRow> {
+    let mut rows: Vec<TypingDayRow> = vec![];
+    for (date, kinds) in &self.data.typing_days {
+      for (kind, summary) in kinds {
+        rows.push(TypingDayRow { date: date.clone(), kind: kind.clone(), summary: summary.clone() });
+      }
+    }
+    for (date, kinds) in &self.data.typing_open {
+      for (kind, pool) in kinds {
+        rows.push(TypingDayRow { date: date.clone(), kind: kind.clone(), summary: pool.summary() });
+      }
+    }
+    rows.sort_by(|a, b| b.date.cmp(&a.date).then(a.kind.cmp(&b.kind)));
+    rows
+  }
+
+  /// Counted presses on a day, every kind except games.
+  pub fn counted_on(&self, day: &str) -> u32 {
+    self.data.typing_open.get(day).and_then(|k| k.get(ALL)).map(|p| p.presses).unwrap_or(0)
   }
 
   pub fn clear(&mut self) {
@@ -167,12 +192,48 @@ mod tests {
     assert_eq!(s.data.days["2026-11-14"].last, "00:35");
   }
 
+  fn writing_burst(kind: AppKind, presses: u32) -> Burst {
+    Burst {
+      kind,
+      presses,
+      repeats: 0,
+      motor_gaps: (1..presses).map(|i| 150.0 + (i % 5) as f64 * 10.0).collect(),
+      thinking: 0,
+      holds: (0..presses).map(|_| 90.0).collect(),
+      chord_presses: 0,
+    }
+  }
+
   #[test]
-  fn sessions_are_taken_once() {
+  fn typing_days_pool_by_kind_and_all_and_close_old_days() {
     let mut s = Store::open(None);
-    let st = Stats { presses: 30, median_interval_ms: Some(150.0), spread_ms: Some(40.0), p95_pause_ms: Some(600.0), median_hold_ms: Some(90.0) };
-    s.push_session(SessionSummary::new("a".into(), "2026-11-14".into(), "x".into(), "y".into(), 10.0, &st));
-    assert_eq!(s.take_sessions().len(), 1);
-    assert!(s.take_sessions().is_empty());
+    for _ in 0..4 {
+      assert!(s.add_burst("2026-11-13", "2026-11-12", &writing_burst(AppKind::Writing, 100)));
+    }
+    assert!(s.add_burst("2026-11-13", "2026-11-12", &writing_burst(AppKind::Code, 50)));
+    assert!(!s.add_burst("2026-11-13", "2026-11-12", &writing_burst(AppKind::Game, 100)), "games are never kept");
+    assert!(!s.add_burst("2026-11-13", "2026-11-12", &writing_burst(AppKind::Writing, 10)), "too short");
+    assert_eq!(s.counted_on("2026-11-13"), 450);
+    let rows = s.typing_rows();
+    let all = rows.iter().find(|r| r.kind == ALL).unwrap();
+    let writing = rows.iter().find(|r| r.kind == "writing").unwrap();
+    let code = rows.iter().find(|r| r.kind == "code").unwrap();
+    assert_eq!((all.summary.presses, writing.summary.presses, code.summary.presses), (450, 400, 50));
+    assert!(all.summary.spread_ms.is_some() && writing.summary.spread_ms.is_some());
+    assert!(code.summary.spread_ms.is_none(), "under 300 counted presses: no value");
+    assert!(!rows.iter().any(|r| r.kind == "game"));
+    // Two days later the day is closed: only its numbers stay.
+    s.add_burst("2026-11-15", "2026-11-14", &writing_burst(AppKind::Writing, 100));
+    assert!(!s.data.typing_open.contains_key("2026-11-13"));
+    assert_eq!(s.data.typing_days["2026-11-13"]["all"].presses, 450);
+    assert_eq!(s.typing_rows().iter().filter(|r| r.date == "2026-11-13").count(), 3);
+  }
+
+  #[test]
+  fn older_files_with_sessions_still_open() {
+    let json = r#"{"days":{"2026-11-01":{"first":"08:00","last":"22:00"}},"pending_sessions":[{"id":"a"}]}"#;
+    let data: Data = serde_json::from_str(json).expect("old file reads");
+    assert_eq!(data.days.len(), 1);
+    assert!(data.typing_days.is_empty());
   }
 }
