@@ -1,63 +1,121 @@
-// The companion character. A placeholder: the final look is not decided.
+"use client";
+
+// The companion character: "Dot", the designer's real-time three.js model (dot.js).
 //
-// To swap the character, replace this file (and Companion.module.css) with any
-// component that takes the same props. Nothing else in the app needs to change.
-// Colours come from the --companion-* tokens in styles/tokens.css.
+// To change the character, replace dot.js (same createCompanion API) or this file.
+// Nothing else in the app needs to change: pages only pass `state` and `size`.
+// If WebGL is not available, a plain drawn stand-in is shown instead.
 
+import { useEffect, useRef, useState } from "react";
 import styles from "./Companion.module.css";
+import type { DotHandle } from "./dot";
 
-export type CompanionState = "idle" | "speaking" | "listening";
+export type CompanionState =
+  | "idle"
+  | "speaking"
+  | "listening"
+  | "thinking"
+  | "attention"
+  | "joy"
+  | "concern"
+  | "sleeping"
+  | "celebrate";
 
 export interface CompanionProps {
   state: CompanionState;
-  /** Width in px. Height follows. */
+  /** Width and height in px. */
   size?: number;
+  /** A palette name from dot.js (peach, butter, mint, sky, lilac, offwhite) or any CSS colour. */
+  color?: string;
 }
 
 const STATE_LABEL: Record<CompanionState, string> = {
   idle: "The companion is resting",
   speaking: "The companion is speaking",
   listening: "The companion is listening",
+  thinking: "The companion is thinking",
+  attention: "The companion would like your attention",
+  joy: "The companion is glad",
+  concern: "The companion is concerned",
+  sleeping: "The companion is sleeping",
+  celebrate: "The companion is celebrating",
 };
 
-export function Companion({ state, size = 160 }: CompanionProps) {
+/** Below this size the extra effects (rings, sparkles) do not fit, so only the dot is drawn. */
+const COMPACT_BELOW_PX = 200;
+
+export function Companion({ state, size = 160, color = "peach" }: CompanionProps) {
+  const holder = useRef<HTMLDivElement>(null);
+  const dot = useRef<DotHandle | null>(null);
+  const [failed, setFailed] = useState(false);
+  const compact = size < COMPACT_BELOW_PX;
+
+  useEffect(() => {
+    let cancelled = false;
+    const el = holder.current;
+    if (!el) return;
+    import("./dot")
+      .then(({ createCompanion }) => {
+        if (cancelled) return;
+        try {
+          dot.current = createCompanion(el, {
+            mood: state,
+            color,
+            rings: !compact,
+            effects: !compact,
+            zoom: compact ? 1.6 : 1,
+          });
+        } catch {
+          setFailed(true);
+        }
+      })
+      .catch(() => setFailed(true));
+    return () => {
+      cancelled = true;
+      dot.current?.destroy();
+      dot.current = null;
+    };
+    // The model is created once; mood, colour and framing are updated below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    dot.current?.setMood(state);
+  }, [state]);
+
+  useEffect(() => {
+    dot.current?.setColor(color);
+  }, [color]);
+
+  useEffect(() => {
+    dot.current?.setOptions({ rings: !compact, effects: !compact, zoom: compact ? 1.6 : 1 });
+  }, [compact]);
+
   return (
-    <div className={styles.wrap} data-state={state} style={{ width: size }}>
-      <svg viewBox="0 0 160 140" role="img" aria-label={STATE_LABEL[state]} className={styles.svg}>
-        <ellipse cx="80" cy="132" rx="38" ry="5" className={styles.shadow} />
-
-        {/* listening: sound coming in from both sides */}
-        <g className={styles.waves} aria-hidden="true">
-          <path d="M18 64 q-8 14 0 28" />
-          <path d="M8 56 q-12 22 0 44" />
-          <path d="M142 64 q8 14 0 28" />
-          <path d="M152 56 q12 22 0 44" />
-        </g>
-
-        <g className={styles.body}>
-          {/* A plain rounded block with two dots and a line: a stand-in, not a character design. */}
-          <rect x="36" y="34" width="88" height="92" rx="26" className={styles.skin} />
-
-          <g className={styles.eyes}>
-            <circle cx="64" cy="72" r="4" />
-            <circle cx="96" cy="72" r="4" />
-          </g>
-
-          {state === "speaking" ? (
-            <ellipse cx="80" cy="96" rx="7" ry="5" className={styles.mouthTalk} />
-          ) : state === "listening" ? (
-            <circle cx="80" cy="96" r="3" className={styles.mouthListen} />
-          ) : (
-            <path d="M72 96 h16" className={styles.mouthIdle} />
-          )}
-        </g>
-
-        {/* speaking: little lines next to the mouth */}
-        <g className={styles.talkLines} aria-hidden="true">
-          <path d="M132 40 l10 -8" />
-          <path d="M136 54 l13 -2" />
-        </g>
-      </svg>
+    <div
+      className={styles.wrap}
+      data-state={state}
+      role="img"
+      aria-label={STATE_LABEL[state]}
+      style={{ width: size, height: size }}
+    >
+      {failed ? <StandIn state={state} /> : <div ref={holder} className={styles.canvas} />}
     </div>
+  );
+}
+
+/** Shown only when the 3D model cannot start (no WebGL). */
+function StandIn({ state }: { state: CompanionState }) {
+  return (
+    <svg viewBox="0 0 160 160" aria-hidden="true" className={styles.svg}>
+      <g className={styles.body}>
+        <circle cx="80" cy="84" r="50" className={styles.skin} />
+        <g className={styles.eyes}>
+          <ellipse cx="64" cy="80" rx="5" ry="7" />
+          <ellipse cx="96" cy="80" rx="5" ry="7" />
+        </g>
+        {state === "speaking" && <ellipse cx="80" cy="104" rx="7" ry="5" className={styles.mouthTalk} />}
+      </g>
+    </svg>
   );
 }
