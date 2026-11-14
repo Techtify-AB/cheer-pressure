@@ -116,8 +116,7 @@ opened it on their phone and typed a first name, then "Connected with Sara". A q
   (`components/TrustedBridge.tsx`, `lib/trusted.ts`; polling every 1.5 s, and in the desktop app
   also while the main window is hidden). A greeting or question becomes home's one primary thing
   ("Sara: Walk after lunch?" with Yes, No and Write back), the companion looks glad, the mascot
-  window shows its cue and a click opens home, and a robot connected under Live view gets
-  `{"t":"led","mode":"greeting","color":"warm","ms":4000}`. Outside quiet hours the companion
+  window shows its cue and a click opens home. Outside quiet hours the companion
   reads it aloud once (unless the voice is off or everything is paused); in quiet hours it is
   still shown, silently. After the answer home is calm again. Only the newest unanswered
   message is ever shown; there is no conversation history in the interface.
@@ -179,11 +178,12 @@ answer has its own test: at least 4 "Not so good" among the last week's answers 
 share than in the four weeks before (at least 4 answered days in each); unanswered or dismissed
 days are never counted as low.
 
-**When it asks.** When at least **two different categories** have changed, or **Sleep alone**
-in at least two measures, or **Mood alone through the person's own answers**. **Energy alone
-and Social alone never ask**; My values still shows them, and says so. Camera or voice measures
-under Mood (expression, posture and tone, not connected yet) may only support a change together
-with another category and never outweigh the person's own answer: when the answers have been
+**When it asks.** Only when at least **two different categories** have changed. **No category
+asks alone**, however many of its measures changed: not Sleep, and not Mood, not even the
+person's own daily answers (a week with at least 4 "Not so good" makes Mood changed, which needs
+one more category). A single "Not so good" only shows a gentle line and "Talk to me". My values
+shows a category that changed alone, and says it never makes Cheri ask on its own. Camera or
+voice measures under Mood never outweigh the person's own answer: when the answers have been
 steady, they do not make Mood changed. Sensor measures are worded only as what was measured
 against the person's own usual ("your typing has been more uneven"), never as a feeling; only
 the person's own answer is ever stated as how they feel. The ladder's "the measures have come
@@ -195,23 +195,22 @@ and weekend differences, days away, days with too little writing, day-to-day wob
 some days, messages most days, daily answers on about two days in three), six steady weeks and
 then a one-week drift (sleep slips first, typing and movement follow, a few fewer messages,
 "Not so good" grows slowly). Asks by chance during the steady weeks (after learning), and finds
-the drift, with the rule on the four categories:
+the drift, with the rule (two different categories):
 
 | "Changed" test | Asks by chance | Finds the drift in its first week | Day of the drift, on average |
 | --- | --- | --- | --- |
-| median of the week outside the widened band (chosen) | 13 of 400 (3.3 per 100) | 400 of 400 | 5.0 |
-| at least 5 of the last 7 days outside the band | 13 of 400 | 381 of 400 (400 within two weeks) | 6.0 |
-| at least 4 of the last 7 days outside the band | 82 of 400 | 400 of 400 | 4.6 |
-| median of the week outside the 10 to 90 band | 199 of 400 | 400 of 400 | 3.9 |
+| median of the week outside the widened band (chosen) | 8 of 400 (2.0 per 100) | 397 of 400 (400 within two weeks) | 5.2 |
+| at least 5 of the last 7 days outside the band | 3 of 400 | 323 of 400 (400 within two weeks) | 6.5 |
+| at least 4 of the last 7 days outside the band | 57 of 400 | 395 of 400 | 5.0 |
+| median of the week outside the 10 to 90 band | 170 of 400 | 400 of 400 | 4.2 |
 
-With the chosen test, "two different categories only" asks by chance in 8 of 400 and "any two
-measures" in 15 of 400. Earlier steps, for comparison: typing and day and night rhythm only, 2
-of 400; with the own answers, 7; with movement as its own source, 14. The script prints all
-of these.
+For comparison, "any two measures" with the chosen test asks by chance in 15 of 400. The
+earlier rule with exceptions (Sleep alone in two measures, the own answers alone) asked in 13
+of 400. The script prints all of these.
 
-The check-in explains in plain words what changed over the last week compared with the four
-weeks before, and how many days that rests on, then asks one question with three answers. No
-percentages, no score, no diagnosis words.
+The check-in explains in plain words which categories changed and what was observed over the
+last week compared with the four weeks before, and how many days that rests on, then asks one
+question with three answers. No percentages, no score, no diagnosis words.
 
 ## Typing that counts
 
@@ -253,14 +252,13 @@ still load.
 | `lib/trusted.ts` | The app's one messages client, followed once while a pair exists, and the hook screens read it through |
 | `lib/messages.ts`, `lib/events.ts` | The local-first messages client and the event types (byte-for-byte copies in `server/lib/`) |
 | `components/Greeting.tsx` | "Sara: Walk after lunch?" with Yes, No and Write back, on home and in the ladder |
-| `components/TrustedBridge.tsx` | Follows the pair at app level; robot line and read-aloud when a greeting arrives |
+| `components/TrustedBridge.tsx` | Follows the pair at app level; read-aloud when a greeting arrives; messages per day for Social |
 | `components/LinkCode.tsx` | A link as a QR code made on the device, with Copy |
 | `server/` | The messages service and the two phone pages (its own package, see `server/README.md`) |
 | `lib/replay.ts` | The made-up eight weeks for the replay and the demo data, run through the real rule |
 | `lib/typing.ts` | Bursts of real writing, the not-writing checks and the daily pooling (same rules as `src-tauri/src/rhythm.rs`) |
 | `lib/passive.ts` | The passive measures and the rule that decides when to ask |
 | `lib/platform.ts` | Desktop app or browser: wraps the desktop app's commands and events |
-| `lib/robot.ts` | The robot seam: interface, Web Serial implementation, desktop stub |
 | `src-tauri/` | The desktop app (Tauri 2, Rust) |
 | `lib/storage.ts` | The only module that touches browser storage (localStorage, one key: `companion.v1`) |
 | `lib/types.ts` | The data model |
@@ -479,7 +477,7 @@ falls back to the box); they are not tested.
   `main` and `mascot`), then it was quit. How the windows looked was not checked. The web screens were driven in a headless browser at 390 and 1366 px.
 - **Not verified:** the system-wide capture itself (needs the Input Monitoring permission
   and a person typing), the permission flow, dragging and clicking the mascot, the menu bar
-  items, hide on close, the mascot cue in the real window, Web Serial with a real robot,
+  items, hide on close, the mascot cue in the real window,
   Windows and Linux.
 - Someone you trust: the chain was driven headless against the real service (`pnpm test:e2e`).
   **Not verified:** the desktop app talking to the service (the connect-src rule, macOS's
@@ -507,9 +505,8 @@ the menu bar icon.
 - Offline caching (no service worker).
 - Microphone and bedside sensor. The camera runs only while the Cheer Pressure window is open
   and showing; no background capture.
-- A serial port for the robot inside the desktop app (marked TODO in `lib/robot.ts`). The
-  greeting light reaches a robot connected over Web Serial in Chrome; in the desktop app
-  nothing is sent to a robot.
+- Next step, not this weekend: the bedside robot and the radar. `lib/robot.ts` keeps the seam
+  (Web Serial), but nothing in the app connects or sends to a robot.
 - The character's final look.
 - Translations. The UI is English only.
 - Clinical validation of any threshold. The change thresholds in `lib/levels.ts` are first guesses.

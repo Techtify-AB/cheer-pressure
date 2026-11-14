@@ -216,12 +216,14 @@ check("typing alone: Your own level shows it and says typing alone does not ask"
 const sleepTwo = history(40, 7, { first: true, last: true });
 const est2 = evaluatePassive(sleepTwo, TODAY);
 check(
-  "two sleep measures alone: asks",
-  est2.askNow && est2.changed.every((m) => m.source === "sleep") && est2.changed.length >= 2,
-  est2.changed.map((m) => m.key).join(),
+  "Sleep alone, in several measures: no longer asks (one category)",
+  !est2.askNow && est2.changed.every((m) => m.source === "sleep") && est2.changed.length >= 2 && est2.reason === "quiet-only",
+  `${est2.changed.map((m) => m.key).join()} ${est2.reason}`,
 );
-check("enoughToAsk: one typing and one sleep", enoughToAsk([{ key: "hold" }, { key: "quietNight" }]));
-check("enoughToAsk: two sleep", enoughToAsk([{ key: "firstActivity" }, { key: "quietNight" }]));
+check("Sleep alone: says so on My values", weeklyInsight(est2).endsWith("Sleep alone never makes me ask."), weeklyInsight(est2));
+check("enoughToAsk: one Energy and one Sleep", enoughToAsk([{ key: "hold" }, { key: "quietNight" }]));
+check("enoughToAsk: two Sleep measures are one category", !enoughToAsk([{ key: "firstActivity" }, { key: "quietNight" }]));
+check("enoughToAsk: Mood's own answers alone are one category", !enoughToAsk([{ key: "ownAnswer" }]) && enoughToAsk([{ key: "ownAnswer" }, { key: "lastActivity" }]));
 check("enoughToAsk: both typing measures are not enough", !enoughToAsk([{ key: "spread" }, { key: "hold" }]));
 check("enoughToAsk: one sleep is not enough", !enoughToAsk([{ key: "lastActivity" }]));
 check("explanation names the categories, then the plain observation", explainChange(et).startsWith("Sleep and Energy have changed: over the last week your days have started later"), explainChange(et));

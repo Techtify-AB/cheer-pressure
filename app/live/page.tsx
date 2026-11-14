@@ -13,7 +13,6 @@ import {
   setTypingPaused,
   type DayActivity,
 } from "@/lib/platform";
-import { connectRobot, connectedRobot, robotSupport } from "@/lib/robot";
 import { sourcesOf } from "@/lib/settings";
 import { saveTypingDays, useData } from "@/lib/storage";
 import {
@@ -307,7 +306,6 @@ function LiveView({ daysSaved, blocked }: { daysSaved: number; blocked: boolean 
                   </tbody>
                 </table>
               )}
-              <RobotConnect />
             </Disclosure>
             <Link href="/demo/" className="btn btn-quiet">
               Back to the demo
@@ -348,47 +346,5 @@ function LiveView({ daysSaved, blocked }: { daysSaved: number; blocked: boolean 
         <Numbers stats={stats} countedToday={countedToday} />
       </section>
     </Screen>
-  );
-}
-
-function RobotConnect() {
-  const [support] = useState(() => (typeof window === "undefined" ? null : robotSupport()));
-  // The robot stays connected while the app is open, so a greeting can light it up on any screen.
-  const [state, setState] = useState<"idle" | "connecting" | "connected" | "failed">(() =>
-    typeof window !== "undefined" && connectedRobot() ? "connected" : "idle",
-  );
-
-  if (!support) return null;
-  return (
-    <section className="stack-sm" aria-labelledby="robot-title">
-      <h3 id="robot-title" style={{ fontSize: "var(--font-size-md)", margin: 0 }}>
-        Robot
-      </h3>
-      <div className="btn-row">
-        <button
-          type="button"
-          className="btn btn-secondary"
-          disabled={!support.ok || state === "connecting" || state === "connected"}
-          onClick={async () => {
-            setState("connecting");
-            try {
-              await connectRobot();
-              setState("connected");
-            } catch {
-              setState("failed");
-            }
-          }}
-        >
-          {state === "connected" ? "Robot connected" : state === "connecting" ? "Connecting" : "Connect robot"}
-        </button>
-      </div>
-      <p className="small muted" style={{ marginBottom: 0 }} aria-live="polite">
-        {!support.ok
-          ? support.reason
-          : state === "failed"
-            ? "It did not connect. Check the cable and try again."
-            : "Plug the robot in with a USB cable, then pick it from the list."}
-      </p>
-    </section>
   );
 }

@@ -14,7 +14,7 @@ import { Screen } from "@/components/Screen";
 import { Strip } from "@/components/Strip";
 import { brain, passiveInput } from "@/lib/brain";
 import { computeLevels } from "@/lib/levels";
-import { LEARNING_DAYS, type PassiveMetric } from "@/lib/passive";
+import { LEARNING_DAYS, SOURCES, type PassiveMetric } from "@/lib/passive";
 import {
   firstAsk,
   makeReplayData,
@@ -142,7 +142,10 @@ function Replay() {
   if (fired) line = explanation ?? "";
   else if (e.learning) line = `Still learning your usual rhythm: ${e.daysOfData} of ${LEARNING_DAYS} days so far.`;
   else if (e.changed.length === 1) line = "One thing looks different. That alone is not enough for me to ask.";
-  else if (e.reason === "quiet-only") line = "Energy looks different. Energy alone never makes me ask.";
+  else if (e.reason === "quiet-only") {
+    const only = SOURCES.find((c) => e.changed.some((m) => m.source === c.id))?.label ?? "One category";
+    line = `${only} looks different. One category alone never makes me ask.`;
+  }
   else if (index === 0 && !playing) line = "Eight made-up weeks. I look at each day the way I look at yours.";
   else line = "Nothing stands out compared with the usual.";
 

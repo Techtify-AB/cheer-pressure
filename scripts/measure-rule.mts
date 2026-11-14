@@ -7,10 +7,9 @@
 //   which day after the drift began.
 //
 // It prints every candidate "changed" test (CHANGE_TESTS in lib/passive.ts), each with the
-// rule on the four categories (two categories, or Sleep alone in two measures, or Mood's own
-// answers alone; Energy alone and Social alone never).
+// rule on the four categories (at least two different categories; no category alone).
 // Run: npx tsx scripts/measure-rule.mts [periods]
-import { CHANGE_TEST, CHANGE_TESTS, enoughToAsk, sourceOf, type ChangeTest, type PassiveMetric } from "../lib/passive";
+import { CHANGE_TEST, CHANGE_TESTS, enoughToAsk, type ChangeTest, type PassiveMetric } from "../lib/passive";
 import { STEADY_DAYS, makeReplayData, replayFrames } from "../lib/replay";
 
 const SEEDS = Number(process.argv[2] ?? 400);
@@ -18,10 +17,8 @@ const LAST = "2026-11-14";
 const DAYS = STEADY_DAYS + 14; // six steady weeks, then two weeks after the drift began
 
 type Rule = (c: PassiveMetric[]) => boolean;
-const sources = (c: PassiveMetric[]) => new Set(c.map((m) => sourceOf(m.key))).size;
 const RULES: [string, Rule][] = [
-  ["as implemented: two categories (Sleep, Energy, Social, Mood), or Sleep alone in two measures, or Mood's own answers alone", (c) => enoughToAsk(c)],
-  ["two different categories only", (c) => sources(c) >= 2],
+  ["as implemented: at least two different categories (Sleep, Energy, Social, Mood)", (c) => enoughToAsk(c)],
   ["any two measures", (c) => c.length >= 2],
 ];
 

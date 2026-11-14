@@ -15,10 +15,12 @@
 // - A measure counts as changed when CHANGE_TEST says so, chosen by measurement (CHANGE_TESTS,
 //   scripts/measure-rule.mts). Typing compares like with like by kind of app. The daily answer
 //   has its own test (judgeAnswers).
-// - Cheri asks when at least TWO DIFFERENT categories have changed, or Sleep alone in at least
-//   two measures, or Mood alone through the person's own answers. Energy alone and Social
-//   alone never ask. Camera or voice measures under Mood may only support another category
-//   and never outweigh the person's own answer.
+// - Cheri asks ONLY when at least TWO DIFFERENT categories (Sleep, Energy, Social, Mood) have
+//   changed. No category asks alone, however many of its measures changed: not Sleep, and not
+//   Mood, not even the person's own daily answers (a week with at least 4 "Not so good" makes
+//   Mood changed, which needs one more category). A single "Not so good" only shows a gentle
+//   line and "Talk to me". Camera or voice measures under Mood never outweigh the person's own
+//   answer: when that answer has been steady, they do not make Mood changed.
 // - Until there are 14 days with any data, it is still learning and never asks.
 // - After a proposed check-in it waits 3 days, unless a measure changes that was
 //   not part of the last one.
@@ -136,15 +138,12 @@ export const SOURCES: {
   /** In running text. */
   words: string;
   inputs: Input[];
-  /** How many of its measures must change for it to ask on its own; null: never on its own. */
-  aloneAsksAt: number | null;
 }[] = [
   {
     id: "sleep",
     label: "Sleep",
     reportLabel: "Sleep",
     words: "sleep",
-    aloneAsksAt: 2,
     inputs: [
       { id: "computer-use", label: "Estimated from when this computer is used", measures: ["firstActivity", "lastActivity", "quietNight"], setting: "dayRhythm" },
       { id: "phone-app", label: "Phone app", measures: [], setting: null },
@@ -157,7 +156,6 @@ export const SOURCES: {
     label: "Energy",
     reportLabel: "Energy",
     words: "energy",
-    aloneAsksAt: null,
     inputs: [
       { id: "typing", label: "Typing rhythm", measures: ["spread", "hold"], setting: "typing", sensor: true },
       { id: "movement", label: "Body movement (camera)", measures: ["movementLevel", "positionChanges"], setting: "camera", sensor: true },
@@ -169,7 +167,6 @@ export const SOURCES: {
     label: "Social",
     reportLabel: "Social",
     words: "social",
-    aloneAsksAt: null,
     inputs: [
       { id: "trusted-contact", label: "Messages with the person you trust", measures: ["contact"], setting: "contact" },
       { id: "talking", label: "Talking with someone", measures: [], setting: null },
@@ -181,8 +178,6 @@ export const SOURCES: {
     label: "Mood",
     reportLabel: "Mood",
     words: "mood",
-    // Mood asks on its own only through the person's own answers (see enoughToAsk).
-    aloneAsksAt: null,
     inputs: [
       { id: "daily-answer", label: "Your daily answer", measures: ["ownAnswer"], setting: "dailyQuestion" },
       { id: "expression", label: "Facial expression (camera)", measures: [], setting: null, sensor: true },
@@ -211,12 +206,10 @@ export function inputOf(key: PassiveKey): Input {
 }
 
 /**
- * Whether these changed measures are enough to ask: at least two different categories, or
- * Sleep alone in at least two measures, or Mood alone through the person's own answers. Energy
- * alone and Social alone never ask. Camera and voice measures under Mood (none connected yet)
- * may only support a change together with another category, and never outweigh the person's
- * own answer: when that answer has been steady (Good or Okay), they do not make Mood changed.
- * The ladder uses the same test for "the measures have come back".
+ * Whether these changed measures are enough to ask: at least two different categories. No
+ * category asks alone. Camera and voice measures under Mood never outweigh the person's own
+ * answer: when that answer has been steady (Good or Okay), they do not make Mood changed. The
+ * ladder uses the same test for "the measures have come back".
  */
 export function enoughToAsk(changed: { key: PassiveKey }[], opts: { answerSteady?: boolean } = {}): boolean {
   const counted = changed.filter((m) => {
@@ -225,14 +218,12 @@ export function enoughToAsk(changed: { key: PassiveKey }[], opts: { answerSteady
   });
   const byCategory = new Map<CategoryId, PassiveKey[]>();
   for (const m of counted) byCategory.set(sourceOf(m.key), [...(byCategory.get(sourceOf(m.key)) ?? []), m.key]);
-  if (byCategory.size >= MIN_SOURCES_TO_ASK) return true;
-  if ((byCategory.get("mood") ?? []).includes(ANCHOR)) return true;
-  return SOURCES.some((s) => s.aloneAsksAt !== null && (byCategory.get(s.id)?.length ?? 0) >= s.aloneAsksAt);
+  return byCategory.size >= MIN_SOURCES_TO_ASK;
 }
 
-/** Changed measures only in categories that never ask on their own (Energy, Social). */
+/** Changes in one category only, which never makes Cheri ask on its own. */
 export function onlyQuietSources(changed: { key: PassiveKey }[]): boolean {
-  return changed.length > 0 && !enoughToAsk(changed) && changed.every((m) => ["energy", "social"].includes(sourceOf(m.key)));
+  return changed.length > 0 && !enoughToAsk(changed);
 }
 
 /** Different categories that must have changed for the companion to ask. */

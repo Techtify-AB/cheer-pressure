@@ -74,7 +74,7 @@ const TYPING_ONLY = { askNow: false, changed: [{ key: "spread" }, { key: "hold" 
 const typingLeft = due(tried, 2, TYPING_ONLY);
 check("only typing still changed counts as come back, the same test as asking", typingLeft.due === "none" && typingLeft.close, typingLeft.reason);
 const SLEEP_TWO = { askNow: true, changed: [{ key: "firstActivity" }, { key: "quietNight" }] } as unknown as LadderInput["passive"];
-check("two day and night measures still changed keep the ladder going", due(tried, 2, SLEEP_TWO).due === "someone");
+check("Sleep alone still changed counts as come back, the same test as asking", due(tried, 2, SLEEP_TWO).due === "none" && due(tried, 2, SLEEP_TWO).close);
 let escalated = false;
 for (let d = 0; d <= 14; d++) for (const l of [tried, answerSomeone(tried, "yes", addDays(DAY0, 2))]) {
   const r = due(l, d, BACK);

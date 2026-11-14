@@ -61,7 +61,7 @@ check(
 const usualLow = Array.from({ length: 28 }, (_, i) => (i % 4 === 3 ? 1 : 2));
 check("not more than their usual: not changed", judgeAnswers(pts([...usualLow, 2, 2, 2, 2, 1, 1, 1]), TODAY).status === "steady");
 check("too few usual answers: still learning", judgeAnswers(pts([...Array(25).fill(null), 0, 1, 0, 2, 2, 2, 2, 1, 2, 0]), TODAY).status === "learning");
-check("Mood's own answers may ask on their own", enoughToAsk([{ key: "ownAnswer" }]) && !enoughToAsk([{ key: "spread" }, { key: "hold" }]));
+check("Mood's own answers alone never ask; with one more category they do", !enoughToAsk([{ key: "ownAnswer" }]) && enoughToAsk([{ key: "ownAnswer" }, { key: "spread" }]));
 
 {
   const data: AppData = {
@@ -78,7 +78,13 @@ check("Mood's own answers may ask on their own", enoughToAsk([{ key: "ownAnswer"
     settings: { muted: true },
   };
   const e = evaluatePassive(data, TODAY);
-  check("in the rule: answers alone make Cheri ask", e.askNow && e.changed.map((m) => m.key).join() === "ownAnswer", `${e.reason} ${e.changed.map((m) => m.key)}`);
+  check("in the rule: a low week makes Mood changed, but alone it does not ask", !e.askNow && e.changed.map((m) => m.key).join() === "ownAnswer", `${e.reason} ${e.changed.map((m) => m.key)}`);
+  const withSleep = {
+    ...data,
+    activityDays: data.activityDays.map((a, i) => (i < 7 ? { ...a, first: `10:${10 + i}`, last: `02:${10 + i}` } : { ...a, first: `07:${20 + (i % 3) * 5}`, last: `23:${(i % 3) * 5 + 10}` })),
+  };
+  const e2 = evaluatePassive(withSleep, TODAY);
+  check("in the rule: with Sleep changed too, two categories, Cheri asks", e2.askNow && e2.changed.some((m) => m.key === "ownAnswer") && e2.changed.some((m) => m.source === "sleep"), e2.changed.map((m) => m.key).join());
   const dismissedOnly = { ...data, dailyAnswers: data.dailyAnswers!.map((a, i) => (i >= 28 ? { ...a, answer: null, dismissed: true } : a)) };
   check("in the rule: a week of dismissals is not a low week", !evaluatePassive(dismissedOnly, TODAY).askNow);
 }
