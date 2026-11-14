@@ -3,9 +3,11 @@
 import type { ActivityId } from "@/lib/activities";
 import type { ActivityView } from "./ActivityHost";
 import { Evening } from "./Evening";
+import { Outside } from "./Outside";
 import { Song } from "./Song";
 
 export const ACTIVITY_VIEWS: Record<ActivityId, ActivityView> = {
+  outside: Outside,
   song: Song,
   evening: Evening,
 } as Record<ActivityId, ActivityView>;
