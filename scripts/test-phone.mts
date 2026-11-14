@@ -9,7 +9,8 @@ import { evaluatePassive, phoneSleepPoints, SOURCES, stepPoints, sourceOf } from
 import { categoryLine, inputViews } from "../lib/categories.ts";
 import { HELLO_PATH, planNotifications, PHONE_BRIDGE_VERSION, PHONE_EVENTS, PHONE_REQUESTS, wordDue } from "../lib/phone.ts";
 import type { AppData, HealthNight, StepsDay } from "../lib/types.ts";
-import { reduceNights, reduceSteps, type RawSleepSample } from "../mobile/src/health/nights.ts";
+import { localDay, reduceNights, reduceSteps, type RawSleepSample } from "../mobile/src/health/nights.ts";
+import { demoWeeks } from "../mobile/src/health/demoWeeks.ts";
 import * as nativeProtocol from "../mobile/src/protocol.ts";
 
 let failed = 0;
@@ -215,6 +216,28 @@ function stepDays(n: number, drift = 0): StepsDay[] {
   check("10 days from the phone: still learning, never asks", evaluatePassive(learning, TODAY).learning && !evaluatePassive(learning, TODAY).askNow);
   const made = { ...twoCats, healthNights: twoCats.healthNights.map((n) => ({ ...n, source: "demo" as const })) };
   check("made-up nights mark the evaluation as simulated", evaluatePassive(made, TODAY).simulated);
+}
+
+// --- The development build's made-up weeks ------------------------------------------------
+
+{
+  // Written at 12:00 on 14 November: 56 nights ending this morning and 56 full days of steps.
+  const now = new Date(2026, 10, 14, 12, 0);
+  const { sleep, steps } = demoWeeks(now);
+  const raw: RawSleepSample[] = sleep.map((x) => ({ ...x, source: "made-up", madeUp: true }));
+  const n = reduceNights(raw, { now: now.getTime() });
+  check("made-up weeks: 56 nights, the last one ending this morning", n.length === 56 && n[55].date === TODAY && n[0].date === addDays(TODAY, -55), `${n.length} ${n[0]?.date} ${n.at(-1)?.date}`);
+  check("made-up weeks: every night is marked made up", n.every((x) => x.source === "demo"));
+  check("made-up weeks: the awake stretch is not counted asleep", n.every((x) => x.awakenings === 1 && x.asleepMinutes! < x.inBedMinutes!));
+  const s = reduceSteps(steps, { today: TODAY, madeUpDays: new Set(steps.map((x) => localDay(x.start))) });
+  check("made-up weeks: 56 days of steps, none today", s.length === 56 && s.at(-1)!.date === addDays(TODAY, -1), `${s.length} ${s.at(-1)?.date}`);
+  const data = { ...empty(), healthNights: n, stepDays: s, phoneHealth: { askedAt: "2026-11-14T10:00:00Z" } };
+  const e = evaluatePassive(data, TODAY);
+  const cats = new Set(e.changed.map((m) => sourceOf(m.key)));
+  check("made-up weeks: Sleep and Energy both show a change, so Cheri would ask", cats.has("sleep") && cats.has("energy") && e.askNow, `${[...cats].join()} ${e.reason}`);
+  check("made-up weeks: shown as simulated", e.simulated);
+  const midnight = demoWeeks(new Date(2026, 10, 14, 0, 30));
+  check("made-up weeks: nothing written that ends after now is kept by the reducer", reduceNights(midnight.sleep.map((x) => ({ ...x, source: "m" })), { now: new Date(2026, 10, 14, 0, 30).getTime() }).every((x) => x.date < TODAY));
 }
 
 // --- Notifications -----------------------------------------------------------------------
