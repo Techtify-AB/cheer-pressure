@@ -1,18 +1,41 @@
 "use client";
 
-// The check-in the companion proposes when at least two passive measures stand out
-// from the person's own range (lib/passive.ts). First a plain explanation of what
-// changed, then one question with three tap answers. No percentages, no score.
+// The conversation with the companion. It opens on what is due (lib/ladder.ts):
+//
+// - When at least two measures stand out (lib/passive.ts): first a plain explanation
+//   of what changed, then "How are you doing?" with three answers.
+// - Opened by the person's own choice with nothing standing out: the question only.
+// - After "Not my best": step 1, one small thing from the routines the person has on.
+//   Two days later, if the measures have not come back: step 2, someone you trust.
+//   Seven days later: step 3, a short summary for the clinic.
+//   "I'd like someone to check in on me" goes straight to step 2.
+//
+// Each step is one screen with one primary action and a decline. No percentages, no
+// score, no diagnosis words.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { ClinicContactPlaceholder } from "@/components/ClinicContactPlaceholder";
+import { useEffect, useRef, useState } from "react";
 import { Disclosure, Says, Screen, StepCount } from "@/components/Screen";
-import { useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
+import { useCompanionStatus, useCompanionVoice, useReflection, useRequireProfile, useToday } from "@/components/hooks";
+import type { CompanionState } from "@/components/companion/Companion";
+import { SUGGESTIONS } from "@/lib/brain";
+import { createLocalContact, type Contact, type ContactReply } from "@/lib/contact";
 import { newId } from "@/lib/dates";
+import {
+  answerClinic,
+  answerReply,
+  answerSmallThing,
+  answerSomeone,
+  clinicSummary,
+  isActive,
+  requestSomeone,
+  startAfterNotBest,
+  type Due,
+} from "@/lib/ladder";
 import { evaluatePassive } from "@/lib/passive";
-import { saveCheckIn, useData } from "@/lib/storage";
+import { forRule, pickSmallThing, routinesOf } from "@/lib/settings";
+import { hasDemo, readData, saveCheckIn, saveLadder, useData } from "@/lib/storage";
 import type { AppData, CheckInAnswer } from "@/lib/types";
 
 const QUESTION = "How are you doing?";
@@ -23,142 +46,386 @@ const ANSWERS: { value: Exclude<CheckInAnswer, "not-now">; label: string }[] = [
   { value: "someone", label: "I'd like someone to check in on me" },
 ];
 
+type View =
+  | "explain"
+  | "ask"
+  | "okay"
+  | "small-thing"
+  | "small-thing-done"
+  | "someone"
+  | "someone-asked"
+  | "clinic"
+  | "clinic-done"
+  | "declined"
+  | "waiting";
+
+function firstView(due: Due, ladderActive: boolean): View {
+  if (due === "ask") return "explain";
+  if (due === "small-thing" || due === "someone" || due === "clinic") return due;
+  return ladderActive ? "waiting" : "ask";
+}
+
 export default function PromptPage() {
   const data = useData();
   const ready = useRequireProfile(data);
-  if (!data || !ready) return null;
-  return <PromptFlow data={data} />;
+  const { outcome } = useCompanionStatus(data);
+  if (!data || !ready || !outcome) return null;
+  return <Conversation data={data} start={firstView(outcome.due, isActive(data.ladder))} />;
 }
 
-function PromptFlow({ data }: { data: AppData }) {
+function Conversation({ data, start }: { data: AppData; start: View }) {
   const router = useRouter();
   const today = useToday();
   const voice = useCompanionVoice();
-  // Judged once when the page opens, so saving the answer does not change the text.
-  const [evaluation] = useState(() => evaluatePassive(data, today));
-  const [answer, setAnswer] = useState<CheckInAnswer | null>(null);
-  const [step, setStep] = useState<"explain" | "ask">("explain");
+  // Judged once when the conversation opens, so saving an answer does not change the text.
+  const [evaluation] = useState(() => evaluatePassive(forRule(data), today));
+  const [view, setView] = useState<View>(start);
+  const [mood, setMood] = useState<CompanionState | null>(null);
   // What to say comes from the brain (lib/brain.ts); whether to ask came from lib/passive.ts.
   const { reflection } = useReflection(data, evaluation);
+  const demo = hasDemo(data) || !!data.settings.simulatedChangeAt;
+  const simulated = evaluation.simulated || demo;
+  const ladder = data.ladder;
 
-  const record = (value: CheckInAnswer) => {
+  const contact = useRef<Contact | null>(null);
+  const [reply, setReply] = useState<ContactReply | null>(null);
+  const [replyAnswer, setReplyAnswer] = useState<"yes" | "no" | null>(null);
+
+  const record = (value: CheckInAnswer) =>
     saveCheckIn({
       id: newId(),
       date: today,
       at: new Date().toISOString(),
       answer: value,
-      triggeredBy: evaluation.changed.map((m) => ({ key: m.key, direction: m.direction ?? "up" })),
+      triggeredBy: evaluation.askNow ? evaluation.changed.map((m) => ({ key: m.key, direction: m.direction ?? "up" })) : [],
       basedOn: evaluation.basedOn,
       simulated: evaluation.simulated,
     });
-    setAnswer(value);
-  };
 
   // "I'm okay" ends by itself after a short closing line.
   useEffect(() => {
-    if (answer !== "okay") return;
+    if (view !== "okay") return;
     const t = window.setTimeout(() => router.push("/"), 4000);
     return () => window.clearTimeout(t);
-  }, [answer, router]);
+  }, [view, router]);
 
-  const home = (
+  const answer = (value: Exclude<CheckInAnswer, "not-now">) => {
+    record(value);
+    if (value === "okay") {
+      setMood("joy");
+      setView("okay");
+    } else if (value === "not-best") {
+      const preferred = reflection?.passive.suggestion.id ?? "walk";
+      const routine = pickSmallThing(preferred, routinesOf(data.settings));
+      saveLadder(startAfterNotBest(today, routine, simulated));
+      setView("small-thing");
+    } else {
+      saveLadder(requestSomeone(readData().ladder, today, simulated));
+      setView("someone");
+    }
+  };
+
+  const home = (label = "Back to home") => (
     <Link href="/" className="btn btn-primary">
-      Back to home
+      {label}
     </Link>
   );
 
-  if (!evaluation.askNow && answer === null) {
+  const declinedLine = (
+    <Screen
+      lead={
+        <Says state="idle" size={88}>
+          <p>That&apos;s fine. I won&apos;t bring this up again for a few days.</p>
+        </Says>
+      }
+      actions={home()}
+    />
+  );
+
+  if (view === "declined") return declinedLine;
+
+  if (view === "okay") {
     return (
       <Screen
         lead={
-          <Says state="idle">
-            <p>Nothing stands out compared with your usual right now. Nothing is needed from you.</p>
+          <Says state={mood ?? "joy"} size={88}>
+            <p>Good to hear. Thanks for telling me. That&apos;s all for now.</p>
           </Says>
         }
-        actions={
-          <>
-            {home}
-            <div className="links">
-              <Link href="/check-in/" className="btn btn-quiet">
-                Tell me how you&apos;re doing anyway
-              </Link>
-            </div>
-          </>
-        }
+        actions={home()}
       />
     );
   }
 
-  if (answer === "okay") {
+  if (view === "waiting") {
     return (
       <Screen
         lead={
           <Says state="idle" size={88}>
-            <p>Good to hear. Thanks for telling me. That&apos;s all for now.</p>
-          </Says>
-        }
-        actions={home}
-      />
-    );
-  }
-
-  if (answer === "not-best") {
-    return (
-      <Screen
-        lead={
-          <Says state="idle">
-            <p>Thanks for telling me. Not every day is a good one.</p>
-            <p className="suggestion">
-              <strong>One small thing to try:</strong> {reflection?.passive.suggestion.text}
+            <p>
+              Last time you said it wasn&apos;t your best. I&apos;m keeping an eye on things and will look again in a
+              few days. Nothing is needed from you.
             </p>
           </Says>
         }
         actions={
           <>
-            <Link href="/weekly/" className="btn btn-primary">
-              Answer a few more questions
-            </Link>
+            {home()}
             <div className="links">
-              <Link href="/" className="btn btn-quiet">
-                Not now
-              </Link>
+              <button
+                type="button"
+                className="btn btn-quiet"
+                onClick={() => {
+                  saveLadder(requestSomeone(readData().ladder, today, simulated));
+                  setView("someone");
+                }}
+              >
+                I&apos;d like someone to check in on me
+              </button>
+            </div>
+          </>
+        }
+      />
+    );
+  }
+
+  // Step 1: one small thing
+  if (view === "small-thing" || view === "small-thing-done") {
+    const routine = ladder?.smallThing?.routine ?? null;
+    if (view === "small-thing-done") {
+      const tried = ladder?.smallThing?.answer === "try";
+      return (
+        <Screen
+          lead={
+            <Says state={tried ? "joy" : "idle"} size={88}>
+              <p>{tried ? "Good. I'll look again in two days." : "That's fine. I'll look again in a few days."}</p>
+            </Says>
+          }
+          actions={
+            <>
+              {home()}
+              <div className="links">
+                <Link href="/weekly/" className="btn btn-quiet">
+                  A few more questions, if you like
+                </Link>
+              </div>
+            </>
+          }
+        />
+      );
+    }
+    const done = (a: "try" | "not-now") => {
+      const l = readData().ladder;
+      if (l) saveLadder(answerSmallThing(l, a, today));
+      setView("small-thing-done");
+    };
+    return (
+      <Screen
+        lead={
+          <>
+            <Says state="concern" size={88}>
+              <p>Thanks for telling me. Not every day is a good one.</p>
+              {routine ? (
+                <p className="suggestion">
+                  <strong>One small thing:</strong> {SUGGESTIONS[routine]}
+                </p>
+              ) : null}
+            </Says>
+            <StepCount index={0} total={3} label="One small thing" />
+          </>
+        }
+        actions={
+          <>
+            <button type="button" className="btn btn-primary" onClick={() => done("try")}>
+              {routine ? "I'll try that" : "Okay"}
+            </button>
+            <div className="links">
+              {routine && (
+                <button type="button" className="btn btn-quiet" onClick={() => done("not-now")}>
+                  Not now
+                </button>
+              )}
             </div>
           </>
         }
       >
-        <section className="card stack-sm" aria-labelledby="weekly-offer">
-          <h2 id="weekly-offer">A few more questions, if you like</h2>
-          <p>
-            A few short questions about the last week. They help you and your clinic see how things are going. Only if
-            you feel like it.
-          </p>
-        </section>
+        <p className="muted">I&apos;ll look again in two days and only come back if things still look different.</p>
       </Screen>
     );
   }
 
-  if (answer === "someone") {
+  // Step 2: someone you trust
+  if (view === "someone") {
     return (
       <Screen
         lead={
-          <section className="placeholder stack-sm" aria-labelledby="contact-title">
-            <span className="placeholder-tag">Placeholder</span>
-            <h1 id="contact-title">Contact request (not connected yet)</h1>
-            <p>
-              In the finished app, this lets someone you trust know that you&apos;d like them to check in on you. It
-              isn&apos;t connected yet, so <strong>nothing has been sent</strong>.
-            </p>
-          </section>
+          <>
+            <Says state={voice.state === "speaking" ? "speaking" : "attention"} size={88}>
+              <h1 id="someone-q">Would you like someone you trust to check in on you?</h1>
+            </Says>
+            <StepCount index={1} total={3} label="Someone you trust" />
+          </>
         }
-        actions={home}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={async () => {
+                const l = readData().ladder;
+                if (l) saveLadder(answerSomeone(l, "yes", today));
+                const c = createLocalContact({ demo });
+                contact.current = c;
+                c.onReply((r) => {
+                  setReply(r);
+                  setMood("joy");
+                });
+                await c.requestContact();
+                setView("someone-asked");
+              }}
+            >
+              Yes
+            </button>
+            <div className="links">
+              <button
+                type="button"
+                className="btn btn-quiet"
+                onClick={() => {
+                  const l = readData().ladder;
+                  if (l) saveLadder(answerSomeone(l, "not-now", today));
+                  setView("declined");
+                }}
+              >
+                Not now
+              </button>
+            </div>
+          </>
+        }
+      />
+    );
+  }
+
+  if (view === "someone-asked") {
+    const answerTheReply = (a: "yes" | "no") => {
+      const l = readData().ladder;
+      if (l) saveLadder(answerReply(l, a));
+      setReplyAnswer(a);
+      setMood(a === "yes" ? "joy" : "idle");
+    };
+    return (
+      <Screen
+        lead={
+          <>
+            {demo && (
+              <span className="placeholder-tag sim-tag" role="note">
+                Simulated reply, not connected yet
+              </span>
+            )}
+            <Says state={mood ?? "idle"} size={88}>
+              {replyAnswer ? (
+                <p>{replyAnswer === "yes" ? "Lovely. Enjoy it." : "That's fine. You can answer them whenever you like."}</p>
+              ) : (
+                <p>
+                  This isn&apos;t connected to anyone yet, so nothing was sent.
+                  {demo ? " For the demo, here is what a reply could look like." : " You can call or message someone you trust yourself."}
+                </p>
+              )}
+            </Says>
+          </>
+        }
+        actions={
+          reply && !replyAnswer ? (
+            <>
+              <button type="button" className="btn btn-primary" onClick={() => answerTheReply("yes")}>
+                Yes
+              </button>
+              <div className="links">
+                <button type="button" className="btn btn-quiet" onClick={() => answerTheReply("no")}>
+                  No
+                </button>
+              </div>
+            </>
+          ) : (
+            home()
+          )
+        }
       >
-        <section className="card stack-sm" aria-labelledby="reach-title">
-          <h2 id="reach-title">You can reach someone now</h2>
-          <p>Call or message someone you trust, or contact your clinic.</p>
-          <ClinicContactPlaceholder />
-          <p>
-            If you are in danger or might hurt yourself, call <a href="tel:112">112</a>.
-          </p>
+        {demo && (
+          <section className="card reply-card" aria-live="polite" aria-label="Reply">
+            {reply ? (
+              <>
+                <p className="small muted">Someone you trust (simulated)</p>
+                <p className="reply-text">{reply.text}</p>
+              </>
+            ) : (
+              <p className="muted">Waiting for a reply</p>
+            )}
+          </section>
+        )}
+      </Screen>
+    );
+  }
+
+  // Step 3: the clinic
+  if (view === "clinic" || view === "clinic-done") {
+    const l = readData().ladder;
+    if (view === "clinic-done") {
+      return (
+        <Screen
+          lead={
+            <Says state="idle" size={88}>
+              <p>Marked as a demo recipient. Nothing was sent.</p>
+            </Says>
+          }
+          actions={home()}
+        />
+      );
+    }
+    const text = l ? clinicSummary({ ladder: l, passive: evaluation, checkIns: data.checkIns }) : "";
+    return (
+      <Screen
+        lead={
+          <>
+            <Says state={voice.state === "speaking" ? "speaking" : "attention"} size={88}>
+              <h1>Would you like your clinic to get a short summary?</h1>
+            </Says>
+            <StepCount index={2} total={3} label="Your clinic" />
+          </>
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                const cur = readData().ladder;
+                if (cur) saveLadder(answerClinic(cur, "approve", today));
+                setView("clinic-done");
+              }}
+            >
+              Approve
+            </button>
+            <div className="links">
+              <button
+                type="button"
+                className="btn btn-quiet"
+                onClick={() => {
+                  const cur = readData().ladder;
+                  if (cur) saveLadder(answerClinic(cur, "not-now", today));
+                  setView("declined");
+                }}
+              >
+                Not now
+              </button>
+            </div>
+          </>
+        }
+      >
+        <section className="card stack-sm" aria-labelledby="share-title">
+          <h2 id="share-title" className="small muted share-title">
+            This is exactly what they would get
+          </h2>
+          <pre className="summary">{text}</pre>
         </section>
       </Screen>
     );
@@ -166,13 +433,17 @@ function PromptFlow({ data }: { data: AppData }) {
 
   if (!reflection) return null;
   const explanation = reflection.passive.explanation;
+  const notNow = () => {
+    record("not-now");
+    router.push("/");
+  };
 
-  if (step === "explain") {
+  if (view === "explain") {
     return (
       <Screen
         lead={
           <>
-            <Says state={voice.state}>
+            <Says state={voice.state === "speaking" ? "speaking" : "attention"} size={88}>
               <p>{explanation}</p>
             </Says>
             <StepCount index={0} total={2} />
@@ -180,11 +451,11 @@ function PromptFlow({ data }: { data: AppData }) {
         }
         actions={
           <>
-            <button type="button" className="btn btn-primary" onClick={() => setStep("ask")}>
+            <button type="button" className="btn btn-primary" onClick={() => setView("ask")}>
               Next
             </button>
             <div className="links">
-              <button type="button" className="btn btn-quiet" onClick={() => (record("not-now"), router.push("/"))}>
+              <button type="button" className="btn btn-quiet" onClick={notNow}>
                 Not now
               </button>
               <button type="button" className="btn btn-quiet" onClick={() => voice.say(explanation)}>
@@ -215,24 +486,35 @@ function PromptFlow({ data }: { data: AppData }) {
     );
   }
 
+  // The question. Opened by the person's own choice, it comes without an explanation.
+  const own = !evaluation.askNow;
   return (
     <Screen
       lead={
         <>
-          <Says state={voice.state}>
+          <Says state={voice.state === "speaking" ? "speaking" : own ? "idle" : "attention"} size={88}>
+            {own && <p className="small muted ask-note">Nothing stands out compared with your usual right now.</p>}
             <h1 id="question">{QUESTION}</h1>
           </Says>
-          <StepCount index={1} total={2} />
+          {!own && <StepCount index={1} total={2} />}
         </>
       }
       actions={
         <div className="links">
-          <button type="button" className="btn btn-quiet" onClick={() => setStep("explain")}>
-            Back
-          </button>
-          <button type="button" className="btn btn-quiet" onClick={() => (record("not-now"), router.push("/"))}>
-            Not now
-          </button>
+          {!own && (
+            <button type="button" className="btn btn-quiet" onClick={() => setView("explain")}>
+              Back
+            </button>
+          )}
+          {own ? (
+            <Link href="/" className="btn btn-quiet">
+              Not now
+            </Link>
+          ) : (
+            <button type="button" className="btn btn-quiet" onClick={notNow}>
+              Not now
+            </button>
+          )}
           <button type="button" className="btn btn-quiet" onClick={() => voice.say(QUESTION)}>
             Read this aloud
           </button>
@@ -241,7 +523,7 @@ function PromptFlow({ data }: { data: AppData }) {
     >
       <div className="options" role="group" aria-labelledby="question">
         {ANSWERS.map((a) => (
-          <button key={a.value} type="button" className="option" onClick={() => record(a.value)}>
+          <button key={a.value} type="button" className="option" onClick={() => answer(a.value)}>
             <span>{a.label}</span>
           </button>
         ))}
