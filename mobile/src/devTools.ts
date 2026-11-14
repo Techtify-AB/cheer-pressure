@@ -8,10 +8,34 @@
 //
 // Also for trying things from a script: open a screen without tapping your way there.
 //   xcrun simctl openurl booted "cheerpressure://dev/open?path=/values/"
+// And a notification in a few seconds, through the same scheduling as the page's plan, to try
+// that it fires and that a tap opens its screen (leave the app first to see the banner):
+//   xcrun simctl openurl booted "cheerpressure://dev/notify?kind=word&in=15"
 
 import { Alert, Linking } from "react-native";
 import { IS_DEV } from "./config";
 import * as health from "./health";
+import { notificationState, requestNotifications, scheduleAt } from "./notifications";
+
+async function notifySoon(kind: "hello" | "word", seconds: number) {
+  if ((await notificationState()) === "not-asked") await requestNotifications();
+  if ((await notificationState()) !== "granted") {
+    Alert.alert("Notifications are off", "Allow notifications for Cheer Pressure first.");
+    return;
+  }
+  try {
+    const at = new Date(Date.now() + seconds * 1000).toISOString();
+    const notice =
+      kind === "word"
+        ? { id: "dev-word", kind, at, title: "Cheri would like a word", body: "A few things look different from your usual. Have a look when you have a moment.", path: "/prompt/" }
+        : { id: "dev-hello", kind, at, title: "A hello from Cheri", body: "How are you today? A few seconds is enough.", path: "/hello/" };
+    // Next to the page's plan, which leaves "dev-" notices alone.
+    await scheduleAt(notice);
+    Alert.alert("Notification scheduled", `In ${seconds} seconds. Leave the app to see it.`);
+  } catch (e) {
+    Alert.alert("That did not work", e instanceof Error ? e.message : String(e));
+  }
+}
 
 async function run(action: "add" | "remove", reload: () => void) {
   try {
@@ -43,6 +67,8 @@ export function registerDevTools(reload: () => void, open: (path: string) => voi
     if (m) void run(m[1] as "add" | "remove", reload);
     const o = url.match(/^cheerpressure:\/\/dev\/open\?path=(\/[^#]*)$/);
     if (o) open(decodeURIComponent(o[1]));
+    const n = url.match(/^cheerpressure:\/\/dev\/notify\?kind=(hello|word)&in=(\d+)/);
+    if (n) void notifySoon(n[1] as "hello" | "word", Number(n[2]));
   };
   void Linking.getInitialURL().then(onUrl);
   const sub = Linking.addEventListener("url", (e) => onUrl(e.url));

@@ -70,19 +70,27 @@ function content(n: PhoneNotice): Notifications.NotificationContentInput {
 export async function schedulePlan(plan: NotificationPlan): Promise<{ scheduled: number }> {
   if (!plan || !Array.isArray(plan.notices) || !plan.notices.every(validNotice)) throw new PlanRefused("bad-request", "The plan is not in the expected shape.");
   if ((await notificationState()) !== "granted") throw new PlanRefused("denied", "Notifications are not allowed for Cheer Pressure, so nothing was scheduled.");
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  // Everything the page planned before goes; a development build's test notice ("dev-") stays.
+  for (const p of await Notifications.getAllScheduledNotificationsAsync()) {
+    if (!p.identifier.startsWith("dev-")) await Notifications.cancelScheduledNotificationAsync(p.identifier);
+  }
   const now = Date.now();
   let scheduled = 0;
   for (const n of plan.notices.slice(0, MAX_PENDING)) {
     if (!n.at || Date.parse(n.at) <= now) continue;
-    await Notifications.scheduleNotificationAsync({
-      identifier: n.id,
-      content: content(n),
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(n.at) },
-    });
+    await scheduleAt({ ...n, at: n.at });
     scheduled++;
   }
   return { scheduled };
+}
+
+/** One notice at its time. */
+export async function scheduleAt(n: PhoneNotice & { at: string }) {
+  await Notifications.scheduleNotificationAsync({
+    identifier: n.id,
+    content: content(n),
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(n.at) },
+  });
 }
 
 export async function cancelAll(): Promise<{ cancelled: number }> {
