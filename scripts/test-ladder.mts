@@ -14,7 +14,7 @@ import {
 } from "../lib/ladder.ts";
 import { createLocalContact, SIMULATED_REPLY } from "../lib/contact.ts";
 import { enoughToAsk, evaluatePassive } from "../lib/passive.ts";
-import { firstAsk, makeReplayData, replayEndingOn, replayFrames, shiftReplay, sleepDriftOn, STEADY_DAYS, REPLAY_DAYS, driftOn } from "../lib/replay.ts";
+import { firstAsk, makeReplayData, movementDriftOn, replayEndingOn, replayFrames, shiftReplay, sleepDriftOn, STEADY_DAYS, REPLAY_DAYS, REPLAY_MS_PER_DAY, REPLAY_RUN_MS, REPLAY_SEED, driftOn } from "../lib/replay.ts";
 import { inQuietHours, pickSmallThing, ROUTINES, DEFAULT_QUIET_HOURS } from "../lib/settings.ts";
 import { clockToDayMinutes } from "../lib/passive.ts";
 import type { LadderState, RoutineId } from "../lib/types.ts";
@@ -157,20 +157,36 @@ check("small thing: none when every routine is off", pickSmallThing("walk", Obje
   check("contact stand-in: no network call", fetched === 0);
 }
 
-// The replay's made-up days, run through the real rule
-for (const last of ["2026-11-14", "2027-03-29", "2026-06-30"]) {
+// The replay's made-up days, run through the real rule, ending on every day of the week (the
+// replay is placed so that the day it asks is today, so any weekday can be the last one).
+const WEEK = ["2026-11-14", "2026-11-15", "2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20"];
+const stopDays: number[] = [];
+for (const last of WEEK) {
   const r = makeReplayData(last);
   const frames = replayFrames(r, last);
   const askedSteady = frames.filter((f) => f.day <= STEADY_DAYS && f.evaluation.askNow).map((f) => f.day);
   check(`replay (${last}): the rule never asks in the first ${STEADY_DAYS} days`, askedSteady.length === 0, askedSteady.join());
   const a = firstAsk(frames);
+  const cats = a ? [...new Set(a.evaluation.changed.map((m) => m.source))].sort().join("+") : "";
   check(
-    `replay (${last}): it asks after the drift began, with days to spare, with the day and night rhythm among what changed`,
-    !!a && a.day > STEADY_DAYS && a.day <= REPLAY_DAYS - 3 && enoughToAsk(a.evaluation.changed) && a.evaluation.changed.some((m) => m.source === "sleep"),
+    `replay (${last}): it asks after the drift began, with days to spare, on Sleep and Energy`,
+    !!a && a.day > STEADY_DAYS + 3 && a.day <= REPLAY_DAYS - 5 && enoughToAsk(a.evaluation.changed) && cats === "energy+sleep",
     a ? `day ${a.day}: ${a.evaluation.changed.map((m) => m.key).join(", ")}` : "never",
   );
+  check(
+    `replay (${last}): Energy changed through movement from the camera, not typing`,
+    !!a && a.evaluation.changed.some((m) => m.key === "movementLevel" || m.key === "positionChanges") && !a.evaluation.changed.some((m) => m.key === "spread" || m.key === "hold"),
+  );
+  const firstOf = (src: string) => frames.find((f) => f.day > STEADY_DAYS && f.evaluation.changed.some((m) => m.source === src))?.day ?? Infinity;
+  check(`replay (${last}): sleep slips first, then movement`, firstOf("sleep") < firstOf("energy"), `sleep ${firstOf("sleep")}, energy ${firstOf("energy")}`);
+  const lowLastWeek = r.dailyAnswers.filter((d) => d.answer === "not-so-good" && d.date > addDays(last, -7)).length;
+  const lowSteadyWeeks = r.dailyAnswers.filter((d) => d.answer === "not-so-good" && d.date <= addDays(last, -(REPLAY_DAYS - STEADY_DAYS))).length;
+  check(`replay (${last}): the daily answers lean towards "Not so good" in the last days`, lowLastWeek >= 3 && lowLastWeek / 7 > lowSteadyWeeks / STEADY_DAYS, `${lowLastWeek} in the last week, ${lowSteadyWeeks} in six steady weeks`);
   check(`replay (${last}): still learning on days 1 to 13`, frames.slice(0, 13).every((f) => f.evaluation.learning && !f.evaluation.askNow));
+  check(`replay (${last}): it can be placed so the day it asks is today`, firstAsk(replayFrames(replayEndingOn(last)?.data ?? r, replayEndingOn(last)?.lastDay ?? last))?.date === last);
+  if (a) stopDays.push(a.day);
 }
+console.log(`  replay seed ${REPLAY_SEED}: stops on day ${[...new Set(stopDays)].join(" or ")} of ${REPLAY_DAYS}, about ${((Math.max(...stopDays) * REPLAY_MS_PER_DAY) / 1000).toFixed(1)} of ${REPLAY_RUN_MS / 1000} seconds`);
 {
   const last = "2026-11-14";
   const r = makeReplayData(last);
@@ -178,24 +194,21 @@ for (const last of ["2026-11-14", "2027-03-29", "2026-06-30"]) {
   const dayNo = (date: string) => REPLAY_DAYS - Math.round((Date.parse(last) - Date.parse(date)) / 86_400_000);
   const split = <T extends { date: string }>(list: T[], get: (t: T) => number) => {
     const steady = list.filter((x) => driftOn(dayNo(x.date)) === 0).map(get);
-    const lastDays = list.filter((x) => dayNo(x.date) > REPLAY_DAYS - 3).map(get);
+    const lastDays = list.filter((x) => dayNo(x.date) > REPLAY_DAYS - 5).map(get);
     return med(lastDays) - med(steady);
   };
-  const moved = [
-    ["typing evenness", split(r.typingDays.filter((t) => t.spreadMs !== null), (t) => t.spreadMs!), 20],
-    ["hold time", split(r.typingDays.filter((t) => t.holdMs !== null), (t) => t.holdMs!), 4],
-    ["first activity", split(r.activityDays, (d) => clockToDayMinutes(d.first)), 45],
-    ["last activity", split(r.activityDays, (d) => clockToDayMinutes(d.last)), 45],
-  ] as const;
-  const drifting = moved.filter(([, delta, min]) => delta >= min);
-  check("replay: typing and the day and night rhythm drift in the last days", drifting.length >= 3, moved.map(([n, d]) => `${n} +${Math.round(d)}`).join(", "));
-  check("replay: sleep slips first (on the drift's first day it has moved more than a third, typing a seventh)", sleepDriftOn(STEADY_DAYS + 1) > 0.35 && driftOn(STEADY_DAYS + 1) < 0.15);
+  const lateEvening = split(r.activityDays, (d) => clockToDayMinutes(d.last));
+  const morning = split(r.activityDays, (d) => clockToDayMinutes(d.first));
+  const movement = split(r.movementSessions, (s) => s.movementMean);
+  const spread = split(r.typingDays.filter((t) => t.spreadMs !== null), (t) => t.spreadMs!);
+  check("replay: the evenings run later and the mornings do not, so the nights get shorter", lateEvening >= 60 && morning < 30, `evening +${Math.round(lateEvening)} min, morning ${Math.round(morning)} min`);
+  check("replay: movement drops", movement <= -0.015, movement.toFixed(3));
+  check("replay: typing drifts only a little", Math.abs(spread) < 12, `${spread.toFixed(1)} ms`);
+  check("replay: sleep slips first (on the drift's first day it has moved more than a third), movement two days later", sleepDriftOn(STEADY_DAYS + 1) > 0.35 && movementDriftOn(STEADY_DAYS + 2) === 0 && movementDriftOn(STEADY_DAYS + 3) > 0.35);
   const shifted = shiftReplay(r, -14);
   const a1 = firstAsk(replayFrames(r, last));
   const a2 = firstAsk(replayFrames(shifted, addDays(last, -14)));
   check("replay: moving every date by whole weeks gives the same outcome", a1?.day === a2?.day);
-  const placed = replayEndingOn(last);
-  check("replay: it can be placed so the day it asks is today", !!placed && firstAsk(replayFrames(placed.data, placed.lastDay))?.date === last);
   // The frame the replay stops on says the same as the app does with that data on that day.
   const e = evaluatePassive(a1!.data, a1!.date);
   check("replay: the stopping frame is exactly the rule's result", e.askNow && e.changed.length === a1!.evaluation.changed.length);

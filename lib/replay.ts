@@ -8,9 +8,18 @@
 // Steady weeks have the ordinary ups and downs of a real person: weekends start and end
 // later and have less typing, some days are spent away from the computer, some days have
 // too little writing to count (under 300 presses), and every day wobbles a little. In week
-// seven the drift begins, and sleep slips first: from day 43 the day starts and ends later,
-// quickly (sleepDriftOn); typing gets more uneven and keys are held a little longer, only
-// gradually (driftOn). Typing alone never makes the companion ask.
+// seven the drift begins, one category after the other:
+//
+// 1. Sleep slips first: from day 43 the evenings run later while the mornings barely move, so
+//    the estimated nights get shorter, quickly (sleepDriftOn).
+// 2. Then movement drops: from day 45 there is less movement and fewer position changes in
+//    front of the camera (movementDriftOn).
+// 3. The person's own daily answers lean towards "Not so good" in the last days, from day 47
+//    (answerDriftOn).
+//
+// Typing drifts only a little and never carries the story; messages with the person they trust
+// stay as they were. The rule (two different categories, no category alone) asks once Sleep and
+// Energy have both changed.
 //
 // Nothing here decides what the replay shows. Each frame is `evaluatePassive` from
 // lib/passive.ts on the data up to that day, exactly as the app runs it on real data.
@@ -27,8 +36,12 @@ export const DRIFT_RAMP_DAYS = 7;
 /** The whole run, if it plays to the end. */
 export const REPLAY_RUN_MS = 20_000;
 export const REPLAY_MS_PER_DAY = Math.round(REPLAY_RUN_MS / REPLAY_DAYS);
-/** Fixed, so every run shows the same eight weeks. */
-export const REPLAY_SEED = 81;
+/** Fixed, so every run shows the same eight weeks (chosen with scripts/test-ladder.mts: every weekday asks on Sleep and Energy). */
+export const REPLAY_SEED = 238;
+/** Movement starts to drop this many days after sleep has started to slip. */
+export const MOVEMENT_LAG_DAYS = 2;
+/** The daily answers start to lean towards "Not so good" this many days after sleep. */
+export const ANSWER_LAG_DAYS = 4;
 
 function rng(seed: number) {
   let s = seed >>> 0;
@@ -68,6 +81,16 @@ export function sleepDriftOn(day: number, steadyDays = STEADY_DAYS): number {
   return Math.sqrt(driftOn(day, steadyDays));
 }
 
+/** Movement drops next: like sleep, but MOVEMENT_LAG_DAYS later. */
+export function movementDriftOn(day: number, steadyDays = STEADY_DAYS): number {
+  return Math.sqrt(driftOn(day, steadyDays + MOVEMENT_LAG_DAYS));
+}
+
+/** The daily answers lean towards "Not so good" last, gradually, from ANSWER_LAG_DAYS after sleep. */
+export function answerDriftOn(day: number, steadyDays = STEADY_DAYS): number {
+  return driftOn(day, steadyDays + ANSWER_LAG_DAYS);
+}
+
 /** The made-up days. Day 1 is `days - 1` days before `lastDay`. */
 export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: DriftShape = DEFAULT_SHAPE): ReplayData {
   const rand = rng(seed);
@@ -77,7 +100,7 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
   const activityDays: ActivityDay[] = [];
   const dailyAnswers: DailyAnswer[] = [];
   // Their own random numbers, so adding answers and movement left the other measures as they were.
-  const ask = rng(seed + 7919);
+  const ask = rng(seed + 707);
   const cam = rng(seed + 104729);
   const camNoise = (spread: number) => (cam() + cam() + cam() - 1.5) * spread;
   const movementSessions: StoredMovementSession[] = [];
@@ -94,6 +117,8 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
     const weekend = isWeekend(date);
     const drift = driftOn(day, shape.steadyDays);
     const sleepDrift = sleepDriftOn(day, shape.steadyDays);
+    const moveDrift = movementDriftOn(day, shape.steadyDays);
+    const answerDrift = answerDriftOn(day, shape.steadyDays);
     const steady = drift === 0;
 
     // Typing: on weekends less of it, and a little looser.
@@ -101,8 +126,9 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
     const presses = Math.round((weekend ? 150 + rand() * 1100 : 450 + rand() * 2400) * (steady ? 1 : 1));
     if (!away) {
       const enough = presses >= 300;
-      const spread = person.spread + (weekend ? 7 : 0) + noise(14) + drift * 38;
-      const hold = person.hold + (weekend ? 2 : 0) + noise(7) + drift * 9;
+      // Only a little drift: typing is a small part of Energy and never what the story rests on.
+      const spread = person.spread + (weekend ? 7 : 0) + noise(14) + drift * 6;
+      const hold = person.hold + (weekend ? 2 : 0) + noise(7) + drift * 1.5;
       typingDays.push({
         date,
         kind: "all",
@@ -117,35 +143,36 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
       });
     }
 
-    // Day and night rhythm: weekends start and end later.
+    // Day and night rhythm: weekends start and end later. As sleep slips, the evenings run
+    // much later and the mornings start a little earlier, so the estimated night gets shorter.
     const noActivity = rand() < (weekend ? 0.12 : 0.05);
     if (!noActivity) {
-      const first = person.first + noise(38) + (weekend ? 55 : 0) + sleepDrift * 85;
-      const last = person.last + noise(34) + (weekend ? 35 : 0) + sleepDrift * 80;
+      const first = person.first + noise(38) + (weekend ? 55 : 0) - sleepDrift * 10;
+      const last = person.last + noise(34) + (weekend ? 35 : 0) + sleepDrift * 105;
       activityDays.push({ date, first: minutesToClock(first), last: minutesToClock(last), source: "demo" });
     }
 
-    // Movement: the camera is on some days, for a while; less movement and fewer position
-    // changes as the drift goes on, gradually, like typing.
-    if (cam() < (weekend ? 0.4 : 0.7)) {
+    // Movement: the camera is on most days, for a while; less movement and fewer position
+    // changes once movement starts to drop, after sleep.
+    if (cam() < (weekend ? 0.55 : 0.85)) {
       const minutes = Math.round(20 + cam() * 200);
-      const level = Math.max(0.005, mover.level + (weekend ? 0.006 : 0) + camNoise(0.016) - drift * 0.03);
-      const shifts = Math.max(0, mover.shifts + camNoise(3) - drift * 3.5);
+      const level = Math.max(0.005, mover.level + (weekend ? 0.006 : 0) + camNoise(0.016) - moveDrift * 0.03);
+      const shifts = Math.max(0, mover.shifts + camNoise(3) - moveDrift * 3.5);
       movementSessions.push({ date, minutes, movementMean: Math.round(level * 1000) / 1000, shiftsPerHour: Math.round(shifts * 10) / 10, source: "demo", savedAt: "" });
     }
 
-    // Social: a few messages most days with the person they trust, a little fewer as the drift goes on.
+    // Social: a few messages most days with the person they trust, as usual all along.
     {
-      const mean = Math.max(0, chatty * (weekend ? 1.3 : 1) * (1 - 0.6 * drift));
+      const mean = chatty * (weekend ? 1.3 : 1);
       let n = 0;
       for (let k = 0; k < 8; k++) if (talk() < mean / 8) n++;
       contactDays.push({ date, exchanged: n, source: "demo" });
     }
 
     // The daily question: answered on about two days in three; "Not so good" now and then,
-    // more often as the drift goes on (after sleep has slipped).
+    // more often in the last days (after sleep and movement).
     if (ask() < (weekend ? 0.55 : 0.75)) {
-      const low = 0.1 + 0.45 * drift;
+      const low = 0.1 + 0.5 * answerDrift;
       const r = ask();
       const answer = r < low ? "not-so-good" : r < low + (1 - low) * 0.5 ? "okay" : "good";
       dailyAnswers.push({ date, answer, dismissed: false, at: "", source: "demo" });

@@ -1,14 +1,17 @@
-// Made-up entries for trying the app. The passive measures the companion's rule reads
-// (typing per day, first and last activity) are the replay's eight weeks (lib/replay.ts),
-// ending today: six steady weeks, then sleep slips and typing follows. The older entries
-// (daily check-ins, weekly answers, reaction tests) cover six weeks with a final drifting
-// week. Everything is tagged source "demo" so it can be cleared on its own.
+// Made-up entries for trying the app. Everything Cheri's rule reads, in the four categories,
+// is the replay's eight weeks (lib/replay.ts), ending today: six steady weeks, then sleep
+// slips first (shorter nights), movement in front of the camera drops, and the daily answers
+// lean towards "Not so good" in the last days; typing drifts only a little and messages with
+// the person they trust stay as usual. The entries from earlier versions (bedtimes, weekly
+// answers, reaction times) cover the same eight weeks with a final drifting week; only the
+// weekly answers are still shown, in the clinic report. Everything is tagged source "demo" so
+// it can be cleared on its own.
 
 import { addDays, minutesToClock } from "./dates";
 import { makeReplayData } from "./replay";
 import type { DailyEntry, ReactionResult, Scale03, TypingSession, WeeklyEntry } from "./types";
 
-const DAYS = 42;
+const DAYS = 56;
 const DRIFT_DAYS = 6; // the last six days before today
 
 function rng(seed: number) {
@@ -52,7 +55,7 @@ export function makeDemoData(today: string, earlySigns: string[]) {
   }
 
   const weekly: WeeklyEntry[] = [];
-  for (let w = 5; w >= 0; w--) {
+  for (let w = 7; w >= 0; w--) {
     const date = addDays(today, -(1 + w * 7));
     const last = w === 0;
     const pick = (normal: number[], drifted: number): Scale03 =>
@@ -79,8 +82,8 @@ export function makeDemoData(today: string, earlySigns: string[]) {
     reaction.push({ id: `demo-r-${date}`, date, trialsMs, medianMs: sorted[2], source: "demo", savedAt: now });
   }
 
-  // Typing per day and first and last activity: the replay's eight weeks, ending today, so
-  // "Load demo data" and "Eight weeks in 20 seconds" tell the same story.
+  // The four categories: the replay's eight weeks, ending today, so "Load demo data" and
+  // "Eight weeks in 20 seconds" tell the same story.
   const { typingDays, activityDays, dailyAnswers, movementSessions, contactDays } = makeReplayData(today);
   const typingSessions: TypingSession[] = [];
 
