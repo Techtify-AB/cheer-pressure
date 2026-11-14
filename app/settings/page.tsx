@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useRequireProfile } from "@/components/hooks";
+import { useRequireProfile, useVoiceAvailability } from "@/components/hooks";
 import { deleteEverything, saveSettings, useData } from "@/lib/storage";
 import { stopSpeaking } from "@/lib/voice";
 
@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const ready = useRequireProfile(data);
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
+  const voice = useVoiceAvailability();
 
   if (!data || !ready) return null;
   const muted = data.settings.muted;
@@ -25,8 +26,8 @@ export default function SettingsPage() {
           Where your answers are
         </h2>
         <p style={{ marginBottom: 0 }}>
-          Only in this browser, on this device. There is no account and no login, and nothing is sent anywhere.
-          Right now that is {counts}.
+          Only in this browser, on this device. There is no account and no login, and nothing is sent anywhere. Right
+          now that is {counts}.
         </p>
         {data.profile?.earlySigns.length ? (
           <p className="small muted" style={{ marginBottom: 0 }}>
@@ -39,27 +40,34 @@ export default function SettingsPage() {
         <h2 id="voice-title" style={{ fontSize: "var(--font-size-lg)", marginBottom: 0 }}>
           Voice
         </h2>
-        <div>
+        {voice === "no" ? (
           <p style={{ marginBottom: 0 }}>
-            <strong>Reading aloud: {muted ? "off" : "on"}.</strong> The companion can read its questions aloud using
-            the voices built into your device. Only on-device voices are used, so the text is not sent anywhere.
+            <strong>Reading aloud: not available on this device.</strong> This browser has no voice built into the
+            device, and the companion never sends text elsewhere to be spoken. So it shows its text instead.
           </p>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ marginTop: "var(--space-3)" }}
-            onClick={() => {
-              if (!muted) stopSpeaking();
-              saveSettings({ muted: !muted });
-            }}
-          >
-            {muted ? "Turn reading aloud on" : "Mute reading aloud"}
-          </button>
-        </div>
+        ) : (
+          <div>
+            <p style={{ marginBottom: 0 }}>
+              <strong>Reading aloud: {muted ? "off" : "on"}.</strong> The companion can read its questions aloud using
+              the voices built into your device. Only on-device voices are used, so the text is not sent anywhere.
+            </p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ marginTop: "var(--space-3)" }}
+              onClick={() => {
+                if (!muted) stopSpeaking();
+                saveSettings({ muted: !muted });
+              }}
+            >
+              {muted ? "Turn reading aloud on" : "Mute reading aloud"}
+            </button>
+          </div>
+        )}
         <p style={{ marginBottom: 0 }}>
-          <strong>Answering by voice: off.</strong> This version has no voice answers, so you always tap or type.
-          When you read the sentence in the check-in, the microphone is used only to time how fast you read. That
-          happens on this device; no sound is recorded, kept or sent.
+          <strong>Answering by voice: off.</strong> This version has no voice answers, so you always tap or type. When
+          you read the sentence in the check-in, the microphone is used only to time how fast you read. That happens on
+          this device; no sound is recorded, kept or sent.
         </p>
       </section>
 

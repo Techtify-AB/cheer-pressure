@@ -17,6 +17,54 @@ export function canSpeak(): boolean {
   return pickVoice() !== null;
 }
 
+// Whether there is an on-device voice. Some browsers (Chrome) list their voices a
+// moment after the page loads, so "checking" lasts until they are listed or 1.5 s
+// have passed. After that, no voice means "no".
+
+export type VoiceAvailability = "checking" | "yes" | "no";
+
+const VOICE_WAIT_MS = 1500;
+let voicesSettled = false;
+const voiceListeners = new Set<() => void>();
+
+function hasSynthesis(): boolean {
+  return typeof window !== "undefined" && "speechSynthesis" in window;
+}
+
+function notifyVoices() {
+  voiceListeners.forEach((l) => l());
+}
+
+function onVoicesChanged() {
+  voicesSettled = true;
+  notifyVoices();
+}
+
+export function subscribeVoices(listener: () => void): () => void {
+  voiceListeners.add(listener);
+  if (voiceListeners.size === 1 && hasSynthesis()) {
+    window.speechSynthesis.addEventListener("voiceschanged", onVoicesChanged);
+    if (!voicesSettled) {
+      window.setTimeout(() => {
+        voicesSettled = true;
+        notifyVoices();
+      }, VOICE_WAIT_MS);
+    }
+  }
+  return () => {
+    voiceListeners.delete(listener);
+    if (voiceListeners.size === 0 && hasSynthesis()) {
+      window.speechSynthesis.removeEventListener("voiceschanged", onVoicesChanged);
+    }
+  };
+}
+
+export function voiceAvailability(): VoiceAvailability {
+  if (!hasSynthesis()) return "no";
+  if (canSpeak()) return "yes";
+  return voicesSettled ? "no" : "checking";
+}
+
 /** Browsers block speech before the first tap or key press on the page. */
 function hasUserActivation(): boolean {
   const ua = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
