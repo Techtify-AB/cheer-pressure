@@ -19,6 +19,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // The mascot window shows only the character: no header, no page frame.
   if (pathname?.startsWith("/mascot")) return <>{children}</>;
+  // The phone demo is a stage around the app, not a screen of it: the app is inside its frame.
+  if (pathname?.startsWith("/demo/phone")) return <>{children}</>;
 
   return (
     <>
