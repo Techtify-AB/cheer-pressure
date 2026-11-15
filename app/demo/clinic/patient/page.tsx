@@ -13,10 +13,10 @@ import { useData } from "@/lib/storage";
 const DAYS = 35;
 /** How many of the last days each category has been outside this person's own usual. */
 const CATEGORIES: { label: string; changedDays: number; line: string }[] = [
-  { label: "Sleep", changedDays: 9, line: "Nights have been shorter than their usual, and they have gone to bed later." },
-  { label: "Energy", changedDays: 7, line: "Fewer steps than their usual, and less time out of the home." },
+  { label: "Sleep", changedDays: 7, line: "Nights have been shorter than their usual, and they have woken up earlier." },
+  { label: "Energy", changedDays: 7, line: "Fewer steps than their usual." },
   { label: "Social", changedDays: 0, line: "As usual: they have been in touch with people about as often as before." },
-  { label: "Mood", changedDays: 5, line: "Their own answer to the daily hello has been “Not so good” more often than their usual." },
+  { label: "Mood", changedDays: 0, line: "As usual: their own answers to the daily hello are about as before." },
 ];
 
 const STEPS: { when: string; title: string; text: string }[] = [

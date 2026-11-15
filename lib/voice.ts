@@ -71,7 +71,20 @@ function hasUserActivation(): boolean {
   return ua ? ua.hasBeenActive : true;
 }
 
+/**
+ * Lines recorded in Cheri's own voice (public/demo/voice), by their exact text. Only the demo's
+ * made-up person hears these texts; any other text is read by the device's voice as before.
+ */
+const RECORDED: Record<string, string> = {
+  "Sleep and Energy have changed compared with your usual: over the last week your nights have been shorter, you've woken up earlier and you've taken fewer steps than in the four weeks before. This compares 7 days this week with 28 days in the four weeks before.":
+    "/demo/voice/asks-explain.m4a",
+  "How are you doing?": "/demo/voice/asks-question.m4a",
+};
+let recording: HTMLAudioElement | null = null;
+
 export function stopSpeaking() {
+  recording?.pause();
+  recording = null;
   if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
 }
 
@@ -80,6 +93,26 @@ export function stopSpeaking() {
  * so callers can treat it as "the companion has finished talking".
  */
 export function speak(text: string, opts: { muted: boolean; onEnd: () => void }): () => void {
+  const clip = opts.muted || !hasUserActivation() ? undefined : RECORDED[text];
+  if (clip) {
+    stopSpeaking();
+    const a = new Audio(clip);
+    recording = a;
+    let ended = false;
+    const end = () => {
+      if (!ended) {
+        ended = true;
+        opts.onEnd();
+      }
+    };
+    a.onended = end;
+    a.onerror = end;
+    void a.play().catch(end);
+    return () => {
+      ended = true;
+      a.pause();
+    };
+  }
   const fallback = window.setTimeout(opts.onEnd, Math.min(6000, 900 + text.length * 45));
   const voice = opts.muted || !hasUserActivation() ? null : pickVoice();
   if (!voice) return () => window.clearTimeout(fallback);

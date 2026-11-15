@@ -70,5 +70,9 @@ export function demoPatients(today: DayKey): DemoPatient[] {
       categories: SOURCES.map((c) => ({ label: c.label, changed: out.some((o) => o.id === c.id) })),
     };
   });
-  return list.sort((a, b) => b.daysStandingOut - a.daysStandingOut || b.sourcesOut - a.sourcesOut || a.name.localeCompare(b.name));
+  const sorted = list.sort((a, b) => b.daysStandingOut - a.daysStandingOut || b.sourcesOut - a.sourcesOut || a.name.localeCompare(b.name));
+  // The first one is the person the phone demo follows: Sleep and Energy, as on their phone.
+  const first = sorted[0];
+  if (first) first.categories = first.categories.map((c) => ({ ...c, changed: c.label === "Sleep" || c.label === "Energy" }));
+  return sorted;
 }
