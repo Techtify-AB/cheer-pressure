@@ -17,8 +17,26 @@ export function Screen({
   children?: React.ReactNode;
   actions?: React.ReactNode;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Enter moves on: it presses this screen's one primary action, also from a one-line text field.
+  // Not from a multi-line field, or when a button or link has focus (those keep their own Enter). The hello's hold-to-talk button
+  // handles Enter itself, so it is left out.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      const el = e.target as HTMLElement | null;
+      if (el?.closest("textarea, select, button, a, [contenteditable='true']")) return;
+      if (el instanceof HTMLInputElement && el.form) return; // a real form submits on Enter by itself
+      const primary = ref.current?.querySelector<HTMLElement>(".screen-actions .btn-primary:not(.hold-button)");
+      if (!primary || primary.hasAttribute("disabled")) return;
+      e.preventDefault();
+      primary.click();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   return (
-    <div className="screen">
+    <div className="screen" ref={ref}>
       <div className="screen-lead">{lead}</div>
       {children ? <div className="screen-body">{children}</div> : null}
       {actions ? <div className="screen-actions">{actions}</div> : null}
