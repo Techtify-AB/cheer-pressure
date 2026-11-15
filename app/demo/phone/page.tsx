@@ -139,8 +139,8 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   },
   {
     id: "own-list",
-    title: "The same day: their own list",
-    note: "Step 1: one thing that has helped this person before.",
+    title: "First: something that helps",
+    note: "Step 1: from the person's own list, or something generally good.",
     path: "/prompt/",
     prepare: () => {
       person();
@@ -150,8 +150,8 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   },
   {
     id: "someone",
-    title: "Two days later: someone they trust",
-    note: "Step 2: the change is still there.",
+    title: "Then: someone they trust",
+    note: "Step 2: the change is still there after two days.",
     path: "/prompt/",
     prepare: () => {
       person();
@@ -160,8 +160,8 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   },
   {
     id: "clinic",
-    title: "Seven days later: the clinic",
-    note: "Step 3: only if the person said yes at the start.",
+    title: "Last: the clinic",
+    note: "Step 3: after seven days, and only if the person said yes at the start.",
     path: "/prompt/",
     prepare: () => {
       person();
