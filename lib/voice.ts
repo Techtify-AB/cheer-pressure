@@ -6,11 +6,43 @@
 //
 // There is no voice input in this version.
 
+/**
+ * Natural English voices by the start of their name, best first. A Mac lists its English
+ * voices by name, and the list opens with the novelty ones (Albert, Bahh, Bells...), whose
+ * names are translated on a Mac that is not set to English, so they cannot be told apart by
+ * name. The people's names below are the same everywhere.
+ */
+const GOOD_VOICES = [
+  "samantha", "ava", "allison", "susan", "zoe", "evan", "nathan", "tom", "alex", "victoria",
+  "daniel", "kate", "serena", "oliver", "karen", "moira", "tessa", "fiona", "rishi",
+  "microsoft aria", "microsoft jenny", "microsoft zira", "microsoft david", "microsoft mark",
+  "english united states", "english united kingdom",
+];
+/** Novelty and mechanical-sounding voices under their English names, for when no voice above is installed. */
+const ODD_VOICES =
+  /^(albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|jester|organ|pipe organ|superstar|trinoids|whisper|wobble|zarvox|junior|ralph|fred|kathy|princess|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley)\b/i;
+
+type VoiceLike = Pick<SpeechSynthesisVoice, "name" | "lang" | "default" | "localService">;
+
+/**
+ * The voice to read aloud with: on-device and English. The person's own default voice when it
+ * is English; otherwise the best natural voice that is installed (a "Premium" or "Enhanced"
+ * download before the standard one); otherwise any English voice that is not a novelty one.
+ */
+export function chooseVoice<V extends VoiceLike>(all: readonly V[]): V | null {
+  const en = all.filter((v) => v.localService && v.lang.toLowerCase().startsWith("en"));
+  const own = en.find((v) => v.default);
+  if (own) return own;
+  for (const name of GOOD_VOICES) {
+    const named = en.filter((v) => v.name.toLowerCase().startsWith(name));
+    if (named.length) return named.find((v) => v.name.includes("(")) ?? named[0];
+  }
+  return en.find((v) => !ODD_VOICES.test(v.name)) ?? en[0] ?? null;
+}
+
 function pickVoice(): SpeechSynthesisVoice | null {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
-  const voices = window.speechSynthesis.getVoices().filter((v) => v.localService);
-  const en = voices.filter((v) => v.lang.toLowerCase().startsWith("en"));
-  return en.find((v) => v.default) ?? en[0] ?? null;
+  return chooseVoice(window.speechSynthesis.getVoices());
 }
 
 export function canSpeak(): boolean {
