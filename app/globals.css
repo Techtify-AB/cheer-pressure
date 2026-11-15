@@ -1882,3 +1882,31 @@ html[data-shell="desktop"] .card.clinic-list {
 }
 .hello-reads { margin: 0; text-align: center; max-width: 34ch; }
 .phone-demo-sub { margin: 0 0 var(--space-3); color: var(--color-ink-soft); }
+
+/* The phone demo's moments, in three numbered parts */
+.phone-demo-group { margin-top: var(--space-4); }
+.phone-demo-group-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-weight: var(--font-display-weight);
+  font-size: var(--font-size-lg);
+}
+.phone-demo-group-number {
+  flex: none;
+  width: 1.6em;
+  height: 1.6em;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-ink);
+  color: var(--color-bg);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+.phone-demo-group-lead { margin: 2px 0 var(--space-2); color: var(--color-ink-soft); font-size: var(--font-size-sm); }
+.phone-demo-group .phone-demo-scenes { margin-top: 0; }
+.phone-demo-group .phone-demo-scene { padding-top: var(--space-2); padding-bottom: var(--space-2); }

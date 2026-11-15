@@ -115,7 +115,7 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   {
     id: "asks",
     title: "Cheri asks",
-    note: "The measured values stand out from this person's own usual, in two categories. Cheri starts a conversation to help them feel better themselves.",
+    note: "When two categories stand out: a conversation, and help from the person's own list.",
     path: "/demo/asks/",
     prepare: () => {
       person();
@@ -126,21 +126,21 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   {
     id: "hello",
     title: "Today's hello",
-    note: "Once a day Cheri only asks how they are, to hear it in their own words. Recorded, so nobody has to talk to a phone.",
+    note: "Once a day: only how the person is, in their own words.",
     path: "/demo/hello/",
     prepare: person,
   },
   {
     id: "values",
-    title: "My values",
-    note: "Each category against the person's own last four weeks. Mood includes what our own expression model reads from the face and the voice during the daily hello.",
+    title: "The four categories",
+    note: "Sleep, Energy, Social and Mood. Mood includes what our own expression model reads from face and voice.",
     path: "/values/",
     prepare: person,
   },
   {
     id: "someone",
-    title: "Two days later",
-    note: "The change is still there. Step 2: someone they trust.",
+    title: "Two days later: someone they trust",
+    note: "The change is still there.",
     path: "/prompt/",
     prepare: () => {
       person();
@@ -149,8 +149,8 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   },
   {
     id: "clinic",
-    title: "Seven days later",
-    note: "Step 3: the clinic, and only because the person said yes to that at the start.",
+    title: "Seven days later: the clinic",
+    note: "Only if the person said yes at the start.",
     path: "/prompt/",
     prepare: () => {
       person();
@@ -160,15 +160,22 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   {
     id: "clinic-view",
     title: "What the clinic sees",
-    note: "The other side: one made-up person who chose to share.",
+    note: "What a clinician gets about someone who chose to share.",
     path: "/demo/clinic/patient/",
     prepare: person,
   },
 ];
 
+/** The moments in three parts, in the order the story is told. */
+const GROUPS: { title: string; lead: string; ids: string[] }[] = [
+  { title: "Core functionality", lead: "The two moments with Cheri.", ids: ["hello", "asks"] },
+  { title: "What is measured", lead: "Always against the person's own usual.", ids: ["values"] },
+  { title: "Resolution", lead: "If the change stays, help comes closer, one step at a time.", ids: ["someone", "clinic", "clinic-view"] },
+];
+
 export default function PhoneDemoPage() {
   const frame = useRef<HTMLIFrameElement>(null);
-  const [current, setCurrent] = useState(SCENES[0].id);
+  const [current, setCurrent] = useState(GROUPS[0].ids[0]);
   const [turn, setTurn] = useState(0);
   const scene = SCENES.find((s) => s.id === current) ?? SCENES[0];
 
@@ -186,32 +193,41 @@ export default function PhoneDemoPage() {
       <div className="phone-demo-side">
         <span className="placeholder-tag">Demo, made-up data</span>
         <h1 className="phone-demo-title">Try Cheer Pressure</h1>
-        <p className="phone-demo-sub">The phone app, right here. Nothing to install.</p>
+        <p className="phone-demo-sub">The phone app, right here. Nothing to install. Pick a moment, then tap inside the phone.</p>
         <p className="phone-demo-intro">
           After depression treatment ends, the hard part starts at home. Cheri notices when your sleep, energy, social
           life or mood drift from your own usual, and helps you help yourself.
         </p>
-        <p className="muted">
-          This is the same interface as on the phone. Pick a moment, then tap inside the phone as the person would.
-        </p>
-        <ol className="phone-demo-scenes">
-          {SCENES.map((s) => (
-            <li key={s.id}>
-              <button
-                type="button"
-                className="phone-demo-scene"
-                aria-current={s.id === current ? "step" : undefined}
-                onClick={() => {
-                  setCurrent(s.id);
-                  setTurn((t) => t + 1);
-                }}
-              >
-                <span className="phone-demo-scene-title">{s.title}</span>
-                <span className="phone-demo-scene-note">{s.note}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
+        {GROUPS.map((g, n) => (
+          <section key={g.title} className="phone-demo-group" aria-label={g.title}>
+            <h2 className="phone-demo-group-title">
+              <span className="phone-demo-group-number">{n + 1}</span>
+              {g.title}
+            </h2>
+            <p className="phone-demo-group-lead">{g.lead}</p>
+            <ul className="phone-demo-scenes">
+              {g.ids.map((id) => {
+                const s = SCENES.find((x) => x.id === id)!;
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      className="phone-demo-scene"
+                      aria-current={s.id === current ? "step" : undefined}
+                      onClick={() => {
+                        setCurrent(s.id);
+                        setTurn((t) => t + 1);
+                      }}
+                    >
+                      <span className="phone-demo-scene-title">{s.title}</span>
+                      <span className="phone-demo-scene-note">{s.note}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
       </div>
     </div>
   );
