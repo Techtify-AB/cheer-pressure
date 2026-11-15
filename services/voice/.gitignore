@@ -1,0 +1,5 @@
+.venv/
+traces/
+__pycache__/
+evals/audio/
+.pytest_cache/

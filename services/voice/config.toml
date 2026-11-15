@@ -1,0 +1,26 @@
+# Default config. Evaluate others with: uv run python -m evals.run --config configs/<name>.toml
+[service]
+host = "127.0.0.1"
+port = 8766
+cors_origin = "http://localhost:3470"
+face_feed_url = ""          # e.g. "http://10.0.40.29:8765/face"; empty = off
+trace_dir = "traces"
+profile = "strict"         # team rules (docs/HANDOVER_FILIP.md); "helpful" = Filip's variant; context.profile overrides
+
+[stt]
+adapter = "parakeet_mlx"
+model = "mlx-community/parakeet-tdt-0.6b-v3"
+
+[llm]
+adapter = "openai_compat"
+base_url = "http://localhost:11434/v1"
+model = "gemma4:e4b-it-qat"
+max_tokens = 80
+temperature = 0.6
+ollama_keep_alive = "30m"
+api_key = ""
+extra_body = { reasoning_effort = "none" }   # Ollama /v1: thinking off for Qwen3.5 and Gemma 4 ("think": false is ignored there)
+
+[tts]
+adapter = "pocket"   # fastest first audio in the eval (Filip, 15 Nov 03:30); kokoro is the alternative
+voice = "alba"
