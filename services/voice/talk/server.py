@@ -18,36 +18,45 @@ MAX_RECORD_S = 60
 
 
 class Recorder:
-    """Mac microphone -> 16 kHz mono float32 while started."""
+    """Mac microphone -> 16 kHz mono float32 while started.
+
+    The input stream is opened on the first start() and then left running. Stopping a CoreAudio
+    stream after every turn can deadlock inside PortAudio (AudioOutputUnitStop against its own
+    start/stop listener on the audio thread), which froze the whole service on Eric's Mac.
+    Samples are kept only between start() and stop().
+    """
 
     def __init__(self) -> None:
         self._stream = None
         self._chunks: list[np.ndarray] = []
+        self._n = 0
+        self._on = False
         self._lock = threading.Lock()
 
     def start(self) -> None:
         import sounddevice as sd
         with self._lock:
-            if self._stream is not None:
+            if self._stream is None:
+                self._stream = sd.InputStream(samplerate=MIC_RATE, channels=1, dtype="float32",
+                                              callback=self._cb)
+                self._stream.start()
+            if self._on:
                 return
             self._chunks = []
-            self._stream = sd.InputStream(samplerate=MIC_RATE, channels=1, dtype="float32",
-                                          callback=self._cb)
-            self._stream.start()
+            self._n = 0
+            self._on = True
 
     def _cb(self, indata, frames, time_info, status) -> None:  # noqa: ARG002
-        if sum(len(c) for c in self._chunks) < MAX_RECORD_S * MIC_RATE:
+        if self._on and self._n < MAX_RECORD_S * MIC_RATE:
             self._chunks.append(indata[:, 0].copy())
+            self._n += len(indata)
 
     def stop(self) -> np.ndarray:
         with self._lock:
-            s, self._stream = self._stream, None
-            if s is not None:
-                s.stop()
-                s.close()
-            out = np.concatenate(self._chunks) if self._chunks else np.zeros(0, np.float32)
-            self._chunks = []
-            return out
+            self._on = False
+            chunks, self._chunks = self._chunks, []
+            self._n = 0
+        return np.concatenate(chunks) if chunks else np.zeros(0, np.float32)
 
 
 class Converse(BaseModel):
@@ -59,6 +68,9 @@ class Speak(BaseModel):
     text: str
 
 
+_OUT: dict[int, object] = {}  # sample rate -> the open output stream (see play)
+
+
 def play(jobs, mute: bool) -> float | None:
     """Play AudioJobs in order as chunks arrive. Returns monotonic time of first sample queued."""
     first_t = None
@@ -68,21 +80,21 @@ def play(jobs, mute: bool) -> float | None:
         return jobs[0].wait_first() if jobs else None
     import sounddevice as sd
     stream = None
-    try:
-        for j in jobs:
-            for c in j.iter_chunks():
+    for j in jobs:
+        for c in j.iter_chunks():
+            if stream is None:
+                # One output stream per sample rate, left running between replies: stopping it
+                # after each one can deadlock in PortAudio the same way the microphone did.
+                stream = _OUT.get(j.sample_rate)
                 if stream is None:
                     stream = sd.OutputStream(samplerate=j.sample_rate, channels=1, dtype="float32")
                     stream.start()
-                if first_t is None:
-                    first_t = time.perf_counter()
-                stream.write(np.ascontiguousarray(c.reshape(-1, 1)))
-        if stream is not None:
-            time.sleep(stream.latency)  # let the device buffer drain before closing
-    finally:
-        if stream is not None:
-            stream.stop()
-            stream.close()
+                    _OUT[j.sample_rate] = stream
+            if first_t is None:
+                first_t = time.perf_counter()
+            stream.write(np.ascontiguousarray(c.reshape(-1, 1)))
+    if stream is not None:
+        time.sleep(stream.latency)  # let the device buffer drain before /speak answers
     return first_t
 
 
@@ -116,8 +128,11 @@ def create_app(engine: Engine, mute: bool = False) -> FastAPI:
         rec.start()
         return {"ok": True}
 
+    # async on purpose: it then runs on the main thread, where the speech-to-text model was loaded
+    # and warmed up. MLX streams belong to the thread that made them; from a worker thread the
+    # decode fails with "There is no Stream(cpu, 1) in current thread".
     @app.post("/listen/stop")
-    def listen_stop():
+    async def listen_stop():
         turn = Turn(engine.cfg["name"])
         turn.mark("release")
         samples = rec.stop()
