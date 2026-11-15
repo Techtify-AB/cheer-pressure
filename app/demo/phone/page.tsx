@@ -86,7 +86,7 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
     id: "asks",
     title: "Cheri asks",
     note: "The measured values stand out from this person's own usual, in two categories. Cheri starts a conversation to help them feel better themselves.",
-    path: "/prompt/",
+    path: "/demo/asks/",
     prepare: () => {
       person();
       saveLadder(null);
@@ -95,7 +95,7 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   },
   {
     id: "hello",
-    title: "Today's hello, recorded",
+    title: "Today's hello",
     note: "Once a day Cheri only asks how they are, to hear it in their own words. Recorded, so nobody has to talk to a phone.",
     path: "/demo/hello/",
     prepare: person,
