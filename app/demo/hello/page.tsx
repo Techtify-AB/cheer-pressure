@@ -1,9 +1,9 @@
 "use client";
 
 // Today's hello, recorded for the demo: a written-down conversation between Cheri and a made-up
-// person, played back line by line. Nothing is listened to and nothing is measured here. The
-// lines follow the rules for what Cheri may say: observations against the person's own usual,
-// no advice of her own, no score, and the one offer comes from the person's own list.
+// person, played back line by line. Nothing is listened to and nothing is measured here.
+// The hello only asks how the person is, to hear it in their own words. It says nothing about
+// measurements and offers nothing: that is "Cheri asks", which starts when the values stand out.
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -14,12 +14,10 @@ import { Screen } from "@/components/Screen";
 type Line = { who: "cheri" | "person"; text: string; seconds?: number };
 
 const LINES: Line[] = [
-  { who: "cheri", text: "Hello. Your nights have been shorter than your usual this week, and you have walked less. How are you today?", seconds: 5.12 },
-  { who: "person", text: "Not great. I am sleeping badly again, like before the treatment." },
-  { who: "cheri", text: "Thank you for telling me. That sounds heavy.", seconds: 2.88 },
-  { who: "cheri", text: "A short walk before lunch has been followed by better days for you before. Would you like to try one today?", seconds: 5.2 },
-  { who: "person", text: "Okay. I can do that." },
-  { who: "cheri", text: "Good. I will ask tomorrow whether it helped. That was today’s hello.", seconds: 4.48 },
+  { who: "cheri", text: "Hello. How are you today?", seconds: 2.0 },
+  { who: "person", text: "Okay, I think. A bit more tired than last week." },
+  { who: "cheri", text: "Thank you for telling me. I have saved that as today’s answer, in your own words.", seconds: 4.24 },
+  { who: "cheri", text: "That was today’s hello. I will ask again tomorrow.", seconds: 3.2 },
 ];
 
 const WORD_MS = 230;
@@ -111,8 +109,8 @@ export default function RecordedHelloPage() {
       <div className="hello-script" aria-live="polite">
         {line < 0 && (
           <p className="muted">
-            Once a day Cheri says hello, for about half a minute. This one is written down and played back, so you can
-            see it without talking to a phone.
+            Once a day Cheri asks how you are, to hear it in your own words. Nothing else. This one is written down
+            and played back, so you can see it without talking to a phone.
           </p>
         )}
         {shown.map((l, i) => {

@@ -85,7 +85,7 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   {
     id: "asks",
     title: "Cheri asks",
-    note: "Two categories have changed against this person's own usual, so Cheri asks. One category alone never asks.",
+    note: "The measured values stand out from this person's own usual, in two categories. Cheri starts a conversation to help them feel better themselves.",
     path: "/prompt/",
     prepare: () => {
       person();
@@ -96,7 +96,7 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   {
     id: "hello",
     title: "Today's hello, recorded",
-    note: "A spoken hello of about half a minute. Recorded for this demo, so nobody has to talk to a phone.",
+    note: "Once a day Cheri only asks how they are, to hear it in their own words. Recorded, so nobody has to talk to a phone.",
     path: "/demo/hello/",
     prepare: person,
   },

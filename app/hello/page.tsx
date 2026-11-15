@@ -20,7 +20,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Companion, type CompanionState } from "@/components/companion/Companion";
 import { CrisisCard } from "@/components/CrisisCard";
 import { ReactionCheck } from "@/components/activities/ReactionCheck";
@@ -31,7 +31,7 @@ import { createFaceModel, type FaceModel, type FaceReadings } from "@/lib/camera
 import { CameraStartError, startPose, type PoseHandle } from "@/lib/camera/pose";
 import { containsCrisisWords } from "@/lib/crisis";
 import { ANSWERS, QUESTION } from "@/lib/daily";
-import { answeredOn, HELLO_MAX_MS, helloObservation, helloUsual, HOLD_MAX_MS, reactionOffered } from "@/lib/hello";
+import { answeredOn, HELLO_MAX_MS, HOLD_MAX_MS, reactionOffered } from "@/lib/hello";
 import { converse, listenStart, listenStop, onTranscript, speakOnPhone, voiceFeatures, type VoiceFeatures } from "@/lib/phoneBridge";
 import { readData, saveDailyAnswer, saveHelloReading, saveSettings, useData } from "@/lib/storage";
 import type { AppData, DailyAnswerValue, HelloReading } from "@/lib/types";
@@ -71,10 +71,8 @@ function Hello({ data }: { data: AppData }) {
   const [mic, setMic] = useState<MicState>("off");
   const [words, setWords] = useState("");
   const [reply, setReply] = useState("");
-  const [observation, setObservation] = useState<string | null>(null);
   const [features, setFeatures] = useState<VoiceFeatures>({ listen: false, converse: false, speak: false });
   const [offerReaction, setOfferReaction] = useState(false);
-  const usual = useMemo(() => helloUsual(data.helloReadings ?? [], today), [data.helloReadings, today]);
 
   const video = useRef<HTMLVideoElement>(null);
   const pose = useRef<PoseHandle | null>(null);
@@ -191,13 +189,13 @@ function Hello({ data }: { data: AppData }) {
     };
     saveDailyAnswer({ date: today, answer, dismissed: false, at: reading.at, source: "user" });
     saveHelloReading(reading);
-    const obs = readingFace || readingTone || usual.learning ? helloObservation(reading, usual) : null;
-    setObservation(obs);
+    // The hello only asks how the person is. What the camera and the microphone read is saved
+    // for "My values" and is never said back here; talking about measurements is Cheri asks.
     let text = "";
     if (said && features.converse) {
-      text = (await converse(said, { answer, observation: obs }).catch(() => null))?.text ?? "";
+      text = (await converse(said, { answer, observation: null }).catch(() => null))?.text ?? "";
     }
-    if (!text) text = await brain.helloReply({ today, answer, words: said, observation: obs });
+    if (!text) text = await brain.helloReply({ today, answer, words: said, observation: null });
     setReply(text);
     setOfferReaction(offer);
     setPhase("reply");
@@ -388,7 +386,6 @@ function Hello({ data }: { data: AppData }) {
             <p className="calm-line" aria-live="polite">
               {reply}
             </p>
-            {observation && <p className="small muted hello-observation">{observation}</p>}
             <p className="small muted" role="status">
               Camera and microphone are off.
             </p>
@@ -448,7 +445,6 @@ function Hello({ data }: { data: AppData }) {
             </span>
           </div>
           {mic === "silent" && phase === "tap-after-talk" && <p className="small muted">I couldn&apos;t hear much, so I skipped your voice. That&apos;s fine.</p>}
-          {usual.learning && phase === "ask" && <p className="small muted hello-learning">Still learning your usual: {usual.days} of 14 days.</p>}
         </div>
       }
       actions={
