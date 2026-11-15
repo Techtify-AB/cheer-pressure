@@ -278,6 +278,33 @@ function Hello({ data }: { data: AppData }) {
     setPhase("tap-after-talk");
   };
 
+  // Enter anywhere on the page starts talking, and Enter again stops (a toggle, so nobody has to
+  // hold a key). Space on the focused button still works as hold-to-talk.
+  const keyTalk = useRef({ startHold, endHold, canTalk: true, phase });
+  useEffect(() => {
+    keyTalk.current = { startHold, endHold, canTalk: mic !== "refused" || features.listen, phase };
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      const typing = el?.closest("input, textarea, select, [contenteditable='true']");
+      const otherButton = el?.closest("button, a") && !el.closest(".hold-button");
+      if (typing || otherButton) return;
+      const k = keyTalk.current;
+      if (!k.canTalk) return;
+      if (k.phase === "holding") {
+        e.preventDefault();
+        void k.endHold();
+      } else if (k.phase === "ask" || k.phase === "tap-after-talk") {
+        e.preventDefault();
+        void k.startHold();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const notToday = () => {
     done.current = true;
     release();
@@ -402,6 +429,7 @@ function Hello({ data }: { data: AppData }) {
           : QUESTION;
   const canTalk = mic !== "refused" || features.listen;
 
+
   return (
     <Screen
       lead={
@@ -438,17 +466,17 @@ function Hello({ data }: { data: AppData }) {
               onPointerUp={() => void endHold()}
               onPointerCancel={() => void endHold()}
               onKeyDown={(e) => {
-                if ((e.key === " " || e.key === "Enter") && !e.repeat) {
+                if (e.key === " " && !e.repeat) {
                   e.preventDefault();
                   void startHold();
                 }
               }}
               onKeyUp={(e) => {
-                if (e.key === " " || e.key === "Enter") void endHold();
+                if (e.key === " ") void endHold();
               }}
               onContextMenu={(e) => e.preventDefault()}
             >
-              {holding ? "Let go when you're done" : "Hold to talk"}
+              {holding ? "Let go (or press Enter) when you're done" : "Hold to talk, or press Enter"}
             </button>
           )}
           <div className="options options-row" role="group" aria-label="Or in one tap">
