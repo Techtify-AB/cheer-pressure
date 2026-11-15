@@ -18,6 +18,8 @@ export interface DemoPatient {
   sourcesOut: number;
   /** Days with any measured value in the last five weeks. */
   measuredDays: number;
+  /** The four categories in their fixed order, each changed or as usual against this person's own usual. */
+  categories: { label: string; changed: boolean }[];
 }
 
 /** Days since each made-up patient's drift began; 0 means no drift. */
@@ -63,7 +65,10 @@ export function demoPatients(today: DayKey): DemoPatient[] {
       : streak
         ? `${what}, ${streak} ${streak === 1 ? "day" : "days"} in a row`
         : `${what}, not enough to ask`;
-    return { name: `Made-up patient ${String.fromCharCode(65 + i)}`, reason, daysStandingOut: streak, sourcesOut: out.length, measuredDays: measured };
+    return { name: `Made-up patient ${String.fromCharCode(65 + i)}`, reason, daysStandingOut: streak, sourcesOut: out.length,
+      measuredDays: measured,
+      categories: SOURCES.map((c) => ({ label: c.label, changed: out.some((o) => o.id === c.id) })),
+    };
   });
   return list.sort((a, b) => b.daysStandingOut - a.daysStandingOut || b.sourcesOut - a.sourcesOut || a.name.localeCompare(b.name));
 }
