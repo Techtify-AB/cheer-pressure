@@ -1881,3 +1881,4 @@ html[data-shell="desktop"] .card.clinic-list {
   .video-play-disc { transition: none; }
 }
 .hello-reads { margin: 0; text-align: center; max-width: 34ch; }
+.phone-demo-sub { margin: 0 0 var(--space-3); color: var(--color-ink-soft); }

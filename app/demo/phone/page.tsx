@@ -185,7 +185,8 @@ export default function PhoneDemoPage() {
       </div>
       <div className="phone-demo-side">
         <span className="placeholder-tag">Demo, made-up data</span>
-        <h1 className="phone-demo-title">The phone app, in your browser</h1>
+        <h1 className="phone-demo-title">Try Cheer Pressure</h1>
+        <p className="phone-demo-sub">The phone app, right here. Nothing to install.</p>
         <p className="phone-demo-intro">
           After depression treatment ends, the hard part starts at home. Cheri notices when your sleep, energy, social
           life or mood drift from your own usual, and helps you help yourself.
