@@ -1,9 +1,10 @@
 "use client";
 
-// Today's hello on a harder day, recorded for the demo. When the person answers "Not so good",
-// Cheri offers to talk for a moment: one or two open questions, then one thing from the person's
-// own list, as a question. Nothing about measurements, no advice of her own, and it does not
-// start the three steps: one hard day is not a change against the person's own usual.
+// Today's hello when the person chooses to talk, recorded for the demo. After the answer the
+// person can leave it there, or talk for a moment: one or two open questions, and then Cheri
+// offers to get in touch with someone they trust for them. Cheri is the one who sends it, with
+// the person's yes, and only that they would like to hear from them. Nothing about measurements,
+// no advice of her own, and it does not start the three steps.
 
 import { RecordedTalk, type TalkLine } from "@/components/demo/RecordedTalk";
 
@@ -15,14 +16,14 @@ const LINES: TalkLine[] = [
   { who: "cheri", text: "What has been the hardest part of today?", seconds: 2.0 },
   { who: "person", text: "I have just been at home. I have not talked to anyone all day." },
   { who: "cheri", text: "That sounds like a long, quiet day. Is there someone you would have liked to hear from?", seconds: 4.48 },
-  { who: "person", text: "My sister, maybe. We used to talk on Sundays." },
+  { who: "person", text: "My sister Sara, maybe. We used to talk on Sundays." },
   {
     who: "cheri",
-    text: "Getting in touch with someone is on your own list of what helps. Would you like to send your sister a short message now?",
-    seconds: 5.04,
+    text: "Would you like me to let Sara know that you would like to hear from her? I only send that, and nothing about how you are.",
+    seconds: 5.28,
   },
-  { who: "person", text: "Yes. I can do that." },
-  { who: "cheri", text: "Good. I have saved today’s answer in your own words. I will ask again tomorrow.", seconds: 5.04 },
+  { who: "person", text: "Yes, please." },
+  { who: "cheri", text: "Done. I have sent it. I have saved today’s answer in your own words, and I will ask again tomorrow.", seconds: 5.76 },
 ];
 
 export default function RecordedHarderHelloPage() {
@@ -30,9 +31,9 @@ export default function RecordedHarderHelloPage() {
     <RecordedTalk
       lines={LINES}
       folder="hello-low"
-      playLabel="Play the hello"
+      playLabel="Play the conversation"
       note="During the hello the camera and the microphone are on. Our own expression model reads the face, and the voice is read for its tone, as numbers on the phone. No picture and no sound is kept."
-      intro="On a day the answer is “Not so good”, Cheri offers to talk for a moment. If the person says no, she suggests one thing and leaves it there. Written down and played back."
+      intro="After answering, the person can leave it there or talk for a moment. Here they choose to talk, and Cheri offers to get in touch with someone they trust for them. Written down and played back."
     />
   );
 }
