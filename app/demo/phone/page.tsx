@@ -138,9 +138,20 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
     prepare: person,
   },
   {
+    id: "own-list",
+    title: "The same day: their own list",
+    note: "Step 1: one thing that has helped this person before.",
+    path: "/prompt/",
+    prepare: () => {
+      person();
+      saveSettings({ simulatedChangeAt: new Date().toISOString() });
+      saveLadder(startWithHelp(todayKey(), WALK, true));
+    },
+  },
+  {
     id: "someone",
     title: "Two days later: someone they trust",
-    note: "The change is still there.",
+    note: "Step 2: the change is still there.",
     path: "/prompt/",
     prepare: () => {
       person();
@@ -150,7 +161,7 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   {
     id: "clinic",
     title: "Seven days later: the clinic",
-    note: "Only if the person said yes at the start.",
+    note: "Step 3: only if the person said yes at the start.",
     path: "/prompt/",
     prepare: () => {
       person();
@@ -170,7 +181,7 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
 const GROUPS: { title: string; lead: string; ids: string[] }[] = [
   { title: "Core functionality", lead: "The two moments with Cheri.", ids: ["hello", "asks"] },
   { title: "What is measured", lead: "Always against the person's own usual.", ids: ["values"] },
-  { title: "Resolution", lead: "If the change stays, help comes closer, one step at a time.", ids: ["someone", "clinic", "clinic-view"] },
+  { title: "Resolution", lead: "If the change stays, help comes closer, one step at a time.", ids: ["own-list", "someone", "clinic", "clinic-view"] },
 ];
 
 export default function PhoneDemoPage() {
