@@ -1910,3 +1910,13 @@ html[data-shell="desktop"] .card.clinic-list {
 .phone-demo-group-lead { margin: 2px 0 var(--space-2); color: var(--color-ink-soft); font-size: var(--font-size-sm); }
 .phone-demo-group .phone-demo-scenes { margin-top: 0; }
 .phone-demo-group .phone-demo-scene { padding-top: var(--space-2); padding-bottom: var(--space-2); }
+
+/* The demo's numbers about the models, behind one line so the moments stay in view */
+.phone-demo-models { margin-top: var(--space-4); border-top: 1px solid var(--color-line); padding-top: var(--space-3); font-size: var(--font-size-sm); }
+.phone-demo-models summary { cursor: pointer; font-weight: var(--font-weight-medium); }
+.phone-demo-models ul { margin: var(--space-2) 0; padding-left: 1.1em; display: grid; gap: 6px; }
+.phone-demo-models p { margin: 0; color: var(--color-ink-soft); }
+@media (min-width: 860px) {
+  .phone-demo { align-items: start; }
+  .phone-demo-device { position: sticky; top: var(--space-4); }
+}
