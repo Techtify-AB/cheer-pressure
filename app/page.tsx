@@ -198,22 +198,23 @@ export default function HomePage() {
             Have a look
           </Link>
         ) : (
-          <div className="links">
-            <Link href="/prompt/" className="btn btn-quiet">
-              Talk to me
-            </Link>
-            <Link href="/hello/" className="btn btn-quiet">
-              Say hello out loud
-            </Link>
-            <Link href="/activities/" className="btn btn-quiet">
-              Things to do
-            </Link>
-            {offerNew && (
-              <Link href="/setup/" className="btn btn-quiet">
-                A few new questions, if you like
+          <>
+            <div className="home-actions">
+              <Link href="/prompt/" className="btn btn-secondary">
+                Talk to me
               </Link>
+              <Link href="/activities/" className="btn btn-secondary">
+                Things to do
+              </Link>
+            </div>
+            {offerNew && (
+              <div className="links">
+                <Link href="/setup/" className="btn btn-quiet">
+                  A few new questions, if you like
+                </Link>
+              </div>
             )}
-          </div>
+          </>
         )
       }
     >
