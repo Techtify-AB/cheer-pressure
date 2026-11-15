@@ -7,6 +7,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { Models } from "@/components/demo/Models";
 
 interface Film {
   file: string;
@@ -85,6 +86,7 @@ export default function VideosPage() {
           <FilmCard key={film.file} film={film} number={i + 1} />
         ))}
       </ol>
+      <Models />
       <div className="videos-foot">
         <Link href="/" className="btn btn-quiet">
           Open the app

@@ -1920,3 +1920,33 @@ html[data-shell="desktop"] .card.clinic-list {
   .phone-demo { align-items: start; }
   .phone-demo-device { position: sticky; top: var(--space-4); }
 }
+
+/* The models behind it, in numbers: four figures, on the demo pages */
+.models { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.models-title {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+.models-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.models-fact {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--surface-quiet, #fff);
+}
+.models-figure { font-family: var(--font-display); font-size: 1.6rem; line-height: 1.1; }
+.models-label { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }
+.models-text { font-size: var(--font-size-xs); color: var(--color-ink-soft); line-height: 1.35; }
+.models-note { margin: 0; font-size: var(--font-size-xs); color: var(--color-ink-soft); }
+.videos .models-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.models[data-compact] .models-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.models[data-compact] .models-fact { padding: var(--space-2); }
+.models[data-compact] .models-figure { font-size: 1.15rem; }
+.models[data-compact] .models-label { font-size: var(--font-size-xs); font-weight: var(--font-weight-regular); color: var(--color-ink-soft); line-height: 1.25; }

@@ -6,6 +6,7 @@
 // one moment and shows what the phone would show.
 
 import { useEffect, useRef, useState } from "react";
+import { Models } from "@/components/demo/Models";
 import { makeDemoData } from "@/lib/demo";
 import { todayKey } from "@/lib/dates";
 import { answerSmallThing, answerSomeone, shiftLadder, SOMEONE_AFTER_DAYS, startWithHelp } from "@/lib/ladder";
@@ -131,6 +132,13 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
     prepare: person,
   },
   {
+    id: "hello-low",
+    title: "Today's hello, on a harder day",
+    note: "The answer is \"Not so good\": Cheri offers to talk, then one thing from the person's list.",
+    path: "/demo/hello-low/",
+    prepare: person,
+  },
+  {
     id: "values",
     title: "The four categories",
     note: "Sleep, Energy, Social and Mood. Mood includes what our own expression model reads from face and voice.",
@@ -179,7 +187,7 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
 
 /** The moments in three parts, in the order the story is told. */
 const GROUPS: { title: string; lead: string; ids: string[] }[] = [
-  { title: "Core functionality", lead: "The two moments with Cheri.", ids: ["hello", "asks"] },
+  { title: "Core functionality", lead: "The moments with Cheri.", ids: ["hello", "hello-low", "asks"] },
   { title: "What is measured", lead: "Always against the person's own usual.", ids: ["values"] },
   { title: "Resolution", lead: "If the change stays, help comes closer, one step at a time.", ids: ["own-list", "someone", "clinic", "clinic-view"] },
 ];
@@ -209,6 +217,7 @@ export default function PhoneDemoPage() {
           After depression treatment ends, the hard part starts at home. Cheri notices when your sleep, energy, social
           life or mood drift from your own usual, and helps you help yourself.
         </p>
+        <Models compact />
         {GROUPS.map((g, n) => (
           <section key={g.title} className="phone-demo-group" aria-label={g.title}>
             <h2 className="phone-demo-group-title">
@@ -239,29 +248,6 @@ export default function PhoneDemoPage() {
             </ul>
           </section>
         ))}
-        <details className="phone-demo-models" open>
-          <summary>The models behind it, in numbers</summary>
-          <ul>
-            <li>
-              <strong>Our own expression model, 8 MB.</strong> A 400M-parameter SigLIP2 teacher distilled into it in about
-              one hour of training on a Verda H100.
-            </li>
-            <li>
-              <strong>84.5% on FERPlus and 74.8% on ExpW</strong>, against 59% for the off-the-shelf model.
-            </li>
-            <li>
-              <strong>Smile detection</strong> checked on 4,500 labelled faces.
-            </li>
-            <li>
-              <strong>Voice, fully local:</strong> Parakeet speech-to-text, Gemma 4 E4B and Pocket TTS, about one second
-              from releasing the button to Cheri&apos;s voice.
-            </li>
-          </ul>
-          <p>
-            The app uses these to notice changes against the person&apos;s own usual. It does not detect depression or
-            relapse.
-          </p>
-        </details>
       </div>
     </div>
   );
