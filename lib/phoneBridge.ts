@@ -13,6 +13,12 @@
 // They count as present only when the phone's getCapabilities answer says so
 // ({ listen: true, converse: true, speak: true }). Outside the phone app nothing here does
 // anything, and every call answers "not here".
+//
+// One exception, for the computer: when NEXT_PUBLIC_VOICE_URL is set (for example
+// http://127.0.0.1:8766), the same four requests go to a voice service running on this
+// computer instead (ml/talk in Filip's folder: microphone, speech to text, a local language
+// model, speech out). It answers GET /capabilities and POST /listen/start, /listen/stop,
+// /converse and /speak with the same arguments and answers. Without the setting nothing changes.
 
 import { isPhoneApp } from "./platform";
 import type { PermissionKind, PermissionState } from "./types";
@@ -59,22 +65,47 @@ export interface VoiceFeatures {
 }
 
 const NONE: VoiceFeatures = { listen: false, converse: false, speak: false };
+
+/** The voice service on this computer, when one is set and this is not the phone app. */
+const LOCAL_VOICE = (process.env.NEXT_PUBLIC_VOICE_URL ?? "").replace(/\/$/, "");
+const localVoice = () => LOCAL_VOICE !== "" && !isPhoneApp();
+/** How long the service gets to say what it can do; a service that is not running answers at once. */
+const LOCAL_CAPABILITIES_MS = 1500;
+
+async function local<T>(path: string, args?: Record<string, unknown>, timeoutMs?: number): Promise<T> {
+  const res = await fetch(`${LOCAL_VOICE}${path}`, {
+    method: args ? "POST" : "GET",
+    headers: args ? { "Content-Type": "application/json" } : undefined,
+    body: args ? JSON.stringify(args) : undefined,
+    signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
+  });
+  if (!res.ok) throw new Error(`voice service: ${res.status}`);
+  return (await res.json()) as T;
+}
+
+const asFeatures = (c: unknown): VoiceFeatures => {
+  const x = (c ?? {}) as Partial<Record<keyof VoiceFeatures, unknown>>;
+  return { listen: x.listen === true, converse: x.converse === true, speak: x.speak === true };
+};
 let features: Promise<VoiceFeatures> | null = null;
 
-/** Which voice features the phone app has. Asked once. Outside the phone app: none. */
+/** Which voice features there are: the phone app's, or the voice service on this computer when one is set. Asked once. Otherwise none. */
 export function voiceFeatures(): Promise<VoiceFeatures> {
+  if (localVoice()) {
+    return (features ??= local<unknown>("/capabilities", undefined, LOCAL_CAPABILITIES_MS)
+      .then(asFeatures)
+      .catch(() => NONE));
+  }
   if (!isPhoneApp()) return Promise.resolve(NONE);
   return (features ??= phone()
     .then((p) => p.getCapabilities())
-    .then((c) => {
-      const x = c as unknown as Partial<Record<keyof VoiceFeatures, unknown>>;
-      return { listen: x.listen === true, converse: x.converse === true, speak: x.speak === true };
-    })
+    .then(asFeatures)
     .catch(() => NONE));
 }
 
 /** Sends a request lib/phone.ts does not list yet. Only after voiceFeatures() said it exists. */
 async function extra<T>(kind: string, args: Record<string, unknown>): Promise<T> {
+  if (localVoice()) return local<T>(`/${kind.replace(".", "/")}`, args);
   const p = await phone();
   return p.request(kind as Parameters<Phone["request"]>[0], args as never) as Promise<T>;
 }
