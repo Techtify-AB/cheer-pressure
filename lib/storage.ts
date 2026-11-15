@@ -92,6 +92,8 @@ function load(): AppData {
       dailyAnswers: Array.isArray(parsed.dailyAnswers) ? parsed.dailyAnswers : [],
       movementSessions: Array.isArray(parsed.movementSessions) ? parsed.movementSessions : [],
       contactDays: Array.isArray(parsed.contactDays) ? parsed.contactDays : [],
+      outDays: Array.isArray(parsed.outDays) ? parsed.outDays : [],
+      seenDays: Array.isArray(parsed.seenDays) ? parsed.seenDays : [],
       toneSessions: Array.isArray(parsed.toneSessions) ? parsed.toneSessions : [],
       postureUsual: parsed.postureUsual ?? null,
       checkIns: parsed.checkIns ?? [],
@@ -326,6 +328,8 @@ export function addDemo(demo: {
   dailyAnswers?: DailyAnswer[];
   movementSessions?: StoredMovementSession[];
   contactDays?: ContactDay[];
+  outDays?: import("./types").OutDay[];
+  seenDays?: import("./types").SeenDay[];
   toneSessions?: StoredToneSession[];
   activitiesDone?: import("./types").ActivityDone[];
 }) {
@@ -342,6 +346,8 @@ export function addDemo(demo: {
     movementSessions: [...(d.movementSessions ?? []), ...(demo.movementSessions ?? [])],
     toneSessions: [...(d.toneSessions ?? []), ...(demo.toneSessions ?? [])],
     contactDays: [...(d.contactDays ?? []), ...(demo.contactDays ?? []).filter((c) => !(d.contactDays ?? []).some((u) => u.date === c.date))],
+    outDays: [...(d.outDays ?? []), ...(demo.outDays ?? []).filter((c) => !(d.outDays ?? []).some((u) => u.date === c.date))],
+    seenDays: [...(d.seenDays ?? []), ...(demo.seenDays ?? []).filter((c) => !(d.seenDays ?? []).some((u) => u.date === c.date))],
     dailyAnswers: [
       ...(d.dailyAnswers ?? []),
       ...(demo.dailyAnswers ?? []).filter((a) => !(d.dailyAnswers ?? []).some((u) => u.date === a.date)),
@@ -366,6 +372,8 @@ function clearDemoFrom(d: AppData): AppData {
     dailyAnswers: (d.dailyAnswers ?? []).filter((e) => e.source !== "demo"),
     movementSessions: (d.movementSessions ?? []).filter((e) => e.source !== "demo"),
     contactDays: (d.contactDays ?? []).filter((e) => e.source !== "demo"),
+    outDays: (d.outDays ?? []).filter((e) => e.source !== "demo"),
+    seenDays: (d.seenDays ?? []).filter((e) => e.source !== "demo"),
     toneSessions: (d.toneSessions ?? []).filter((e) => e.source !== "demo"),
     activityDays: d.activityDays.filter((e) => e.source !== "demo"),
     activitiesDone: (d.activitiesDone ?? []).filter((e) => e.source !== "demo"),
@@ -387,7 +395,7 @@ export function clearDemo() {
 export function hasDemo(d: AppData): boolean {
   return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions, ...(d.typingDays ?? []), ...(d.dailyAnswers ?? []), ...(d.movementSessions ?? []), ...(d.contactDays ?? []), ...(d.toneSessions ?? []), ...d.activityDays].some(
     (e) => e.source === "demo",
-  ) || [...(d.healthNights ?? []), ...(d.stepDays ?? [])].some((e) => e.source === "demo");
+  ) || [...(d.healthNights ?? []), ...(d.stepDays ?? []), ...(d.outDays ?? []), ...(d.seenDays ?? [])].some((e) => e.source === "demo");
 }
 
 /** Removes everything this app has stored in this browser. */

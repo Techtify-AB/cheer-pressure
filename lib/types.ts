@@ -115,6 +115,9 @@ export type PassiveKey =
   | "movementLevel"
   | "positionChanges"
   | "contact"
+  // Social on the phone: time out of the home per day, and the person's own answer to "Did you see or talk to anyone today?".
+  | "timeOut"
+  | "sawSomeone"
   | "voicePace"
   | "faceMovement"
   | "raisedMouth"
@@ -150,6 +153,20 @@ export interface HealthNight {
 }
 
 /** Steps on one day (midnight to midnight) from the phone's health data. Only full days. */
+/** Minutes out of the home on one day. Only "at home or not" is ever kept, never where. */
+export interface OutDay {
+  date: DayKey;
+  minutes: number;
+  source: Source;
+}
+
+/** The person's own answer to "Did you see or talk to anyone today?": 0 no one, 1 one person, 2 a few. */
+export interface SeenDay {
+  date: DayKey;
+  people: number;
+  source: Source;
+}
+
 export interface StepsDay {
   date: DayKey;
   steps: number;
@@ -357,6 +374,8 @@ export interface AppData {
   movementSessions?: StoredMovementSession[];
   /** Messages with the person they trust, per day. Missing in older data. */
   contactDays?: ContactDay[];
+  outDays?: OutDay[];
+  seenDays?: SeenDay[];
   /** Stretches with the microphone on. Missing in older data. */
   toneSessions?: StoredToneSession[];
   /** The usual posture across sessions. Missing in older data. */

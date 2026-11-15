@@ -38,7 +38,7 @@ const empty = (): AppData => ({
   check(
     "empty: every category names every input it has, as not measured",
     r.sources.length === 4 &&
-      r.sources.every((s) => s.lines.length === 1 && s.lines[0].label === "Not measured" && s.lines[0].text.split(", ").length === SOURCES.find((c) => c.id === s.id)!.inputs.length),
+      r.sources.every((s) => s.lines.length === 1 && s.lines[0].label === "Not measured" && s.lines[0].text.split(", ").length === SOURCES.find((c) => c.id === s.id)!.inputs.filter((i) => !i.retired).length),
     r.sources.map((s) => s.lines.map((l) => l.text).join(" ")).join(" | "),
   );
   check("empty: no answers and no steps", text.includes("None in this period.") && r.answers.length === 0 && r.ladder.length === 0);

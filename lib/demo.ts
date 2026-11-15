@@ -93,11 +93,11 @@ export function makeDemoData(today: string, earlySigns: string[]) {
 
   // The four categories: the replay's eight weeks, ending today, so "Load demo data" and
   // "Eight weeks in 20 seconds" tell the same story.
-  const { typingDays, activityDays, dailyAnswers, movementSessions, contactDays } = withRoughPatches(makeReplayData(today), today);
+  const { typingDays, activityDays, dailyAnswers, movementSessions, contactDays, outDays, seenDays } = withRoughPatches(makeReplayData(today), today);
   const typingSessions: TypingSession[] = [];
   const activitiesDone = demoActivitiesDone(today, now);
 
-  return { daily, weekly, reaction, typingSessions, typingDays, activityDays, dailyAnswers, movementSessions, contactDays, activitiesDone };
+  return { daily, weekly, reaction, typingSessions, typingDays, activityDays, dailyAnswers, movementSessions, contactDays, outDays, seenDays, activitiesDone };
 }
 
 /** The replay's day number (1 to 56, today is 56) as a date. */
@@ -130,6 +130,8 @@ export function withRoughPatches(r: ReplayData, today: string): ReplayData {
   return {
     ...r,
     contactDays: r.contactDays.map((c) => (quiet.has(c.date) ? { ...c, exchanged: 0 } : c)),
+    // A quiet patch: hardly out of the home.
+    outDays: r.outDays.map((c) => (quiet.has(c.date) ? { ...c, minutes: 45 } : c)),
     dailyAnswers: [
       ...r.dailyAnswers.map((a) => (quiet.has(a.date) ? { ...a, answer: "not-so-good" as const } : a)),
       ...[...quiet].filter((d) => !answered.has(d)).map((date) => ({ date, answer: "not-so-good" as const, dismissed: false, at: "", source: "demo" as const })),

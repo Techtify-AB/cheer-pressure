@@ -39,6 +39,8 @@ function appData(r: ReturnType<typeof makeReplayData>, upTo: DayKey): AppData {
     dailyAnswers: r.dailyAnswers.filter((d) => d.date <= upTo),
     movementSessions: r.movementSessions.filter((d) => d.date <= upTo),
     contactDays: r.contactDays.filter((d) => d.date <= upTo),
+    outDays: r.outDays.filter((d) => d.date <= upTo),
+    seenDays: r.seenDays.filter((d) => d.date <= upTo),
     checkIns: [],
     settings: { muted: false },
   };

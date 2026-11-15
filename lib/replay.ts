@@ -26,7 +26,7 @@
 
 import { addDays, daysBetween, minutesToClock } from "./dates";
 import { evaluatePassive, isWeekend, type ChangeTest, type Evaluation } from "./passive";
-import type { ActivityDay, AppData, ContactDay, DailyAnswer, DayKey, StoredMovementSession, TypingDay } from "./types";
+import type { ActivityDay, AppData, ContactDay, DailyAnswer, DayKey, OutDay, SeenDay, StoredMovementSession, TypingDay } from "./types";
 
 export const REPLAY_DAYS = 56;
 /** Days 1 to 42 are steady; the drift begins on day 43. */
@@ -60,6 +60,8 @@ export interface ReplayData {
   movementSessions: StoredMovementSession[];
   /** Messages with the person they trust, per day (Social). */
   contactDays: ContactDay[];
+  outDays: OutDay[];
+  seenDays: SeenDay[];
 }
 
 export interface DriftShape {
@@ -107,6 +109,9 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
   const mover = { level: 0.06 + camNoise(0.012), shifts: 8 + camNoise(2) };
   const talk = rng(seed + 15485863);
   const contactDays: ContactDay[] = [];
+  // Social: time out of the home and the person's own answer, both as usual all along.
+  const outDays: OutDay[] = [];
+  const seenDays: SeenDay[] = [];
   const chatty = 1.5 + talk() * 2.5;
   const round = (v: number) => Math.round(v * 10) / 10;
   // This person's own levels.
@@ -167,7 +172,12 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
       let n = 0;
       for (let k = 0; k < 8; k++) if (talk() < mean / 8) n++;
       contactDays.push({ date, exchanged: n, source: "demo" });
+      // Time out of the home varies from day to day the way a person's days do: some days a
+      // short errand, some days most of the afternoon.
+      outDays.push({ date, minutes: 45 + n * 40, source: "demo" });
     }
+    // "Seeing or talking to someone" is the person's own answer to a question the daily hello
+    // does not ask yet, so the made-up weeks have no answers for it.
 
     // The daily question: answered on about two days in three; "Not so good" now and then,
     // more often in the last days (after sleep and movement).
@@ -178,7 +188,7 @@ export function makeReplayData(lastDay: DayKey, seed = REPLAY_SEED, shape: Drift
       dailyAnswers.push({ date, answer, dismissed: false, at: "", source: "demo" });
     }
   }
-  return { typingDays, activityDays, dailyAnswers, movementSessions, contactDays };
+  return { typingDays, activityDays, dailyAnswers, movementSessions, contactDays, outDays, seenDays };
 }
 
 export interface ReplayFrame {
@@ -204,6 +214,8 @@ function asAppData(r: ReplayData): AppData {
     dailyAnswers: r.dailyAnswers,
     movementSessions: r.movementSessions,
     contactDays: r.contactDays,
+    outDays: r.outDays,
+    seenDays: r.seenDays,
     checkIns: [],
     settings: { muted: false },
     ladder: null,
@@ -218,6 +230,8 @@ export function upTo(r: ReplayData, date: DayKey): ReplayData {
     dailyAnswers: r.dailyAnswers.filter((d) => d.date <= date),
     movementSessions: r.movementSessions.filter((d) => d.date <= date),
     contactDays: r.contactDays.filter((d) => d.date <= date),
+    outDays: r.outDays.filter((d) => d.date <= date),
+    seenDays: r.seenDays.filter((d) => d.date <= date),
   };
 }
 
@@ -245,6 +259,8 @@ export function shiftReplay(r: ReplayData, days: number): ReplayData {
     dailyAnswers: r.dailyAnswers.map((d) => ({ ...d, date: addDays(d.date, days) })),
     movementSessions: r.movementSessions.map((d) => ({ ...d, date: addDays(d.date, days) })),
     contactDays: r.contactDays.map((d) => ({ ...d, date: addDays(d.date, days) })),
+    outDays: r.outDays.map((d) => ({ ...d, date: addDays(d.date, days) })),
+    seenDays: r.seenDays.map((d) => ({ ...d, date: addDays(d.date, days) })),
   };
 }
 

@@ -46,6 +46,8 @@ const SHORT: Record<string, string> = {
   positionChanges: "new positions held, per hour in front of the computer",
   voicePace: "voiced stretches a minute while you talk; no words are recognised",
   contact: "messages with the person you trust; never what they say",
+  timeOut: "time out of your home a day; only at home or not, never where",
+  sawSomeone: "your own answer to \"Did you see or talk to anyone today?\"",
   ownAnswer: "your own answer to \"How are you today?\"",
   faceMovement: "how much your face moved in view; an observation, never a feeling",
   raisedMouth: "share of the time your mouth corners were raised; an observation, never a feeling",

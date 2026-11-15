@@ -15,7 +15,7 @@ const DAYS = 35;
 const CATEGORIES: { label: string; changedDays: number; line: string }[] = [
   { label: "Sleep", changedDays: 7, line: "Nights have been shorter than their usual, and they have woken up earlier." },
   { label: "Energy", changedDays: 7, line: "Fewer steps than their usual." },
-  { label: "Social", changedDays: 0, line: "As usual: they have been in touch with people about as often as before." },
+  { label: "Social", changedDays: 0, line: "As usual: about as much time out of the home, and they have seen or talked to people about as often as before." },
   { label: "Mood", changedDays: 0, line: "As usual: their own answers to the daily hello are about as before." },
 ];
 

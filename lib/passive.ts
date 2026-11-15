@@ -123,6 +123,8 @@ export interface Input {
   setting: InputSetting;
   /** From a sensor (camera, voice): worded only as what was measured, never as a feeling. */
   sensor?: boolean;
+  /** No longer part of the category: kept so old stored values still have a place, never shown. */
+  retired?: boolean;
 }
 
 /**
@@ -174,9 +176,11 @@ export const SOURCES: {
     reportLabel: "Social",
     words: "social",
     inputs: [
-      { id: "trusted-contact", label: "Contact with the person you trust", measures: ["contact"], setting: "contact" },
-      { id: "talking", label: "Talking with someone", measures: [], setting: null },
-      { id: "home-or-out", label: "At home or out", measures: [], setting: null },
+      // Asking someone you trust for help is a step to take when things have changed, so it is
+      // not a measure of how social the person has been. Social is these two instead.
+      { id: "home-or-out", label: "Time out of the home", measures: ["timeOut"], setting: null },
+      { id: "saw-someone", label: "Seeing or talking to someone", measures: ["sawSomeone"], setting: null },
+      { id: "trusted-contact", label: "Contact with the person you trust", measures: ["contact"], setting: "contact", retired: true },
     ],
   },
   {
@@ -195,7 +199,7 @@ export const SOURCES: {
 
 /** Every input not connected yet, by category, for one quiet line in Settings and My values. */
 export function notConnectedInputs(category?: CategoryId): Input[] {
-  return SOURCES.filter((c) => !category || c.id === category).flatMap((c) => c.inputs.filter((i) => !i.setting));
+  return SOURCES.filter((c) => !category || c.id === category).flatMap((c) => c.inputs.filter((i) => !i.setting && !i.retired && !i.measures.length));
 }
 
 /** Measures that count as changed categories. Mood counts through the person's own answer. */
@@ -534,6 +538,30 @@ export const PASSIVE_DEFS: Def[] = [
     isNot: "Not a test of how the person is; one bad night's sleep slows reactions too",
   },
   {
+    key: "timeOut",
+    label: "Time out of the home",
+    meaning: "How long you were out of your home a day, from your phone. Only at home or not, never where",
+    format: (v) => (v >= 60 ? `${Math.floor(v / 60)} h ${Math.round(v % 60)} min a day` : `${Math.round(v)} min a day`),
+    up: "you've been out of your home more",
+    down: "you've been out of your home less",
+    upWord: "more",
+    downWord: "less",
+    is: "Time out of the home per day, from the phone. Only at home or not",
+    isNot: "Never where I was, and being out is not the same as being with people",
+  },
+  {
+    key: "sawSomeone",
+    label: "Seeing or talking to someone",
+    meaning: "Your own answer to \"Did you see or talk to anyone today?\"",
+    format: (v) => (v < 0.5 ? "no one, most days" : v < 1.5 ? "one person, most days" : "a few people, most days"),
+    up: "you've seen or talked to people more often",
+    down: "you've seen or talked to people less often",
+    upWord: "more often",
+    downWord: "less often",
+    is: "My own answer each day to whether I saw or talked to anyone",
+    isNot: "Not a count of messages or calls; the phone does not read those",
+  },
+  {
     key: "contact",
     label: "Messages with a trusted person",
     meaning: "Messages sent and answered with the person you trust, per day",
@@ -793,9 +821,10 @@ function seriesFor(data: AppData, key: PassiveKey, today: DayKey, kind: TypingKi
   if (key === "movementLevel" || key === "positionChanges") return movementPoints(data, key, today);
   if (key === "faceMovement" || key === "raisedMouth" || key === "posture") return cameraMoodPoints(data, key, today);
   if (key === "voicePace" || key === "pitchVariability") return tonePoints(data, key, today);
-  if (key === "contact") {
-    return (data.contactDays ?? []).filter((c) => c.date <= today).map((c) => ({ date: c.date, value: c.exchanged }));
-  }
+  // Retired as a measure: getting in touch with the trusted person is a way to get help, not how social someone has been.
+  if (key === "contact") return [];
+  if (key === "timeOut") return (data.outDays ?? []).filter((o) => o.date < today).map((o) => ({ date: o.date, value: o.minutes }));
+  if (key === "sawSomeone") return (data.seenDays ?? []).filter((o) => o.date < today).map((o) => ({ date: o.date, value: o.people }));
   if (key === "ownAnswer") {
     return (data.dailyAnswers ?? [])
       .filter((a) => a.answer && a.date <= today)

@@ -163,8 +163,8 @@ const REPORT_INPUT: Record<string, string> = {
   "voice-pace": "pace of the voice (microphone)",
   typing: "typing rhythm",
   "trusted-contact": "contact with the person I trust",
-  talking: "talking with someone",
-  "home-or-out": "at home or out",
+  "saw-someone": "seeing or talking to someone (my own answer)",
+  "home-or-out": "time out of my home",
   "daily-answer": "my daily answer",
   expression: "face movement (camera)",
   posture: "posture (camera)",
@@ -182,7 +182,7 @@ export function clinicReport(data: AppData, today: DayKey, evaluation?: Evaluati
   const sources = sourcesOfEvaluation(e).map((s) => {
     const measured = s.metrics.filter((m) => m.points.some((p) => p.date >= from));
     const cat = SOURCES.find((c) => c.id === s.id)!;
-    const without = cat.inputs.filter((i) => !measured.some((m) => i.measures.includes(m.key)));
+    const without = cat.inputs.filter((i) => !i.retired && !measured.some((m) => i.measures.includes(m.key)));
     const lines = [
       ...measured.map((m) => ({ label: m.label, text: measureLine(m, today, "my") })),
       ...(s.id === "mood" && (data.dailyAnswers ?? []).some((a) => a.answer && a.date >= from) ? answerWeeks(data, today) : []),

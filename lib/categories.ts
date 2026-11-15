@@ -53,6 +53,8 @@ const SHORT: Record<string, string> = {
   posture: "posture",
   "voice-tone": "tone of voice",
   "trusted-contact": "contact with the person you trust",
+  "home-or-out": "time out of the home",
+  "saw-someone": "seeing or talking to someone",
   "daily-answer": "your daily answer",
 };
 
@@ -86,7 +88,7 @@ export const CATEGORY_IDS: CategoryId[] = SOURCES.map((c) => c.id);
 export const STRIP_MEASURES: Record<CategoryId, PassiveKey[]> = {
   sleep: ["phoneAsleep", "phoneBedtime", "phoneWake", "quietNight", "firstActivity", "lastActivity"],
   energy: ["steps", "movementLevel", "positionChanges"],
-  social: ["contact"],
+  social: ["timeOut", "sawSomeone"],
   mood: ["ownAnswer"],
 };
 
@@ -96,6 +98,8 @@ export const MEASURE_WORDS: Partial<Record<PassiveKey, string>> = {
   phoneBedtime: "Bedtime (your phone)",
   phoneWake: "Wake time (your phone)",
   steps: "Steps (your phone)",
+  timeOut: "Time out of the home (your phone)",
+  sawSomeone: "Seeing or talking to someone (your answer)",
   quietNight: "Estimated night (this computer)",
   firstActivity: "The day's start (this computer)",
   lastActivity: "The day's end (this computer)",
@@ -152,6 +156,8 @@ const TURN_ON: Record<string, { action: string; rest: string; href: string }> = 
   "reaction-check": { action: "Try the reaction check", rest: " (experimental): five taps, about half a minute. One bad night's sleep slows reactions too.", href: "/activities/reaction/" },
   "trusted-contact": { action: "Turn on messages with someone you trust", rest: " to count them, never what they say.", href: "/settings/#measure-social" },
   "daily-answer": { action: "Turn on the daily question", rest: " to add your own answers.", href: "/settings/#daily" },
+  "home-or-out": { action: "Not measured yet", rest: ": time out of the home comes from the phone, as at home or not, never where.", href: "/settings/#measure-social" },
+  "saw-someone": { action: "Not asked yet", rest: ": one more question in the daily hello, whether you saw or talked to anyone.", href: "/settings/#daily" },
   expression: { action: "Turn on the camera", rest: " to observe face movement. The picture is worked out on this computer.", href: "/settings/#measure-energy" },
   posture: { action: "Turn on the camera", rest: " to observe posture. The picture is worked out on this computer.", href: "/settings/#measure-energy" },
   "voice-tone": { action: "Turn on the microphone", rest: " to observe tone of voice. No words are recognised.", href: "/settings/#measure-energy" },
@@ -167,6 +173,8 @@ export const INPUT_WORDS: Record<string, string> = {
   typing: "typing",
   "reaction-check": "the reaction check",
   "trusted-contact": "contact with the person you trust",
+  "home-or-out": "time out of the home",
+  "saw-someone": "seeing or talking to someone",
   "daily-answer": "your own answers",
   expression: "face movement",
   posture: "posture",
@@ -175,12 +183,14 @@ export const INPUT_WORDS: Record<string, string> = {
 
 export function inputViews(id: CategoryId, data: AppData, e: Evaluation, paired: boolean): InputView[] {
   const cat = SOURCES.find((c) => c.id === id)!;
-  return cat.inputs.map((input): InputView => {
-    if (!input.setting) return { kind: "not-connected", input };
+  return cat.inputs.filter((i) => !i.retired).map((input): InputView => {
+    if (!input.setting && !input.measures.length) return { kind: "not-connected", input };
     // On the phone, the phone's own nights replace this estimate as Sleep's source (there is no computer to read there).
     if (input.id === "computer-use" && phoneSleepReplaces(data, e.today)) return { kind: "not-connected", input };
     const metrics = e.metrics.filter((m) => input.measures.includes(m.key));
     const withData = metrics.filter((m) => m.points.length > 0);
+    // Measured on the phone with no switch here yet (time out of the home, seeing someone): shown once there are days.
+    if (!input.setting && !withData.length) return { kind: "not-connected", input };
     const state = inputState(input, data, paired);
     if (input.setting === "phoneHealth" && state === "not-connected" && !withData.length) return { kind: "not-connected", input };
     if (withData.some((m) => m.status !== "learning")) return { kind: "values", input, metrics: withData };
