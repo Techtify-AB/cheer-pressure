@@ -336,9 +336,17 @@ function Hello({ data }: { data: AppData }) {
           </div>
         }
         actions={
-          <Link href="/" className="btn btn-primary">
-            Back to home
-          </Link>
+          <>
+            <Link href="/" className="btn btn-primary">
+              Back to home
+            </Link>
+            {/* For showing the hello more than once a day. The new answer replaces today's. */}
+            <div className="links">
+              <button type="button" className="btn btn-quiet" onClick={() => setPhase("ask")}>
+                Say hello again (demo)
+              </button>
+            </div>
+          </>
         }
       />
     );
