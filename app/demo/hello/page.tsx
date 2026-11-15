@@ -17,6 +17,7 @@ export default function RecordedHelloPage() {
     <RecordedTalk
       lines={LINES}
       folder="hello"
+      note="During the hello the camera and the microphone are on. Our own expression model reads the face, and the voice is read for its tone, as numbers on the phone. No picture and no sound is kept."
       playLabel="Play today’s hello"
       intro="Once a day Cheri asks how you are, to hear it in your own words. Nothing else. This one is written down and played back, so you can see it without talking to a phone."
     />

@@ -165,6 +165,8 @@ const REPORT_INPUT: Record<string, string> = {
   "trusted-contact": "contact with the person I trust",
   "saw-someone": "seeing or talking to someone (my own answer)",
   "home-or-out": "time out of my home",
+  "phone-talk": "calls and conversations on my phone (how many)",
+  "home-talk": "talking at home (desktop app)",
   "daily-answer": "my daily answer",
   expression: "face movement (camera)",
   posture: "posture (camera)",

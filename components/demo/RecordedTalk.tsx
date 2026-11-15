@@ -20,6 +20,7 @@ export function RecordedTalk({
   intro,
   playLabel,
   after,
+  note,
 }: {
   lines: TalkLine[];
   /** Under public/demo/. */
@@ -28,6 +29,8 @@ export function RecordedTalk({
   playLabel: string;
   /** Shown when the conversation has been played to the end. */
   after?: React.ReactNode;
+  /** One quiet line under Cheri, for what is read while the conversation goes on. */
+  note?: string;
 }) {
   const [line, setLine] = useState(-1);
   const [words, setWords] = useState(0);
@@ -96,6 +99,7 @@ export function RecordedTalk({
         <div className="home-hero">
           <Companion state={speaker === "cheri" ? "speaking" : speaker === "person" ? "listening" : "idle"} size={150} />
           <span className="placeholder-tag">Recorded for the demo</span>
+          {note && <p className="small muted hello-reads">{note}</p>}
         </div>
       }
       actions={

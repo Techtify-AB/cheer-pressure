@@ -179,6 +179,8 @@ export const SOURCES: {
       // Asking someone you trust for help is a step to take when things have changed, so it is
       // not a measure of how social the person has been. Social is these two instead.
       { id: "home-or-out", label: "Time out of the home", measures: ["timeOut"], setting: null },
+      { id: "phone-talk", label: "Calls and conversations on the phone", measures: ["phoneTalk"], setting: null },
+      { id: "home-talk", label: "Talking at home (desktop app)", measures: ["homeTalk"], setting: null },
       { id: "saw-someone", label: "Seeing or talking to someone", measures: ["sawSomeone"], setting: null },
       { id: "trusted-contact", label: "Contact with the person you trust", measures: ["contact"], setting: "contact", retired: true },
     ],
@@ -190,7 +192,7 @@ export const SOURCES: {
     words: "mood",
     inputs: [
       { id: "daily-answer", label: "Your daily answer", measures: ["ownAnswer"], setting: "dailyQuestion" },
-      { id: "expression", label: "Face movement (camera)", measures: ["faceMovement", "raisedMouth"], setting: "camera", sensor: true },
+      { id: "expression", label: "Facial expression (camera)", measures: ["faceMovement", "raisedMouth"], setting: "camera", sensor: true },
       { id: "posture", label: "Posture (camera)", measures: ["posture"], setting: "camera", sensor: true },
       { id: "voice-tone", label: "Tone of voice (microphone)", measures: ["pitchVariability"], setting: "microphone", sensor: true },
     ],
@@ -550,6 +552,30 @@ export const PASSIVE_DEFS: Def[] = [
     isNot: "Never where I was, and being out is not the same as being with people",
   },
   {
+    key: "phoneTalk",
+    label: "Calls and conversations on the phone",
+    meaning: "How many calls and conversations you had on your phone a day. Only how many, never with whom or what was said",
+    format: (v) => `${Math.round(v * 10) / 10} a day`,
+    up: "you've had more calls and conversations on your phone",
+    down: "you've had fewer calls and conversations on your phone",
+    upWord: "more",
+    downWord: "fewer",
+    is: "The number of calls and conversations on the phone per day",
+    isNot: "Never with whom, and never what was said or written",
+  },
+  {
+    key: "homeTalk",
+    label: "Talking at home",
+    meaning: "How long someone was talking at home a day, heard by the desktop app. Only that someone spoke, never the words",
+    format: (v) => `${Math.round(v)} min a day`,
+    up: "there has been more talking at home",
+    down: "there has been less talking at home",
+    upWord: "more",
+    downWord: "less",
+    is: "Minutes of talking heard at home per day by the desktop app",
+    isNot: "No sound is kept and no words are recognised",
+  },
+  {
     key: "sawSomeone",
     label: "Seeing or talking to someone",
     meaning: "Your own answer to \"Did you see or talk to anyone today?\"",
@@ -823,6 +849,8 @@ function seriesFor(data: AppData, key: PassiveKey, today: DayKey, kind: TypingKi
   if (key === "voicePace" || key === "pitchVariability") return tonePoints(data, key, today);
   // Retired as a measure: getting in touch with the trusted person is a way to get help, not how social someone has been.
   if (key === "contact") return [];
+  if (key === "phoneTalk") return (data.phoneTalkDays ?? []).filter((o) => o.date < today).map((o) => ({ date: o.date, value: o.count }));
+  if (key === "homeTalk") return (data.homeTalkDays ?? []).filter((o) => o.date < today).map((o) => ({ date: o.date, value: o.minutes }));
   if (key === "timeOut") return (data.outDays ?? []).filter((o) => o.date < today).map((o) => ({ date: o.date, value: o.minutes }));
   if (key === "sawSomeone") return (data.seenDays ?? []).filter((o) => o.date < today).map((o) => ({ date: o.date, value: o.people }));
   if (key === "ownAnswer") {

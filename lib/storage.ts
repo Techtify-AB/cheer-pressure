@@ -94,6 +94,8 @@ function load(): AppData {
       contactDays: Array.isArray(parsed.contactDays) ? parsed.contactDays : [],
       outDays: Array.isArray(parsed.outDays) ? parsed.outDays : [],
       seenDays: Array.isArray(parsed.seenDays) ? parsed.seenDays : [],
+      phoneTalkDays: Array.isArray(parsed.phoneTalkDays) ? parsed.phoneTalkDays : [],
+      homeTalkDays: Array.isArray(parsed.homeTalkDays) ? parsed.homeTalkDays : [],
       toneSessions: Array.isArray(parsed.toneSessions) ? parsed.toneSessions : [],
       postureUsual: parsed.postureUsual ?? null,
       checkIns: parsed.checkIns ?? [],
@@ -374,6 +376,8 @@ function clearDemoFrom(d: AppData): AppData {
     contactDays: (d.contactDays ?? []).filter((e) => e.source !== "demo"),
     outDays: (d.outDays ?? []).filter((e) => e.source !== "demo"),
     seenDays: (d.seenDays ?? []).filter((e) => e.source !== "demo"),
+    phoneTalkDays: (d.phoneTalkDays ?? []).filter((e) => e.source !== "demo"),
+    homeTalkDays: (d.homeTalkDays ?? []).filter((e) => e.source !== "demo"),
     toneSessions: (d.toneSessions ?? []).filter((e) => e.source !== "demo"),
     activityDays: d.activityDays.filter((e) => e.source !== "demo"),
     activitiesDone: (d.activitiesDone ?? []).filter((e) => e.source !== "demo"),
@@ -395,7 +399,7 @@ export function clearDemo() {
 export function hasDemo(d: AppData): boolean {
   return [...d.daily, ...d.weekly, ...d.reaction, ...d.typingSessions, ...(d.typingDays ?? []), ...(d.dailyAnswers ?? []), ...(d.movementSessions ?? []), ...(d.contactDays ?? []), ...(d.toneSessions ?? []), ...d.activityDays].some(
     (e) => e.source === "demo",
-  ) || [...(d.healthNights ?? []), ...(d.stepDays ?? []), ...(d.outDays ?? []), ...(d.seenDays ?? [])].some((e) => e.source === "demo");
+  ) || [...(d.healthNights ?? []), ...(d.stepDays ?? []), ...(d.outDays ?? []), ...(d.seenDays ?? []), ...(d.phoneTalkDays ?? []), ...(d.homeTalkDays ?? [])].some((e) => e.source === "demo");
 }
 
 /** Removes everything this app has stored in this browser. */

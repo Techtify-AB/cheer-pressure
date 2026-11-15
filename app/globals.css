@@ -1880,3 +1880,4 @@ html[data-shell="desktop"] .card.clinic-list {
 @media (prefers-reduced-motion: reduce) {
   .video-play-disc { transition: none; }
 }
+.hello-reads { margin: 0; text-align: center; max-width: 34ch; }

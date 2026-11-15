@@ -22,8 +22,8 @@ conversations are recorded, so nobody has to talk to a phone.
 |---|---|
 | Sleep | Nights from the phone's health data |
 | Energy | Steps from the phone's health data |
-| Social | Time out of the home (only at home or not, never where), and the person's own answer to whether they saw or talked to anyone |
-| Mood | The person's own daily answer; face movement and tone of voice during the daily hello are kept as observations |
+| Social | Time out of the home (only at home or not, never where); how many calls and conversations on the phone (never with whom); talking heard at home by the desktop app (never the words); and the person's own answer to whether they saw or talked to anyone |
+| Mood | The person's own daily answer, plus what our own expression model reads from the face and what the voice's tone says during the daily hello, kept as numbers and worded as observations |
 
 **Only against yourself.** The last 7 days are compared with the person's own 28 days before.
 The first 14 days Cheri only learns. No percentages, no scores, no diagnosis words: Cheri
@@ -60,8 +60,12 @@ person's own usual. It does not detect depression or relapse, and it is a tool, 
   shows the same interface and reads sleep and steps, and a desktop app (Tauri) as an extra.
 - **Made up for the demo:** the person, their eight weeks of values, the clinic's list of
   patients, and both recorded conversations. Every screen that shows made-up data says so.
-- **Not built yet:** time out of the home and the "did you see anyone" question on the phone
-  (shown with made-up values in the demo), and a spoken conversation inside the phone app.
+- **Not built yet, shown with made-up values in the demo:** time out of the home, calls and
+  conversations on the phone, talking at home, and the "did you see anyone" question. Counting
+  calls and conversations is limited by the phone makers: iOS gives apps no access to call or
+  message history, and Google Play allows it only for phone and SMS apps, so this one needs a
+  different route before it can ship. Also not built: a spoken conversation inside the phone
+  app, and the expression model running inside it (it runs in the machine-learning track).
 
 ## The machine-learning track (Filip)
 

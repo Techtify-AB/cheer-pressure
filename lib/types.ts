@@ -118,6 +118,10 @@ export type PassiveKey =
   // Social on the phone: time out of the home per day, and the person's own answer to "Did you see or talk to anyone today?".
   | "timeOut"
   | "sawSomeone"
+  // Calls and conversations on the phone per day (how many, never with whom or what was said), and
+  // minutes of talking heard at home by the desktop app (that someone spoke, never the words).
+  | "phoneTalk"
+  | "homeTalk"
   | "voicePace"
   | "faceMovement"
   | "raisedMouth"
@@ -164,6 +168,20 @@ export interface OutDay {
 export interface SeenDay {
   date: DayKey;
   people: number;
+  source: Source;
+}
+
+/** Calls and conversations on the phone on one day: how many, never with whom. */
+export interface PhoneTalkDay {
+  date: DayKey;
+  count: number;
+  source: Source;
+}
+
+/** Minutes of talking heard at home on one day by the desktop app: that someone spoke, never the words. */
+export interface HomeTalkDay {
+  date: DayKey;
+  minutes: number;
   source: Source;
 }
 
@@ -376,6 +394,8 @@ export interface AppData {
   contactDays?: ContactDay[];
   outDays?: OutDay[];
   seenDays?: SeenDay[];
+  phoneTalkDays?: PhoneTalkDay[];
+  homeTalkDays?: HomeTalkDay[];
   /** Stretches with the microphone on. Missing in older data. */
   toneSessions?: StoredToneSession[];
   /** The usual posture across sessions. Missing in older data. */

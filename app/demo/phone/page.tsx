@@ -48,20 +48,50 @@ function phoneData() {
   const rough = new Set([19, 20, 21, 31, 32, 33]);
   const nights = [];
   const steps = [];
+  // Social and Mood, as usual all along: the same week repeated, so nothing here stands out.
+  const talks = [];
+  const homeTalk = [];
+  const faces = [];
+  const tones = [];
+  const TALKS = [3, 4, 2, 4, 3, 5, 4];
+  const HOME = [34, 41, 28, 38, 45, 62, 55];
+  const FACE = [0.42, 0.45, 0.4, 0.44, 0.43, 0.47, 0.46];
+  const SMILE = [0.16, 0.18, 0.15, 0.17, 0.16, 0.2, 0.19];
+  const PITCH = [2.6, 2.8, 2.5, 2.7, 2.6, 3.0, 2.9];
   for (let n = 1; n <= 56; n++) {
     const drift = n >= 50 ? (n - 49) / 7 : 0;
     const asleep = 455 + j(22) - (rough.has(n) ? 85 : 0) - drift * 100;
     const bed = 23 * 60 + 10 + j(18) + (rough.has(n) ? 70 : 0);
     const wake = bed + asleep + 20 + j(8);
     nights.push({ date: day(n), bedtime: clock(bed), wake: clock(wake), asleepMinutes: Math.round(asleep), inBedMinutes: Math.round(asleep + 20), awakenings: 1, source: "demo" });
+    const w = n % 7;
+    talks.push({ date: day(n), count: TALKS[w], source: "demo" });
+    homeTalk.push({ date: day(n), minutes: HOME[w], source: "demo" });
+    // What the expression model and the voice read during the daily hello, as numbers only.
+    faces.push({
+      date: day(n),
+      minutes: 0,
+      movementMean: 0,
+      shiftsPerHour: 0,
+      expression: { minutesWithFace: 12, smilingShare: SMILE[w], smilesPerHour: 20, animationMean: FACE[w], browLoweredShare: 0 },
+      posture: null,
+      source: "demo",
+      savedAt: "",
+    });
+    tones.push({ date: day(n), minutes: 5, speakingMinutes: 4, segmentsPerMinute: 21 + (w % 3), pitchVariability: PITCH[w], loudnessMean: 0.2, source: "demo", savedAt: "" });
     if (n < 56) steps.push({ date: day(n), steps: Math.max(400, Math.round(7600 + j(1200) - (rough.has(n) ? 1800 : 0) - drift * 4200)), source: "demo" });
   }
   d.healthNights = nights;
   d.stepDays = steps;
   const iso = new Date().toISOString();
   d.phoneHealth = { askedAt: iso, syncedAt: iso };
-  for (const k of ["typingDays", "typingSessions", "movementSessions", "toneSessions", "reactionChecks", "reaction"]) d[k] = [];
+  for (const k of ["typingDays", "typingSessions", "reactionChecks", "reaction"]) d[k] = [];
+  d.phoneTalkDays = talks;
+  d.homeTalkDays = homeTalk;
+  d.movementSessions = faces;
+  d.toneSessions = tones;
   d.settings = { ...d.settings, sources: { ...(d.settings?.sources ?? {}), typing: false, dayRhythm: false, camera: false, microphone: false, contact: true } };
+  // Camera and microphone stay off here: the made-up readings are shown, and a visitor's own camera is never asked for.
   const byDate = new Map<string, { date: string; answer?: string }>((d.dailyAnswers ?? []).map((a: { date: string }) => [a.date, a]));
   for (let n = 50; n <= 55; n++) {
     const was = byDate.get(day(n - 14));
@@ -103,7 +133,7 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   {
     id: "values",
     title: "My values",
-    note: "Sleep, Energy, Social and Mood, each against the person's own last four weeks. No scores.",
+    note: "Each category against the person's own last four weeks. Mood includes what our own expression model reads from the face and the voice during the daily hello.",
     path: "/values/",
     prepare: person,
   },
