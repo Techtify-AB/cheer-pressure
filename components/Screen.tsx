@@ -27,7 +27,7 @@ export function Screen({
       const el = e.target as HTMLElement | null;
       if (el?.closest("textarea, select, button, a, [contenteditable='true']")) return;
       if (el instanceof HTMLInputElement && el.form) return; // a real form submits on Enter by itself
-      const primary = ref.current?.querySelector<HTMLElement>(".screen-actions .btn-primary:not(.hold-button)");
+      const primary = ref.current?.querySelector<HTMLElement>(".screen-actions .btn-primary:not(.hold-button):not(.btn-danger):not([data-no-enter])");
       if (!primary || primary.hasAttribute("disabled")) return;
       e.preventDefault();
       primary.click();

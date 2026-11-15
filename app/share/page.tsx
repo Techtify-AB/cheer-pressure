@@ -261,6 +261,7 @@ export default function SharePage() {
               <button
                 type="button"
                 className="btn btn-primary"
+                data-no-enter
                 onClick={() => {
                   const d = readData();
                   const e = sharedEntry(d, today, "approved", newId());
