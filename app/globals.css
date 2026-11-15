@@ -1798,8 +1798,85 @@ html[data-shell="desktop"] .card.clinic-list {
 .home-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
 .home-actions .btn { width: 100%; min-height: var(--tap-size); padding-left: var(--space-2); padding-right: var(--space-2); }
 
-/* Videos (/demo/videos/): one film per card, the player as wide as the card */
-.video-card { padding: var(--space-3); }
-.video-title { margin: 0; font-size: var(--font-size-md); display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
-.video-card video { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--radius-md); background: var(--color-ink); }
 .phone-demo-intro { margin: 0 0 var(--space-2); font-size: var(--font-size-md); line-height: 1.45; }
+
+/* Videos (/demo/videos/): the pitch films as a small gallery. The one page wider than a screen
+   of the app: two films side by side, one per row on a phone. */
+.page[data-wide],
+.shell-header[data-wide] .shell-header-inner { max-width: 1080px; }
+.videos { display: grid; gap: var(--space-6); padding: var(--space-5) 0 var(--space-7); }
+.videos-head { display: grid; gap: var(--space-2); max-width: 34rem; }
+.videos-eyebrow {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+.videos-title { margin: 0; font-size: clamp(2.25rem, 6vw, 3.5rem); }
+.videos-lede { margin: 0; font-size: var(--font-size-lg); color: var(--color-ink-soft); }
+.videos-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-7) var(--space-5);
+}
+.video-item { display: grid; gap: var(--space-3); align-content: start; }
+.video-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-ink);
+  box-shadow: var(--shadow-soft);
+}
+.video-frame video { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* The play button covers the poster, with a little shade at the bottom so the disc reads on any frame */
+.video-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: linear-gradient(to top, var(--sheet-scrim), transparent 60%);
+  cursor: pointer;
+}
+.video-play:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -6px; border-radius: var(--radius-lg); }
+.video-play-disc {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-pill);
+  display: grid;
+  place-items: center;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.2s var(--ease);
+}
+.video-play-disc svg { margin-left: 3px; } /* the triangle looks centred a little right of centre */
+.video-play:active .video-play-disc { transform: scale(0.96); }
+.video-meta { display: flex; align-items: baseline; gap: var(--space-3); padding: 0 var(--space-1); }
+.video-number {
+  font-family: var(--font-display);
+  font-size: var(--font-size-xl);
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
+.video-title { margin: 0; flex: 1; font-size: var(--font-size-xl); }
+.video-length { font-size: var(--font-size-sm); color: var(--color-ink-soft); white-space: nowrap; }
+.videos-foot { display: flex; justify-content: center; }
+@media (hover: hover) and (pointer: fine) {
+  .video-play:hover .video-play-disc { transform: scale(1.08); }
+}
+@media (max-width: 720px) {
+  .videos { gap: var(--space-5); padding-top: var(--space-3); }
+  .videos-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+  .video-play-disc { width: 60px; height: 60px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .video-play-disc { transition: none; }
+}

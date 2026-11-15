@@ -14,6 +14,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const onHelp = pathname?.startsWith("/help");
   const onSettings = pathname?.startsWith("/settings") || pathname?.startsWith("/demo");
+  // The pitch films are for anyone with the link: a wider page, without Settings or the
+  // made-up-data banner (the films show no data from this device).
+  const onVideos = pathname?.startsWith("/demo/videos");
   // Made-up data is marked on every screen, for as long as any of it is stored.
   const demo = !!data && (hasDemo(data) || !!data.settings.simulatedChangeAt);
 
@@ -28,14 +31,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       {/* In the desktop app the header's empty parts drag the window (its title bar is glass) */}
-      <header className="shell-header" data-tauri-drag-region="deep">
+      <header className="shell-header" data-tauri-drag-region="deep" data-wide={onVideos || undefined}>
         <div className="shell-header-inner">
           <Link href="/" className="brand">
             Cheer Pressure
           </Link>
           <CameraOnSign />
           <MicrophoneOnSign />
-          {data?.profile && (
+          {data?.profile && !onVideos && (
             <Link href="/settings/" className="settings-link" aria-current={onSettings ? "page" : undefined}>
               Settings
             </Link>
@@ -44,7 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Need help now?
           </Link>
         </div>
-        {demo && (
+        {demo && !onVideos && (
           <div className="demo-banner" role="note">
             <span className="placeholder-tag">Demo</span>
             <span>You are looking at made-up demo data.</span>
@@ -59,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <PhonePlan />
       <CameraBridge />
       <MicrophoneBridge />
-      <main id="main" className="page">
+      <main id="main" className="page" data-wide={onVideos || undefined}>
         {children}
       </main>
     </>
