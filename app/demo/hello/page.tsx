@@ -10,62 +10,72 @@ import { useEffect, useRef, useState } from "react";
 import { Companion } from "@/components/companion/Companion";
 import { Screen } from "@/components/Screen";
 
-type Line = { who: "cheri" | "person"; text: string };
+/** `seconds` is how long Cheri's recorded voice takes to say the line (public/demo/hello/line-N.m4a). */
+type Line = { who: "cheri" | "person"; text: string; seconds?: number };
 
 const LINES: Line[] = [
-  { who: "cheri", text: "Hello. Your nights have been shorter than your usual this week, and you have walked less. How are you today?" },
+  { who: "cheri", text: "Hello. Your nights have been shorter than your usual this week, and you have walked less. How are you today?", seconds: 5.12 },
   { who: "person", text: "Not great. I am sleeping badly again, like before the treatment." },
-  { who: "cheri", text: "Thank you for telling me. That sounds heavy." },
-  { who: "cheri", text: "A short walk before lunch has been followed by better days for you before. Would you like to try one today?" },
+  { who: "cheri", text: "Thank you for telling me. That sounds heavy.", seconds: 2.88 },
+  { who: "cheri", text: "A short walk before lunch has been followed by better days for you before. Would you like to try one today?", seconds: 5.2 },
   { who: "person", text: "Okay. I can do that." },
-  { who: "cheri", text: "Good. I will ask tomorrow whether it helped. That was today’s hello." },
+  { who: "cheri", text: "Good. I will ask tomorrow whether it helped. That was today’s hello.", seconds: 4.48 },
 ];
 
-const WORD_MS = 190;
+const WORD_MS = 230;
 const PAUSE_MS = 900;
 
 export default function RecordedHelloPage() {
   const [line, setLine] = useState(-1);
   const [words, setWords] = useState(0);
-  const [sound, setSound] = useState(false);
-  const soundRef = useRef(false);
+  const [sound, setSound] = useState(true);
+  const audio = useRef<HTMLAudioElement | null>(null);
   const playing = line >= 0 && line < LINES.length;
   const done = line >= LINES.length;
 
+  /** Cheri's recorded voice for one line. Always the same audio element, so one tap unlocks it. */
+  const say = (i: number) => {
+    const a = audio.current;
+    if (!a || LINES[i]?.who !== "cheri") return;
+    a.src = `/demo/hello/line-${i}.m4a`;
+    a.currentTime = 0;
+    void a.play().catch(() => {});
+  };
+
   useEffect(() => {
-    soundRef.current = sound;
-    if (!sound && typeof window !== "undefined") window.speechSynthesis?.cancel();
+    if (audio.current) audio.current.muted = !sound;
   }, [sound]);
 
-  // One word at a time, then a short pause, then the next line.
+  // One word at a time at the pace of the recording, then a short pause, then the next line.
   useEffect(() => {
     if (!playing) return;
-    const total = LINES[line].text.split(" ").length;
-    if (words === 0 && LINES[line].who === "cheri" && soundRef.current && window.speechSynthesis) {
-      const u = new SpeechSynthesisUtterance(LINES[line].text);
-      u.lang = "en-GB";
-      u.rate = 0.95;
-      window.speechSynthesis.speak(u);
-    }
+    const l = LINES[line];
+    const total = l.text.split(" ").length;
+    const wordMs = l.seconds ? (l.seconds * 1000) / total : WORD_MS;
     const t = window.setTimeout(
       () => {
         if (words < total) setWords(words + 1);
         else {
           setLine(line + 1);
           setWords(0);
+          if (line + 1 < LINES.length) say(line + 1);
         }
       },
-      words < total ? WORD_MS : PAUSE_MS,
+      words < total ? wordMs : PAUSE_MS,
     );
     return () => window.clearTimeout(t);
   }, [playing, line, words]);
 
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+  useEffect(() => {
+    const a = audio.current;
+    return () => a?.pause();
+  }, []);
 
+  // Started from the tap itself, so the browser lets the sound play.
   const start = () => {
-    window.speechSynthesis?.cancel();
     setWords(0);
     setLine(0);
+    say(0);
   };
 
   const shown = LINES.slice(0, Math.min(line + 1, LINES.length));
@@ -88,7 +98,7 @@ export default function RecordedHelloPage() {
           )}
           <div className="links">
             <button type="button" className="btn btn-quiet" aria-pressed={sound} onClick={() => setSound(!sound)}>
-              {sound ? "Sound is on" : "Turn sound on"}
+              {sound ? "Turn sound off" : "Turn sound on"}
             </button>
             <Link href="/" className="btn btn-quiet">
               Home
@@ -97,6 +107,7 @@ export default function RecordedHelloPage() {
         </>
       }
     >
+      <audio ref={audio} preload="auto" src="/demo/hello/line-0.m4a" />
       <div className="hello-script" aria-live="polite">
         {line < 0 && (
           <p className="muted">
