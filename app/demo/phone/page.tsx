@@ -126,16 +126,9 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
   },
   {
     id: "hello",
-    title: "Today's hello: just answer",
-    note: "Once a day, how the person is, in their own words. That can be all.",
+    title: "Today's hello",
+    note: "Once a day: how the person is, in their own words.",
     path: "/demo/hello/",
-    prepare: person,
-  },
-  {
-    id: "hello-low",
-    title: "Today's hello: or talk about it",
-    note: "The person chooses to talk. Cheri asks, and offers to contact someone they trust for them.",
-    path: "/demo/hello-low/",
     prepare: person,
   },
   {
@@ -187,7 +180,7 @@ const SCENES: { id: string; title: string; note: string; path: string; prepare: 
 
 /** The moments in three parts, in the order the story is told. */
 const GROUPS: { title: string; lead: string; ids: string[] }[] = [
-  { title: "Core functionality", lead: "The moments with Cheri.", ids: ["hello", "hello-low", "asks"] },
+  { title: "Core functionality", lead: "The two moments with Cheri.", ids: ["hello", "asks"] },
   { title: "What is measured", lead: "Always against the person's own usual.", ids: ["values"] },
   { title: "Resolution", lead: "If the change stays, help comes closer, one step at a time.", ids: ["own-list", "someone", "clinic", "clinic-view"] },
 ];
