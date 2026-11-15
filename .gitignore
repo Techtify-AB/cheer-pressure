@@ -12,3 +12,4 @@ __pycache__/
 services/voice/traces/
 services/voice/evals/audio/
 services/voice/server.log
+.vercel
