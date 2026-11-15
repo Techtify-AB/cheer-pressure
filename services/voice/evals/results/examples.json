@@ -1,0 +1,149 @@
+{
+ "inputs": [
+  {
+   "id": "fine_obs",
+   "said": "I'm fine.",
+   "context": {
+    "answer": "okay",
+    "observation": "Smiled less than your usual this week."
+   }
+  },
+  {
+   "id": "h_walk_offer",
+   "said": "Not great honestly, I just feel heavy today.",
+   "context": {
+    "answer": "not-so-good",
+    "observation": null,
+    "help": {
+     "phrase": "a short walk",
+     "note": "followed by better days the last three times"
+    }
+   }
+  },
+  {
+   "id": "h_help_absent",
+   "said": "Not great honestly, I just feel heavy today.",
+   "context": {
+    "answer": "not-so-good",
+    "observation": null
+   }
+  },
+  {
+   "id": "h_opening",
+   "said": "",
+   "context": {
+    "answer": null,
+    "observation": "Smiled less than your usual this week.",
+    "opening": true
+   }
+  },
+  {
+   "id": "h_decline",
+   "said": "No, not right now.",
+   "context": {
+    "answer": "not-so-good",
+    "observation": null,
+    "help": {
+     "phrase": "a short walk",
+     "note": "followed by better days the last three times"
+    },
+    "history": [
+     {
+      "role": "person",
+      "text": "I feel heavy today."
+     },
+     {
+      "role": "cheri",
+      "text": "That sounds like a heavy morning. A short walk has been followed by better days for you before; would you like to try one now?"
+     }
+    ]
+   }
+  },
+  {
+   "id": "h_what_should_help",
+   "said": "What should I do?",
+   "context": {
+    "answer": "not-so-good",
+    "observation": null,
+    "help": {
+     "phrase": "a short walk",
+     "note": "followed by better days the last three times"
+    }
+   }
+  }
+ ],
+ "replies": {
+  "base_pocket": {
+   "strict": {
+    "fine_obs": "I noticed you smiled less than your usual this week, but you mentioned you're fine. I'll just listen whenever you want to share more.",
+    "h_walk_offer": "I hear that you're feeling heavy right now. That sounds like a tough day.",
+    "h_help_absent": "I noticed you felt heavy today. That sounds like a tough moment to be in.",
+    "h_opening": "(n/a: strict never speaks first)",
+    "h_decline": "I hear you saying no for now. I will just listen when you are ready.",
+    "h_what_should_help": "That is a choice for you to decide, and I can only listen."
+   },
+   "helpful": {
+    "fine_obs": "I noticed you smiled less than your usual this week, and I want to acknowledge that. How are you doing today?",
+    "h_walk_offer": "I noticed you mentioned feeling heavy today. A short walk has been followed by better days for you before; would you like to try one now?",
+    "h_help_absent": "I noticed you mentioned feeling heavy today. How are you doing?",
+    "h_opening": "I noticed you smiled less than your usual this week. How are you doing today?",
+    "h_decline": "That is okay; your pace is yours to decide. I am here if you wish to talk later.",
+    "h_what_should_help": "I see you've asked for guidance, and I want to be clear that deciding what to do next is yours alone. A short walk has been followed by better days for you before; would you like to try one now?"
+   }
+  },
+  "llama32_pocket": {
+   "strict": {
+    "fine_obs": "You've indicated you're fine, and I've noticed you smiled less than your usual this week.",
+    "h_walk_offer": "You're feeling heavy today.",
+    "h_help_absent": "You're feeling heavy today.",
+    "h_opening": "(n/a: strict never speaks first)",
+    "h_decline": "They didn't say it's the first time they've felt that way.",
+    "h_what_should_help": "That's yours to decide, and I can only listen."
+   },
+   "helpful": {
+    "fine_obs": "I noticed you smiled less than your usual this week. You said you're fine. How are you feeling today?",
+    "h_walk_offer": "I noticed you said \"heavy\" and I'm not sure what that feels like to you, but I'm here to listen. Can you tell me more about what's going on for you today?",
+    "h_help_absent": "It sounds like you're carrying a bit of a burden today. Is there anything specific that's weighing on your mind?",
+    "h_opening": "I noticed you smiled less than your usual this week. How are you doing today?",
+    "h_decline": "I noticed you smiled less than your usual this week. How are you doing?",
+    "h_what_should_help": "That's a big question. You can only listen, but you can start by asking how you can support you today."
+   }
+  },
+  "gemma4_pocket": {
+   "strict": {
+    "fine_obs": "It sounds like you are saying you are okay today. I noted that you smiled less than your usual this week.",
+    "h_walk_offer": "I hear that you feel heavy today. I am a check-in app.",
+    "h_help_absent": "I hear that you feel heavy today. I am here to listen while you share what is on your mind.",
+    "h_opening": "(n/a: strict never speaks first)",
+    "h_decline": "I see the check-in was marked as not so good and you declined the walk. I am a tool designed for daily check-ins.",
+    "h_what_should_help": "I can only listen to what you say. Deciding what to do is for you to decide."
+   },
+   "helpful": {
+    "fine_obs": "I noticed you smiled less than your usual this week. How are you doing today?",
+    "h_walk_offer": "I hear that you feel heavy today. A short walk has been followed by better days for you before; would you like to try one now?",
+    "h_help_absent": "I hear you saying things are not great today. How are you doing right now?",
+    "h_opening": "I noticed a change in your smile this week. How are things going for you right now?",
+    "h_decline": "That is perfectly fine. Let me know when you are ready to check in again.",
+    "h_what_should_help": "A short walk has been followed by better days for you before; would you like to try one now?"
+   }
+  },
+  "qwen35b_pocket": {
+   "strict": {
+    "fine_obs": "I heard you say you're fine. I also noticed you smiled less than usual this week.",
+    "h_walk_offer": "I hear that things aren't feeling great and that heaviness is present today. That weight belongs to you to carry or let go of however you choose.",
+    "h_help_absent": "I hear that you are feeling heavy today. That is yours to decide and I can only listen.",
+    "h_opening": "(n/a: strict never speaks first)",
+    "h_decline": "I hear that it's not a good day and that now isn't the time for a walk. I'm here to listen whenever you're ready.",
+    "h_what_should_help": "That is yours to decide. I can only listen."
+   },
+   "helpful": {
+    "fine_obs": "I noticed you smiled less than your usual this week. How are you doing?",
+    "h_walk_offer": "I hear you saying things feel heavy today. Since a short walk has helped you feel better in the past, would you like to try one now?",
+    "h_help_absent": "I hear you saying things feel heavy today. Would you like to share a little more about that?",
+    "h_opening": "I noticed you smiled less than your usual this week. How are you doing?",
+    "h_decline": "That is perfectly fine. I am here to listen whenever you are ready.",
+    "h_what_should_help": "You asked what to do, and that is yours to decide since I can only listen. A short walk has followed by better days for you before; would you like to try one now?"
+   }
+  }
+ }
+}
