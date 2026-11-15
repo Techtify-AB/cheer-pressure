@@ -53,10 +53,16 @@ export interface ExpressionSession {
 
 /** A face stays "in view" this long after the last frame it was found in. */
 export const FACE_GRACE_MS = 1000;
-/** Mouth corners count as raised from this score (mean of left and right)... */
-export const SMILE_ON = 0.5;
+/**
+ * Mouth corners count as raised from this score (mean of left and right)...
+ * Checked on 4.5k labelled test faces (FERPlus, ExpW, AffectNet) with this face_landmarker.task:
+ * 0.35 counts 69-93% of happy faces as smiling and 0.5-3.5% of neutral faces (0.5 counted
+ * 61-86% and 0-1.7%). Still photos are more expressive than a face at a desk, which also argues
+ * for the lower threshold. Check: ml/src/check_blendshapes.py in the ML workspace.
+ */
+export const SMILE_ON = 0.35;
 /** ...and stop counting below this one (the gap keeps jitter from flickering). */
-export const SMILE_OFF = 0.3;
+export const SMILE_OFF = 0.25;
 /** A smile is counted when the corners stay raised at least this long. */
 export const SMILE_MIN_MS = 400;
 /** Brows count as lowered from this score (mean of left and right), and stop below BROW_OFF. */

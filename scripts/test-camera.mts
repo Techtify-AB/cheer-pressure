@@ -362,9 +362,9 @@ const maxAnim = (r: ReturnType<typeof runFace>, a = 0, b = Infinity) =>
   check("sustained smile: holding it still is not animation", maxAnim(r, 25000, 39000) <= 10, `bar at most ${maxAnim(r, 25000, 39000)} while holding`);
 }
 
-// E3b. A weak smile (corners at 0.4, below SMILE_ON): not counted.
+// E3b. A weak smile (corners at 0.3, below SMILE_ON): not counted.
 {
-  const r = runFace(synthesiseFace([{ t: 0, face: { ...NEUTRAL, smile: 0.4 } }], 60000, { seed: 29, jitter: 0.01 }));
+  const r = runFace(synthesiseFace([{ t: 0, face: { ...NEUTRAL, smile: 0.3 } }], 60000, { seed: 29, jitter: 0.01 }));
   check("weak smile below the threshold: not counted", r.last.smiles === 0, `${r.last.smiles} smiles`);
 }
 
