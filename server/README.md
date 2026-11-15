@@ -144,7 +144,7 @@ One small interface (`lib/store.ts`) with two implementations:
 
 | Name | Needed | What |
 | --- | --- | --- |
-| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | when deployed | Redis over REST. Without both, the in-memory store is used |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | when deployed | Redis over REST. Without both, the in-memory store is used. `KV_REST_API_URL` and `KV_REST_API_TOKEN` (the names Vercel's Upstash integration creates) are read as a fallback |
 | `ALLOWED_ORIGINS` | no | Extra CORS origins, comma separated (for example the desktop app's web build) |
 | `PUBLIC_BASE_URL` | no | The address used in `inviteUrl` and `userUrl`. Default: the address the request came in on |
 | `PAIR_TTL_SECONDS` | no | Shortens the 48-hour lifetime (it can never lengthen it). Used to test expiry |
@@ -153,8 +153,9 @@ One small interface (`lib/store.ts`) with two implementations:
 
 1. Import the repo in Vercel and set **Root Directory** to `server`. The framework is detected
    as Next.js; build command `pnpm build`.
-2. Add an Upstash Redis database (Vercel Marketplace or upstash.com) and set
-   `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+2. Add an Upstash Redis database. From the Vercel Marketplace, connect it to this project with
+   the default prefix: it creates `KV_REST_API_URL` and `KV_REST_API_TOKEN`, which the service
+   reads. From upstash.com, set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` yourself.
 3. Set `ALLOWED_ORIGINS` if the desktop UI runs from an origin not in the built-in list.
 4. Point the desktop app at it with `NEXT_PUBLIC_MESSAGES_URL=https://<your-deployment>`, and add
    that origin to `connect-src` in `../src-tauri/tauri.conf.json` (the desktop app may only reach

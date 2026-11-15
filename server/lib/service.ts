@@ -24,8 +24,9 @@ export const PAIRS_PER_HOUR_PER_CLIENT = 20;
 const g = globalThis as { __cheerPressureStore?: Store };
 export function store(): Store {
   if (!g.__cheerPressureStore) {
-    const url = process.env.UPSTASH_REDIS_REST_URL;
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    // KV_REST_API_* are the names Vercel's Upstash integration creates on its own.
+    const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
     g.__cheerPressureStore = url && token ? new RedisRestStore(url, token) : new MemoryStore();
   }
   return g.__cheerPressureStore;
