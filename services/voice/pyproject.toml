@@ -1,0 +1,29 @@
+[project]
+name = "talk"
+version = "0.1.0"
+description = "Local voice-conversation service (STT -> LLM -> TTS) with an eval harness"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "numpy",
+  "httpx",
+  "fastapi",
+  "uvicorn",
+  "sounddevice",
+  "soundfile",
+  "jiwer",
+  "parakeet-mlx",
+  "mlx-whisper",
+  "mlx-audio",
+  "pytest",
+  "ptts>=0.7.1",
+  "pocket-tts>=4.0.1",
+  "misaki[en]>=0.9.4",
+  "num2words>=0.5.14",
+  "spacy>=3.8.18",
+  "phonemizer-fork>=3.3.2",
+  "espeakng-loader>=0.2.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

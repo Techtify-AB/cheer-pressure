@@ -1,0 +1,25 @@
+# Default config. Evaluate others with: uv run python -m evals.run --config configs/<name>.toml
+[service]
+host = "127.0.0.1"
+port = 8766
+cors_origin = "http://localhost:3470"
+face_feed_url = ""          # e.g. "http://10.0.40.29:8765/face"; empty = off
+trace_dir = "traces"
+
+[stt]
+adapter = "parakeet_mlx"
+model = "mlx-community/parakeet-tdt-0.6b-v3"
+
+[llm]
+adapter = "openai_compat"
+base_url = "http://localhost:11434/v1"
+model = "qwen3.5:9b"
+max_tokens = 80
+temperature = 0.6
+ollama_keep_alive = "30m"
+api_key = ""
+extra_body = { reasoning_effort = "none" }   # Ollama: turns Qwen3.5 thinking off on /v1
+
+[tts]
+adapter = "pocket"
+voice = "alba"

@@ -5,3 +5,10 @@ next-env.d.ts
 *.tsbuildinfo
 .DS_Store
 .env*
+
+# Python services (services/)
+__pycache__/
+.venv/
+services/voice/traces/
+services/voice/evals/audio/
+services/voice/server.log
