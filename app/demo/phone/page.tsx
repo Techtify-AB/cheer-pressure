@@ -156,6 +156,10 @@ export default function PhoneDemoPage() {
       <div className="phone-demo-side">
         <span className="placeholder-tag">Demo, made-up data</span>
         <h1 className="phone-demo-title">The phone app, in your browser</h1>
+        <p className="phone-demo-intro">
+          After depression treatment ends, the hard part starts at home. Cheri notices when your sleep, energy, social
+          life or mood drift from your own usual, and helps you help yourself.
+        </p>
         <p className="muted">
           This is the same interface as on the phone. Pick a moment, then tap inside the phone as the person would.
         </p>

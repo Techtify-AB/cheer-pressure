@@ -1,22 +1,93 @@
 # Cheer Pressure
 
-A hackathon MVP for Junction 2026, Aalto University challenge "Beyond the Clinic".
+**Junction 2026, Aalto University challenge "Beyond the Clinic".**
 
-Cheer Pressure is a small digital companion for people who have finished treatment and want to stay well at
-home. It is passive first: it measures by itself in four categories, **Sleep** (an estimate
-from when the computer is first and last used), **Energy** (movement in front of the camera,
-the pace of the voice, typing rhythm), **Social** (contact with one person they trust) and
-**Mood** (the person's own daily answer, with face movement, posture and tone of voice as
-observations), and asks "How are you doing?" only when at least two different categories stand
-out from the person's own usual range. Measurements, answers and summaries never leave this device. The one
-exception is short messages between the person and one person they trust (a sister, a friend):
-those pass through a small messages service (`server/`), which deletes them after 48 hours and
-never receives anything about health.
+After depression treatment ends, the hard part starts at home. Cheer Pressure is a phone
+companion, **Cheri**, that notices when your sleep, energy, social life or mood drift from your
+own usual, and then helps you help yourself: first with what has worked for you before, then
+someone you trust, and the clinic only if you said yes. It compares you only with yourself,
+never diagnoses, and everything stays on your phone.
 
-The companion is called **Cheri** in the interface (the product stays Cheer Pressure). It is a tool, not a therapist. It never diagnoses; it only describes change from the
-person's own usual level.
+**Try it in a browser, nothing to install:** https://cheer-pressure-iota.vercel.app/demo/phone/
 
-The acceptance bar for this MVP is in [BAR.md](BAR.md).
+The page shows the phone app in a phone-sized frame, with a made-up person and eight made-up
+weeks. Pick a moment on the right, then tap inside the phone as the person would. The two
+conversations are recorded, so nobody has to talk to a phone.
+
+## How it works
+
+**Four categories, always in this order:** Sleep, Energy, Social, Mood.
+
+| Category | What the phone reads |
+|---|---|
+| Sleep | Nights from the phone's health data |
+| Energy | Steps from the phone's health data |
+| Social | Time out of the home (only at home or not, never where), and the person's own answer to whether they saw or talked to anyone |
+| Mood | The person's own daily answer; face movement and tone of voice during the daily hello are kept as observations |
+
+**Only against yourself.** The last 7 days are compared with the person's own 28 days before.
+The first 14 days Cheri only learns. No percentages, no scores, no diagnosis words: Cheri
+describes what changed ("your nights have been shorter than your usual"), never what it means.
+
+**Two different moments with Cheri.**
+
+- **Today's hello**, once a day: Cheri only asks how the person is, to hear it in their own
+  words. It says nothing about measurements.
+- **Cheri asks**, only when at least two different categories have changed: Cheri says what she
+  has noticed and starts a conversation to help the person feel better themselves. One
+  category alone never asks.
+
+**Three steps, each one the person's own choice.**
+
+1. **Their own list.** "What helps you?" is written by the person at the start. Cheri offers
+   one thing from it, and learns which ones help from two signals shown apart: whether the
+   values moved back towards the usual in the three days after, and the person's own answer to
+   "Did that help?".
+2. **Someone they trust**, two days later if the change is still there.
+3. **The clinic**, after seven days, and only if the person said yes to that at the start.
+
+**What leaves the phone.** Nothing measured. Short messages with a trusted person pass through a
+small service (`server/`) that deletes them after 48 hours and never receives anything about
+health. The clinic sees a summary only when the person has chosen to share.
+
+**Wording we hold ourselves to.** Cheer Pressure notices changes in behaviour against the
+person's own usual. It does not detect depression or relapse, and it is a tool, not a therapist.
+
+## What is built, and what is made up
+
+- **Built:** the interface on every screen (Next.js), the rule that decides when Cheri asks, the
+  three steps, the learning of what helps, the messages service, a phone app shell (Expo) that
+  shows the same interface and reads sleep and steps, and a desktop app (Tauri) as an extra.
+- **Made up for the demo:** the person, their eight weeks of values, the clinic's list of
+  patients, and both recorded conversations. Every screen that shows made-up data says so.
+- **Not built yet:** time out of the home and the "did you see anyone" question on the phone
+  (shown with made-up values in the demo), and a spoken conversation inside the phone app.
+
+## The machine-learning track (Filip)
+
+Separate from the phone app, and optional. Details in `services/README.md`.
+
+- **A spoken hello on a laptop, fully local:** speech to text (Parakeet), a small language model
+  (Gemma 4 E4B) and speech out (Pocket TTS), about one second from releasing the button to
+  Cheri's voice. Cheri's recorded voice in the demo comes from this.
+- **A small expression model:** a 400M-parameter SigLIP2 teacher distilled into an 8 MB model in
+  about one hour on a Verda H100. 84.5% on FERPlus and 74.8% on ExpW, against 59% for the
+  off-the-shelf model. Smile detection was checked on 4,500 labelled faces.
+- **An experiment on an Arduino board** runs that model next to a camera and sends only numbers,
+  never images. It is a research side track; the product is the phone app and needs no extra
+  hardware.
+
+## Team
+
+Dante (software), Eric (design, film, deck), Filip (machine learning).
+
+---
+
+# Technical notes
+
+Written while the project grew, and partly from before the phone became the product: where a
+section speaks of the computer, typing rhythm or the desktop app, the phone flow above is what
+holds now. The acceptance bar for the first MVP is in [BAR.md](BAR.md).
 
 ## Run it
 
